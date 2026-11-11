@@ -45,20 +45,20 @@ flowchart TD
     Accept --> SockOpt["Тюнинг сокета:<br/>• SO_RCVBUF = 8 KB<br/>• SO_SNDBUF = 4 KB<br/>• TCP_NODELAY = true"]
     SockOpt --> SemCheck{"Семафорный лимит<br/>(до 10 000 соединений)"}
     
-    SemCheck -- "Переполнение лимита" --> RstDrop["SO_LINGER=0 RST Drop<br/>(0 байт, 0 тактов CPU)"]
-    SemCheck -- "Permit получен" --> TLSCheck{"Протокол?"}
+    SemCheck -->|"Переполнение лимита"| RstDrop["SO_LINGER=0 RST Drop<br/>(0 байт, 0 тактов CPU)"]
+    SemCheck -->|"Permit получен"| TLSCheck{"Протокол?"}
     
-    TLSCheck -- "HTTPS (:8443)" --> TLSHandshake["tokio-rustls Handshake<br/>(Slowloris таймаут 3с)"]
-    TLSCheck -- "HTTP (:8080)" --> ParseBuf
+    TLSCheck -->|"HTTPS (:8443)"| TLSHandshake["tokio-rustls Handshake<br/>(Slowloris таймаут 3с)"]
+    TLSCheck -->|"HTTP (:8080)"| ParseBuf
     TLSHandshake --> ParseBuf["Чтение в буфер стека 4 KB<br/>+ Zero-Copy httparse"]
     
     ParseBuf --> TokenGuard{"Anti-Scanner Token Guard<br/>(Query / Path / X-Hydra-Token)"}
     
-    TokenGuard -- "Токен отсутствует / Невалиден" --> UnauthAct{"UNAUTHORIZED_ACTION"}
-    UnauthAct -- "drop_rst" --> RstDrop
-    UnauthAct -- "http_403" --> Resp403["HTTP 403 Forbidden<br/>Connection: close"]
+    TokenGuard -->|"Токен отсутствует / Невалиден"| UnauthAct{"UNAUTHORIZED_ACTION"}
+    UnauthAct -->|"drop_rst"| RstDrop
+    UnauthAct -->|"http_403"| Resp403["HTTP 403 Forbidden<br/>Connection: close"]
     
-    TokenGuard -- "Токен валиден (Today / Yesterday)" --> BuildEcho["Форматирование эхо-ответа<br/>(AZenv или JSON)"]
+    TokenGuard -->|"Токен валиден (Today / Yesterday)"| BuildEcho["Форматирование эхо-ответа<br/>(AZenv или JSON)"]
     BuildEcho --> SingleWrite["Single Write Syscall (J2)<br/>HTTP/1.1 200 OK + Reflected Headers"]
     SingleWrite --> FinDrain["20ms FIN-Drain Wait<br/>(Ожидание закрытия клиентом)"]
     FinDrain --> ClosedState["Серверный сокет -> CLOSED<br/>(0 TIME_WAIT на Judge)"]
@@ -91,11 +91,11 @@ flowchart TD
 flowchart TD
     Start["Запрос через исследуемый прокси-сервер<br/>-> Ответ Hydra Judge (AZenv / JSON)"] --> Step1{"REMOTE_ADDR совпадает<br/>с реальным IP чекера?"}
     
-    Step1 -- "Да (IP чекера утек)" --> Trans["Уровень 3: Transparent (Прозрачный)<br/>• Реальный IP клиента раскрыт<br/>• Прокси не обеспечивает маскировку"]
-    Step1 -- "Нет (Виден IP прокси-ноды)" --> Step2{"Присутствуют прокси-заголовки?<br/>• Via / Forwarded<br/>• X-Forwarded-For / X-Real-IP<br/>• Proxy-Connection / X-Proxy-ID"}
+    Step1 -->|"Да (IP чекера утек)"| Trans["Уровень 3: Transparent (Прозрачный)<br/>• Реальный IP клиента раскрыт<br/>• Прокси не обеспечивает маскировку"]
+    Step1 -->|"Нет (Виден IP прокси-ноды)"| Step2{"Присутствуют прокси-заголовки?<br/>• Via / Forwarded<br/>• X-Forwarded-For / X-Real-IP<br/>• Proxy-Connection / X-Proxy-ID"}
     
-    Step2 -- "Да (Заголовки обнаружены)" --> Anon["Уровень 2: Anonymous (Анонимный)<br/>• Реальный IP скрыт за адресом прокси<br/>• Целевой сервер знает о факте проксирования"]
-    Step2 -- "Нет (Заголовки отсутствуют)" --> Elite["Уровень 1: Elite / High Anonymity (Элитный)<br/>• Полная маскировка под обычного клиента<br/>• Никаких следов и прокси-маркеров"]
+    Step2 -->|"Да (Заголовки обнаружены)"| Anon["Уровень 2: Anonymous (Анонимный)<br/>• Реальный IP скрыт за адресом прокси<br/>• Целевой сервер знает о факте проксирования"]
+    Step2 -->|"Нет (Заголовки отсутствуют)"| Elite["Уровень 1: Elite / High Anonymity (Элитный)<br/>• Полная маскировка под обычного клиента<br/>• Никаких следов и прокси-маркеров"]
 ```
 
 | Уровень анонимности | Код | Определение адреса (`REMOTE_ADDR`) | Прокси-заголовки (`Via`, `X-Forwarded-For`, etc.) | Описание |

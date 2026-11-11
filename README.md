@@ -92,14 +92,17 @@ flowchart TD
     Scheduler -->|"Запрос due-прокси (idx_scheduler_prio)"| DB
     Scheduler -->|"Делегирование проверки"| HydraChecker
 
-    PreFlight --> L4Probe --> Cascade --> L7Probe --> Verdict
+    PreFlight --> L4Probe
+    L4Probe --> Cascade
+    Cascade --> L7Probe
+    L7Probe --> Verdict
     L7Probe --> JudgePool
     JudgePool -->|"L7 Probe с токеном"| HydraJudge
     JudgePool -.->|"Авто-failover при сбое"| FallbackJ
 
     RawListener --> TokenGuard
-    TokenGuard -- "Токен невалиден" --> AntiScanner
-    TokenGuard -- "Токен подтвержден" --> EchoFormat
+    TokenGuard -->|"Токен невалиден"| AntiScanner
+    TokenGuard -->|"Токен подтвержден"| EchoFormat
 
     Verdict -->|"Результат проверки"| BatchWriter
     BatchWriter -->|"BEGIN IMMEDIATE пакетный UPDATE"| DB

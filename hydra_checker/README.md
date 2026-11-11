@@ -42,27 +42,27 @@
 flowchart TD
     Start["CheckTarget (IP/Домен : Порт)"] --> PhasePre["Pre-flight: Bogon & DNS Filter<br/>RFC 1918, Loopback, Link-Local, DNS Rebind"]
     
-    PhasePre -- "Bogon / Reserved IP" --> ErrBogon["ErrorReason::BogonOrReservedIp"]
-    PhasePre -- "Публичный валидный IP" --> Phase1["Фаза 1: L4 TCP SYN Connect<br/>SO_LINGER=0 | TCP_NODELAY | 16KB/4KB"]
+    PhasePre -->|"Bogon / Reserved IP"| ErrBogon["ErrorReason::BogonOrReservedIp"]
+    PhasePre -->|"Публичный валидный IP"| Phase1["Фаза 1: L4 TCP SYN Connect<br/>SO_LINGER=0 | TCP_NODELAY | 16KB/4KB"]
     
-    Phase1 -- "Timeout / Refused" --> ErrL4["ErrorReason::TimeoutTcp / ConnRefused"]
-    Phase1 -- "TCP Соединение установлено (RTT_connect)" --> Phase2{"Фаза 2: Протокол известен?"}
+    Phase1 -->|"Timeout / Refused"| ErrL4["ErrorReason::TimeoutTcp / ConnRefused"]
+    Phase1 -->|"TCP Соединение установлено (RTT_connect)"| Phase2{"Фаза 2: Протокол известен?"}
     
-    Phase2 -- "Да (SOCKS5 / 4 / HTTPS / HTTP)" --> SingleHS["Прямое рукопожатие протокола"]
-    Phase2 -- "Нет (Авто-детект)" --> CascadeHS["Каскад: SOCKS5 → SOCKS4 → CONNECT → Plain HTTP"]
+    Phase2 -->|"Да (SOCKS5 / 4 / HTTPS / HTTP)"| SingleHS["Прямое рукопожатие протокола"]
+    Phase2 -->|"Нет (Авто-детект)"| CascadeHS["Каскад: SOCKS5 → SOCKS4 → CONNECT → Plain HTTP"]
     
-    SingleHS -- "Ошибка / Таймаут" --> ErrHS["ErrorReason::TimeoutHandshake / HandshakeFailed"]
-    CascadeHS -- "Все протоколы отклонены" --> ErrHS
+    SingleHS -->|"Ошибка / Таймаут"| ErrHS["ErrorReason::TimeoutHandshake / HandshakeFailed"]
+    CascadeHS -->|"Все протоколы отклонены"| ErrHS
     
-    SingleHS -- "Туннель открыт (PrefixedStream)" --> Phase3["Фаза 3: L7 Judge Echo Probe<br/>TLS Handshake + GET /judge + Token Verify"]
-    CascadeHS -- "Туннель открыт (PrefixedStream)" --> Phase3
+    SingleHS -->|"Туннель открыт (PrefixedStream)"| Phase3["Фаза 3: L7 Judge Echo Probe<br/>TLS Handshake + GET /judge + Token Verify"]
+    CascadeHS -->|"Туннель открыт (PrefixedStream)"| Phase3
     
-    Phase3 -- "Slowloris / > 8KB" --> ErrTarpit["ErrorReason::ReadLimitExceeded"]
-    Phase3 -- "Токен отсутствует" --> JudgeFailover{"Судья сбоит?<br/>Failover в JudgePool"}
-    JudgeFailover -- "Резервный судья успешен" --> Phase4["Фаза 4: Расчет анонимности<br/>Elite / Anonymous / Transparent"]
-    JudgeFailover -- "Все судьи исчерпаны" --> ErrJudge["ErrorReason::JudgeMismatch"]
+    Phase3 -->|"Slowloris / > 8KB"| ErrTarpit["ErrorReason::ReadLimitExceeded"]
+    Phase3 -->|"Токен отсутствует"| JudgeFailover{"Судья сбоит?<br/>Failover в JudgePool"}
+    JudgeFailover -->|"Резервный судья успешен"| Phase4["Фаза 4: Расчет анонимности<br/>Elite / Anonymous / Transparent"]
+    JudgeFailover -->|"Все судьи исчерпаны"| ErrJudge["ErrorReason::JudgeMismatch"]
     
-    Phase3 -- "HTTP 200 + Валидный токен" --> Phase4
+    Phase3 -->|"HTTP 200 + Валидный токен"| Phase4
     Phase4 --> Success["CheckResult (is_alive: true, RTT, Protocol, Anonymity)"]
 ```
 
@@ -87,7 +87,7 @@ flowchart LR
     HealthWorker["Фоновый воркер<br/>Health Check каждые 30 сек"] -.->|Обновление RTT и статуса| Pool
 
     Pick --> CheckProbe["L7 Echo Проверка через прокси"]
-    CheckProbe -- "Сбой судьи (Mismatch / 5xx)" --> Failover["Failover: Выбор резервного судьи"]
+    CheckProbe -->|"Сбой судьи (Mismatch / 5xx)"| Failover["Failover: Выбор резервного судьи"]
     Failover --> Pool
 ```
 
