@@ -1,0 +1,28 @@
+[package]
+name = "hydra_judge"
+version = "0.1.0"
+edition = "2024"
+authors = ["Hydra Team"]
+description = "Ultra-high-performance authorized proxy validation echo server"
+
+[dependencies]
+tokio = { version = "1.43", features = ["net", "time", "sync", "rt-multi-thread", "io-util", "macros", "signal"] }
+tokio-util = { version = "0.7" }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+ring = "0.17"
+rustls-pki-types = "1.15"
+httparse = "1.10"
+compact_str = { version = "0.8", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+socket2 = "0.5"
+rcgen = "0.13"
+tracing = { version = "0.1", default-features = false }
+url = "2.5"
+dotenvy = "0.15"
+
+[dev-dependencies]
+hydra_checker = { path = "../hydra_checker" }
+
+

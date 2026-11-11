@@ -1,0 +1,54 @@
+[package]
+name = "hydra_api"
+version = "0.1.0"
+edition = "2024"
+authors = ["Hydra Team"]
+description = "REST API server, scheduler, and storage layer for Hydra Proxy Checker"
+
+[dependencies]
+# Checker core & Embedded Judge
+hydra_checker = { path = "../hydra_checker" }
+hydra_judge = { path = "../hydra_judge" }
+
+# Web framework
+axum = { version = "0.8", features = ["macros", "json"] }
+tower = { version = "0.5", features = ["timeout"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# OpenAPI / Swagger
+utoipa = { version = "5", features = ["axum_extras", "chrono"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+
+# Async runtime
+tokio = { version = "1.43", features = ["full"] }
+tokio-util = { version = "0.7" }
+
+# Database
+libsql = { version = "0.10", default-features = false, features = ["core"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+compact_str = { version = "0.8", features = ["serde"] }
+
+# GeoIP
+maxminddb = "0.24"
+arc-swap = "1.7"
+flate2 = "1.0"
+reqwest = { version = "0.12", features = ["json"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Config
+dotenvy = "0.15"
+
+# Misc
+futures = "0.3"
+url = { version = "2.5", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+parking_lot = "0.12"
+
+[dev-dependencies]
+hydra_judge = { path = "../hydra_judge" }

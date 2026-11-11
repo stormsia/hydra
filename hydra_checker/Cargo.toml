@@ -1,0 +1,29 @@
+[package]
+name = "hydra_checker"
+version = "0.1.0"
+edition = "2024"
+authors = ["Hydra Team"]
+description = "Ultra-high-performance standalone proxy checking core"
+
+[dependencies]
+tokio = { version = "1.43", features = ["net", "time", "sync", "rt", "io-util", "macros"] }
+tokio-util = { version = "0.7", features = ["io"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+ring = "0.17"
+webpki-roots = "0.26"
+httparse = "1.9"
+compact_str = { version = "0.8", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+socket2 = "0.5"
+futures = "0.3"
+base64 = "0.22"
+url = { version = "2.5", features = ["serde"] }
+tracing = { version = "0.1", default-features = false }
+
+[dev-dependencies]
+tokio = { version = "1.43", features = ["full", "test-util"] }
+rcgen = "0.13"
+
+
