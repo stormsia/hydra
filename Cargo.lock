@@ -722,7 +722,7 @@ dependencies = [
 name = "hydra_checker"
 version = "0.1.0"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "compact_str",
  "futures",
  "httparse",
