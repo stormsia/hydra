@@ -17,14 +17,11 @@ updates:
     labels:
       - "dependencies"
       - "rust"
-    # Group minor and patch updates together to prevent daily PR spam
+    # Group updates together into a single PR to prevent daily PR spam
     groups:
       cargo-dependencies:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
   # Daily updates for GitHub Actions workflow actions
   - package-ecosystem: "github-actions"
