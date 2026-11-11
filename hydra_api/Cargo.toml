@@ -17,7 +17,7 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 
 # OpenAPI / Swagger
 utoipa = { version = "5", features = ["axum_extras", "chrono"] }
-utoipa-swagger-ui = { version = "9", features = ["axum"] }
+utoipa-swagger-ui = { version = "10", features = ["axum"] }
 
 # Async runtime
 tokio = { version = "1.43", features = ["full"] }
