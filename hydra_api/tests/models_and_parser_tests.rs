@@ -37,6 +37,33 @@ fn test_proxy_parser_all_variations() {
     assert_eq!(p4.auth_user, Some("user1".to_string()));
     assert_eq!(p4.auth_pass, Some("pass2".to_string()));
 
+    // 4b. Inverted vendor format user:pass:ip:port (log:pass:host:port)
+    let p4b = parse_proxy_string("user1:pass2:185.22.14.9:3128").unwrap();
+    assert_eq!(p4b.id, "185.22.14.9:3128:user1:pass2");
+    assert_eq!(p4b.ip, "185.22.14.9");
+    assert_eq!(p4b.port, 3128);
+    assert_eq!(p4b.auth_user, Some("user1".to_string()));
+    assert_eq!(p4b.auth_pass, Some("pass2".to_string()));
+
+    // 4c. Inverse @ format host:port@user:pass
+    let p4c = parse_proxy_string("185.22.14.9:3128@user1:pass2").unwrap();
+    assert_eq!(p4c.id, "185.22.14.9:3128:user1:pass2");
+
+    // 4d. Semicolon and pipe delimiters
+    let p4d = parse_proxy_string("185.22.14.9:3128;user1:pass2").unwrap();
+    assert_eq!(p4d.id, "185.22.14.9:3128:user1:pass2");
+    let p4e = parse_proxy_string("user1:pass2|185.22.14.9:3128").unwrap();
+    assert_eq!(p4e.id, "185.22.14.9:3128:user1:pass2");
+
+    // 4e. Whitespace separated
+    let p4f = parse_proxy_string("185.22.14.9:3128 user1 pass2").unwrap();
+    assert_eq!(p4f.id, "185.22.14.9:3128:user1:pass2");
+
+    // 4f. Protocol suffix
+    let p4g = parse_proxy_string("185.22.14.9:3128:user1:pass2:socks5").unwrap();
+    assert_eq!(p4g.id, "185.22.14.9:3128:user1:pass2");
+    assert_eq!(p4g.protocol_hint, Some("socks5".to_string()));
+
     // 5. IPv6 bracketed
     let p5 = parse_proxy_string_opt("[2001:db8::1]:8080", true).unwrap();
     assert_eq!(p5.id, "[2001:db8::1]:8080");
