@@ -494,6 +494,7 @@ pub async fn patch_proxy(
         params.push(now.into());
         sets.push(format!("next_check_at = ?{}", params.len()));
         sets.push("state = CASE WHEN state = 3 THEN 0 ELSE state END".to_string());
+        sets.push("dead_strikes = CASE WHEN state = 3 THEN 0 ELSE dead_strikes END".to_string());
     }
 
     if sets.is_empty() {
