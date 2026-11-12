@@ -61,7 +61,8 @@ X-API-Key: your_secure_api_key_here
     "rw_timeout_ms": 4000,
     "recheck_alive_sec": 45,
     "recheck_dead_sec": 900,
-    "max_dead_strikes": 3
+    "max_dead_strikes": 3,
+    "stability_window_min": 5
   },
   "proxies": [
     "socks5://user:pass@185.220.101.5:1080",
@@ -105,7 +106,9 @@ X-API-Key: your_secure_api_key_here
 - `supports_https`: boolean флаг туннелирования CONNECT для HTTPS (`true` / `false`).
 - `has_auth`: boolean фильтр приватных прокси с логином/паролем (`true` — приватные, `false` — публичные).
 - `max_rtt`: максимально допустимый суммарный RTT в мс.
-- `min_uptime`: минимальный процент аптайма (0.0 — 100.0).
+- `min_uptime`: минимальный процент пожизненного аптайма (0.0 — 100.0).
+- `min_stability`: минимальный процент стабильности в рамках скользящего окна N минут (0.0 — 100.0). Позволяет мгновенно отбирать прокси, которые только что ожили.
+- `stability_window_min`: фильтр по настроенному размеру окна стабильности в минутах.
 - `source`: фильтр по названию источника импорта.
 - `limit`: максимальное число записей (по умолчанию 50, передайте `0` для неограниченной выгрузки всего пула).
 - `offset`: смещение пагинации (по умолчанию 0).
@@ -133,6 +136,8 @@ X-API-Key: your_secure_api_key_here
     "rtt_handshake_ms": 68,
     "rtt_total_ms": 110,
     "uptime_pct": 98.5,
+    "stability_pct": 100.0,
+    "stability_window_min": 5,
     "checks_total": 450,
     "checks_success": 445,
     "dead_strikes": 0,
@@ -181,12 +186,14 @@ X-API-Key: your_secure_api_key_here
     "rw_timeout_ms": 5000,
     "recheck_alive_sec": 60,
     "recheck_dead_sec": 1800,
-    "max_dead_strikes": 3
+    "max_dead_strikes": 3,
+    "stability_window_min": 5
   },
   "stats": {
     "checks_total": 450,
     "checks_success": 445,
     "uptime_pct": 98.88,
+    "stability_pct": 100.0,
     "dead_strikes": 0,
     "last_error": null,
     "first_seen_at": 1731200000,
@@ -229,7 +236,8 @@ X-API-Key: your_secure_api_key_here
     "rw_timeout_ms": 4000,
     "recheck_alive_sec": 30,
     "recheck_dead_sec": 600,
-    "max_dead_strikes": 2
+    "max_dead_strikes": 2,
+    "stability_window_min": 5
   }
 }
 ```

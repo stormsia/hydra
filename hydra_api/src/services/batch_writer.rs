@@ -17,6 +17,57 @@ pub struct CheckResultWithMeta {
     pub recheck_dead_sec: u32,
     pub max_dead_strikes: u32,
     pub current_strikes: u32,
+    pub stability_window_min: u32,
+    pub recent_checks: Option<String>,
+}
+
+/// Вычисляет обновленную историю проверок и процент стабильности в рамках плавающего окна N минут.
+///
+/// Записи кодируются компактно: "ts:status,ts:status" (где 1 = успех, 0 = ошибка).
+/// Записи старше `(now - window_min * 60)` автоматически отбрасываются при сдвиге окна.
+pub fn update_recent_checks(
+    raw: Option<&str>,
+    is_alive: bool,
+    now: i64,
+    window_min: u32,
+) -> (String, f32) {
+    let window_sec = (window_min.max(1) as i64) * 60;
+    let cutoff = now - window_sec;
+
+    let mut checks: Vec<(i64, bool)> = Vec::new();
+    if let Some(s) = raw {
+        for part in s.split(',') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+            if let Some((ts_str, ok_str)) = part.split_once(':') {
+                if let (Ok(ts), Ok(ok_num)) = (ts_str.parse::<i64>(), ok_str.parse::<u8>()) {
+                    if ts >= cutoff {
+                        checks.push((ts, ok_num == 1));
+                    }
+                }
+            }
+        }
+    }
+
+    checks.push((now, is_alive));
+
+    let total = checks.len();
+    let success = checks.iter().filter(|(_, ok)| *ok).count();
+    let pct = if total > 0 {
+        (success as f32 / total as f32) * 100.0
+    } else {
+        0.0
+    };
+
+    let serialized = checks
+        .iter()
+        .map(|(ts, ok)| format!("{}:{}", ts, if *ok { 1 } else { 0 }))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    (serialized, pct)
 }
 
 pub async fn batch_writer_loop(
@@ -101,8 +152,10 @@ pub async fn flush_batch(
                 checks_success = checks_success + 1,
                 dead_strikes = 0,
                 last_error = NULL,
-                last_checked_at = ?12,
-                next_check_at = ?13
+                stability_pct = ?12,
+                recent_checks = ?13,
+                last_checked_at = ?14,
+                next_check_at = ?15
             WHERE id = ?1;",
         )
         .await
@@ -124,8 +177,10 @@ pub async fn flush_batch(
                 checks_total = checks_total + 1,
                 dead_strikes = ?6,
                 last_error = ?7,
-                last_checked_at = ?8,
-                next_check_at = ?9
+                stability_pct = ?8,
+                recent_checks = ?9,
+                last_checked_at = ?10,
+                next_check_at = ?11
             WHERE id = ?1;",
         )
         .await
@@ -146,6 +201,13 @@ pub async fn flush_batch(
 
     for item in buffer.iter() {
         let cr = &item.result;
+        let (new_recent_checks, stability_pct) = update_recent_checks(
+            item.recent_checks.as_deref(),
+            cr.is_alive,
+            now,
+            item.stability_window_min,
+        );
+
         if cr.is_alive {
             let next_check = now + item.recheck_alive_sec as i64;
             let proto = cr.detected_protocol.map(|p| p.as_str());
@@ -171,6 +233,8 @@ pub async fn flush_batch(
                     rtt_tcp,
                     rtt_hs,
                     rtt_total,
+                    stability_pct as f64,
+                    new_recent_checks.as_str(),
                     now,
                     next_check,
                 ])
@@ -207,6 +271,8 @@ pub async fn flush_batch(
                     rtt_total,
                     new_strikes as i64,
                     err_str,
+                    stability_pct as f64,
+                    new_recent_checks.as_str(),
                     now,
                     next_check,
                 ])

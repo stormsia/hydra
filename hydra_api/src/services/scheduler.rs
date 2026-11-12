@@ -133,6 +133,8 @@ pub async fn scheduler_loop(state: AppState, cancel: CancellationToken) {
                                     recheck_dead_sec: row.recheck_dead_sec,
                                     max_dead_strikes: row.max_dead_strikes,
                                     current_strikes: row.dead_strikes,
+                                    stability_window_min: row.stability_window_min,
+                                    recent_checks: row.recent_checks,
                                 };
 
                                 let _ = state.result_tx.send(meta);

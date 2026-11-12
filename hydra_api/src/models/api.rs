@@ -10,6 +10,7 @@ fn default_rw_timeout() -> u32 { 5000 }
 fn default_recheck_alive() -> u32 { 60 }
 fn default_recheck_dead() -> u32 { 1800 }
 fn default_max_strikes() -> u32 { 3 }
+fn default_stability_window_min() -> u32 { 5 }
 
 /// Политика тайм-аутов и расписания проверок прокси-серверов
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
@@ -19,7 +20,8 @@ fn default_max_strikes() -> u32 { 3 }
     "rw_timeout_ms": 5000,
     "recheck_alive_sec": 60,
     "recheck_dead_sec": 1800,
-    "max_dead_strikes": 3
+    "max_dead_strikes": 3,
+    "stability_window_min": 5
 }))]
 pub struct CheckPolicyDto {
     /// Предельное время установки TCP-соединения (в миллисекундах)
@@ -51,6 +53,11 @@ pub struct CheckPolicyDto {
     #[serde(default = "default_max_strikes")]
     #[schema(example = 3, minimum = 1, maximum = 50, default = 3)]
     pub max_dead_strikes: u32,
+
+    /// Окно расчета показателя стабильности (в минутах, по умолчанию: 5)
+    #[serde(default = "default_stability_window_min", alias = "stability_window", alias = "window_min", alias = "window_minutes")]
+    #[schema(example = 5, minimum = 1, maximum = 1440, default = 5)]
+    pub stability_window_min: u32,
 }
 
 impl Default for CheckPolicyDto {
@@ -62,6 +69,7 @@ impl Default for CheckPolicyDto {
             recheck_alive_sec: default_recheck_alive(),
             recheck_dead_sec: default_recheck_dead(),
             max_dead_strikes: default_max_strikes(),
+            stability_window_min: default_stability_window_min(),
         }
     }
 }
@@ -147,7 +155,8 @@ impl From<&str> for ProxyInputItem {
         "rw_timeout_ms": 4000,
         "recheck_alive_sec": 45,
         "recheck_dead_sec": 900,
-        "max_dead_strikes": 3
+        "max_dead_strikes": 3,
+        "stability_window_min": 5
     },
     "proxies": [
         "socks5://user:pass@185.220.101.5:1080",
@@ -204,7 +213,7 @@ pub struct ImportBatchRequest {
 }
 
 /// Параметры фильтрации и пагинации списка прокси
-#[derive(Debug, Clone, Serialize, Deserialize, IntoParams)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, IntoParams)]
 pub struct ProxyFilterQuery {
     /// Фильтр по текущему состоянию жизненного цикла
     #[param(example = "alive")]
@@ -241,6 +250,14 @@ pub struct ProxyFilterQuery {
     /// Минимальный процент аптайма (0.0 — 100.0)
     #[param(example = 95.0, minimum = 0.0, maximum = 100.0)]
     pub min_uptime: Option<f32>,
+
+    /// Минимальный процент стабильности в рамках плавающего окна N минут (0.0 — 100.0)
+    #[param(example = 90.0, minimum = 0.0, maximum = 100.0)]
+    pub min_stability: Option<f32>,
+
+    /// Фильтр по размеру окна расчета стабильности (в минутах)
+    #[param(example = 5, minimum = 1, maximum = 1440)]
+    pub stability_window_min: Option<u32>,
 
     /// Фильтр по названию источника импорта
     #[param(example = "premium_pool_v1", min_length = 1, max_length = 128)]
@@ -315,7 +332,8 @@ pub struct ReportFailResponse {
         "rw_timeout_ms": 4000,
         "recheck_alive_sec": 30,
         "recheck_dead_sec": 600,
-        "max_dead_strikes": 2
+        "max_dead_strikes": 2,
+        "stability_window_min": 5
     }
 }))]
 pub struct PatchProxyRequest {
@@ -402,6 +420,8 @@ pub struct ImportBatchResponse {
     "rtt_handshake_ms": 68,
     "rtt_total_ms": 110,
     "uptime_pct": 98.5,
+    "stability_pct": 100.0,
+    "stability_window_min": 5,
     "checks_total": 450,
     "checks_success": 445,
     "dead_strikes": 0,
@@ -487,6 +507,14 @@ pub struct ProxyShortItem {
     #[schema(example = 98.5, minimum = 0.0, maximum = 100.0)]
     pub uptime_pct: f32,
 
+    /// Процент стабильности успешных проверок в рамках плавающего окна N минут (0.0 — 100.0)
+    #[schema(example = 100.0, minimum = 0.0, maximum = 100.0)]
+    pub stability_pct: f32,
+
+    /// Окно расчета показателя стабильности (в минутах)
+    #[schema(example = 5, minimum = 1, maximum = 1440, default = 5)]
+    pub stability_window_min: u32,
+
     /// Общее количество выполненных проверок
     #[schema(example = 450, minimum = 0)]
     pub checks_total: u64,
@@ -549,12 +577,14 @@ pub struct ProxyShortItem {
         "rw_timeout_ms": 5000,
         "recheck_alive_sec": 60,
         "recheck_dead_sec": 1800,
-        "max_dead_strikes": 3
+        "max_dead_strikes": 3,
+        "stability_window_min": 5
     },
     "stats": {
         "checks_total": 450,
         "checks_success": 445,
         "uptime_pct": 98.88,
+        "stability_pct": 100.0,
         "dead_strikes": 0,
         "last_error": null,
         "first_seen_at": 1731200000,
@@ -666,6 +696,7 @@ pub struct ProxyMetricsDto {
     "checks_total": 450,
     "checks_success": 445,
     "uptime_pct": 98.88,
+    "stability_pct": 100.0,
     "dead_strikes": 0,
     "last_error": null,
     "first_seen_at": 1731200000,
@@ -684,6 +715,10 @@ pub struct ProxyStatsDto {
     /// Процент доступности (аптайм)
     #[schema(example = 98.88, minimum = 0.0, maximum = 100.0)]
     pub uptime_pct: f32,
+
+    /// Процент стабильности успешных проверок в рамках плавающего окна N минут (0.0 — 100.0)
+    #[schema(example = 100.0, minimum = 0.0, maximum = 100.0)]
+    pub stability_pct: f32,
 
     /// Текущее число последовательных сбоев подряд
     #[schema(example = 0, minimum = 0)]

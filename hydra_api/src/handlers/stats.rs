@@ -54,9 +54,11 @@ pub async fn global_stats(
     tag = "Stats",
     operation_id = "get_engine_stats",
     summary = "Get real-time engine throughput and worker stats (in-memory, zero DB queries)",
+    description = "Returns real-time in-memory engine throughput metrics and worker statistics without hitting the database.",
     responses(
         (status = 200, description = "Real-time engine throughput metrics", body = EngineStatsDto),
-        (status = 401, description = "Missing or invalid API key", body = ApiError)
+        (status = 401, description = "Missing or invalid API key", body = ApiError),
+        (status = 500, description = "Internal database or server error", body = ApiError)
     ),
     security(("api_key" = []))
 )]

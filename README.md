@@ -76,7 +76,7 @@ flowchart TD
         end
 
         subgraph Storage["Слой хранения: libSQL / SQLite (WAL)"]
-            DB[("hydra.db (WAL Mode)<br/>Таблицы WITHOUT ROWID<br/>7 частичных B-Tree индексов")]
+            DB[("hydra.db (WAL Mode)<br/>Таблицы WITHOUT ROWID<br/>8 частичных B-Tree индексов")]
         end
     end
 

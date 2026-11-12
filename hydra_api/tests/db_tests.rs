@@ -75,10 +75,13 @@ async fn test_sources_crud_and_cascade() {
         recheck_alive_sec: 60,
         recheck_dead_sec: 1800,
         max_dead_strikes: 3,
+        stability_window_min: 5,
         checks_total: 10,
         checks_success: 10,
         dead_strikes: 0,
         last_error: None,
+        stability_pct: 100.0,
+        recent_checks: None,
         remark: None,
         first_seen_at: now,
         last_checked_at: Some(now),
@@ -146,10 +149,13 @@ async fn test_proxies_crud_and_query() {
         recheck_alive_sec: 60,
         recheck_dead_sec: 1800,
         max_dead_strikes: 3,
+        stability_window_min: 5,
         checks_total: 5,
         checks_success: 4,
         dead_strikes: 0,
         last_error: None,
+        stability_pct: 80.0,
+        recent_checks: None,
         remark: Some("Premium US".to_string()),
         first_seen_at: now,
         last_checked_at: Some(now),
@@ -175,6 +181,8 @@ async fn test_proxies_crud_and_query() {
         has_auth: Some(true),
         max_rtt: Some(150),
         min_uptime: Some(70.0),
+        min_stability: None,
+        stability_window_min: None,
         source: None,
         limit: Some(10),
         offset: Some(0),
@@ -189,6 +197,8 @@ async fn test_proxies_crud_and_query() {
     assert_eq!(items[0].auth_user, Some("usr".to_string()));
     assert_eq!(items[0].auth_pass, Some("pwd".to_string()));
     assert_eq!(items[0].uptime_pct, 80.0);
+    assert_eq!(items[0].stability_pct, 80.0);
+    assert_eq!(items[0].stability_window_min, 5);
     assert_eq!(items[0].state, ProxyState::Alive);
     assert_eq!(items[0].checks_total, 5);
     assert_eq!(items[0].checks_success, 4);
@@ -207,6 +217,8 @@ async fn test_proxies_crud_and_query() {
         has_auth: Some(false),
         max_rtt: None,
         min_uptime: None,
+        min_stability: None,
+        stability_window_min: None,
         source: None,
         limit: Some(10),
         offset: Some(0),
@@ -273,10 +285,13 @@ async fn test_multicountry_csv_exclusion_and_limit_zero() {
         recheck_alive_sec: 60,
         recheck_dead_sec: 1800,
         max_dead_strikes: 3,
+        stability_window_min: 5,
         checks_total: 10,
         checks_success: 10,
         dead_strikes: 0,
         last_error: None,
+        stability_pct: 100.0,
+        recent_checks: None,
         remark: None,
         first_seen_at: now,
         last_checked_at: Some(now),
@@ -300,6 +315,8 @@ async fn test_multicountry_csv_exclusion_and_limit_zero() {
         has_auth: None,
         max_rtt: None,
         min_uptime: None,
+        min_stability: None,
+        stability_window_min: None,
         source: None,
         limit: Some(50),
         offset: Some(0),
@@ -321,6 +338,8 @@ async fn test_multicountry_csv_exclusion_and_limit_zero() {
         has_auth: None,
         max_rtt: None,
         min_uptime: None,
+        min_stability: None,
+        stability_window_min: None,
         source: None,
         limit: Some(50),
         offset: Some(0),
@@ -340,6 +359,8 @@ async fn test_multicountry_csv_exclusion_and_limit_zero() {
         has_auth: None,
         max_rtt: None,
         min_uptime: None,
+        min_stability: None,
+        stability_window_min: None,
         source: None,
         limit: Some(0),
         offset: Some(0),
@@ -378,10 +399,13 @@ async fn test_batch_report_fail_and_db_maintenance() {
         recheck_alive_sec: 60,
         recheck_dead_sec: 1800,
         max_dead_strikes: 3,
+        stability_window_min: 5,
         checks_total: 10,
         checks_success: 10,
         dead_strikes: 0,
         last_error: None,
+        stability_pct: 100.0,
+        recent_checks: None,
         remark: None,
         first_seen_at: now - 10000,
         last_checked_at: last_checked,
@@ -510,4 +534,93 @@ async fn test_indexes_and_query_plans() {
         combined_plan.contains("idx_dead_purge"),
         "Dead purge query should use idx_dead_purge, got: {combined_plan}"
     );
+}
+
+#[tokio::test]
+async fn test_stability_filtering_and_window_queries() {
+    let db = init_db(":memory:").await.unwrap();
+    let conn = db.connect().unwrap();
+    configure_conn(&conn).await.unwrap();
+    let now = Utc::now().timestamp();
+
+    let make_proxy = |id: &str, last_checked: Option<i64>, stab_pct: f32, win_min: u32| ProxyRow {
+        id: id.to_string(),
+        ip: id.split(':').next().unwrap().to_string(),
+        port: 8080,
+        auth_user: None,
+        auth_pass: None,
+        state: ProxyState::Alive,
+        protocol: Some("socks5".to_string()),
+        supports_https: true,
+        out_ip: None,
+        country: Some("US".to_string()),
+        asn: None,
+        asn_org: None,
+        anon: Some("elite".to_string()),
+        rtt_tcp_ms: Some(30),
+        rtt_handshake_ms: Some(40),
+        rtt_total_ms: Some(70),
+        connect_timeout_ms: 3000,
+        handshake_timeout_ms: 4000,
+        rw_timeout_ms: 5000,
+        recheck_alive_sec: 15,
+        recheck_dead_sec: 300,
+        max_dead_strikes: 3,
+        stability_window_min: win_min,
+        checks_total: 100,
+        checks_success: 10, // Lifetime uptime is low (10%)!
+        dead_strikes: 0,
+        last_error: None,
+        stability_pct: stab_pct,
+        recent_checks: None,
+        remark: None,
+        first_seen_at: now - 3600,
+        last_checked_at: last_checked,
+        next_check_at: now + 15,
+    };
+
+    // 1. Just revived proxy: checked 30s ago, 100% stable in 5m window
+    insert_proxy_if_not_exists(&conn, &make_proxy("198.51.100.101:8080", Some(now - 30), 100.0, 5), false).await.unwrap();
+    // 2. Flickering proxy: checked 30s ago, 50% stable in 5m window
+    insert_proxy_if_not_exists(&conn, &make_proxy("198.51.100.102:8080", Some(now - 30), 50.0, 5), false).await.unwrap();
+    // 3. Expired proxy: last checked 10m ago (outside 5m window)
+    insert_proxy_if_not_exists(&conn, &make_proxy("198.51.100.103:8080", Some(now - 600), 100.0, 5), false).await.unwrap();
+    // 4. Proxy with 10m window: checked 7m ago, 100% stable in 10m window
+    insert_proxy_if_not_exists(&conn, &make_proxy("198.51.100.104:8080", Some(now - 420), 100.0, 10), false).await.unwrap();
+
+    // Query 1: Filter by min_stability = 90.0
+    // Must return the recently revived 100% stable proxy (198.51.100.101) and the 10m window proxy (198.51.100.104)
+    // Must EXCLUDE 198.51.100.102 (50% < 90%) and 198.51.100.103 (last checked 10m ago > 5m window)
+    let q_high = ProxyFilterQuery {
+        min_stability: Some(90.0),
+        ..Default::default()
+    };
+    let items_high = query_proxies(&conn, &q_high).await.unwrap();
+    assert_eq!(items_high.len(), 2);
+    let ids: Vec<_> = items_high.iter().map(|i| i.id.as_str()).collect();
+    assert!(ids.contains(&"198.51.100.101:8080"));
+    assert!(ids.contains(&"198.51.100.104:8080"));
+
+    // Verify proxy that "just came alive" has 10% lifetime uptime but 100% window stability
+    let revived = items_high.iter().find(|i| i.id == "198.51.100.101:8080").unwrap();
+    assert_eq!(revived.uptime_pct, 10.0);
+    assert_eq!(revived.stability_pct, 100.0);
+    assert_eq!(revived.stability_window_min, 5);
+
+    // Query 2: Filter by min_stability = 90.0 AND stability_window_min = 5
+    let q_window5 = ProxyFilterQuery {
+        min_stability: Some(90.0),
+        stability_window_min: Some(5),
+        ..Default::default()
+    };
+    let items_win5 = query_proxies(&conn, &q_window5).await.unwrap();
+    assert_eq!(items_win5.len(), 1);
+    assert_eq!(items_win5[0].id, "198.51.100.101:8080");
+
+    // Query 3: All proxies without stability filter -> verify expired proxy receives effective stability 0.0
+    let q_all = ProxyFilterQuery::default();
+    let all_items = query_proxies(&conn, &q_all).await.unwrap();
+    assert_eq!(all_items.len(), 4);
+    let expired = all_items.iter().find(|i| i.id == "198.51.100.103:8080").unwrap();
+    assert_eq!(expired.stability_pct, 0.0, "Expired check must result in 0.0 effective stability");
 }

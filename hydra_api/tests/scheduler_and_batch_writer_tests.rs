@@ -6,7 +6,7 @@ use hydra_checker::{
 use hydra_api::app_state::SchedulerStats;
 use hydra_api::db::*;
 use hydra_api::models::{ProxyRow, ProxyState};
-use hydra_api::services::batch_writer::{flush_batch, CheckResultWithMeta};
+use hydra_api::services::batch_writer::{flush_batch, update_recent_checks, CheckResultWithMeta};
 use hydra_api::services::geoip::GeoIpResult;
 use hydra_api::services::scheduler::row_to_target;
 
@@ -35,10 +35,13 @@ async fn test_row_to_target_mapping() {
         recheck_alive_sec: 90,
         recheck_dead_sec: 1200,
         max_dead_strikes: 2,
+        stability_window_min: 5,
         checks_total: 0,
         checks_success: 0,
         dead_strikes: 0,
         last_error: None,
+        stability_pct: 0.0,
+        recent_checks: None,
         remark: None,
         first_seen_at: 1000,
         last_checked_at: None,
@@ -89,10 +92,13 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         recheck_alive_sec: 60,
         recheck_dead_sec: 300,
         max_dead_strikes: 2,
+        stability_window_min: 5,
         checks_total: 0,
         checks_success: 0,
         dead_strikes: 0,
         last_error: None,
+        stability_pct: 0.0,
+        recent_checks: None,
         remark: None,
         first_seen_at: now,
         last_checked_at: None,
@@ -129,6 +135,8 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         recheck_dead_sec: proxy.recheck_dead_sec,
         max_dead_strikes: proxy.max_dead_strikes,
         current_strikes: 0,
+        stability_window_min: proxy.stability_window_min,
+        recent_checks: proxy.recent_checks.clone(),
     };
 
     let mut buf = vec![meta_alive];
@@ -159,6 +167,8 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         recheck_dead_sec: proxy.recheck_dead_sec,
         max_dead_strikes: proxy.max_dead_strikes,
         current_strikes: 0,
+        stability_window_min: proxy.stability_window_min,
+        recent_checks: p_alive.recent_checks.clone(),
     };
     let mut buf = vec![meta_fail1];
     flush_batch(&mut buf, &db, &stats).await;
@@ -183,6 +193,8 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         recheck_dead_sec: proxy.recheck_dead_sec,
         max_dead_strikes: proxy.max_dead_strikes,
         current_strikes: 1, // current is now 1 -> next is 2 >= max
+        stability_window_min: proxy.stability_window_min,
+        recent_checks: p_cool.recent_checks.clone(),
     };
     let mut buf = vec![meta_fail2];
     flush_batch(&mut buf, &db, &stats).await;
@@ -225,10 +237,13 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
         recheck_alive_sec: 60,
         recheck_dead_sec: 300,
         max_dead_strikes: 2,
+        stability_window_min: 5,
         checks_total: 0,
         checks_success: 0,
         dead_strikes: 0,
         last_error: None,
+        stability_pct: 0.0,
+        recent_checks: None,
         remark: None,
         first_seen_at: now,
         last_checked_at: None,
@@ -249,6 +264,8 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
         recheck_dead_sec: proxy.recheck_dead_sec,
         max_dead_strikes: proxy.max_dead_strikes,
         current_strikes: 0,
+        stability_window_min: proxy.stability_window_min,
+        recent_checks: proxy.recent_checks.clone(),
     };
 
     let mut buf = vec![meta];
@@ -279,4 +296,43 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
     assert_eq!(buf.len(), 0, "Buffer should be cleared on success");
     assert_eq!(stats.batch_buffer_size.load(std::sync::atomic::Ordering::Relaxed), 0);
     assert_eq!(stats.checks_completed.load(std::sync::atomic::Ordering::Relaxed), 1);
+}
+
+#[test]
+fn test_stability_window_calculation_and_expiration() {
+    let now = 10_000i64;
+    let window_min = 5; // 300 seconds
+
+    // 1. Initial check (success) -> 100%
+    let (h1, p1) = update_recent_checks(None, true, now, window_min);
+    assert_eq!(p1, 100.0);
+    assert_eq!(h1, format!("{now}:1"));
+
+    // 2. Second check 60s later (success) -> 100%
+    let (h2, p2) = update_recent_checks(Some(&h1), true, now + 60, window_min);
+    assert_eq!(p2, 100.0);
+    assert_eq!(h2, format!("{now}:1,{}:1", now + 60));
+
+    // 3. Third check 60s later (failure) -> 2 out of 3 = 66.66667%
+    let (h3, p3) = update_recent_checks(Some(&h2), false, now + 120, window_min);
+    assert!((p3 - 66.66667).abs() < 0.01);
+
+    // 4. Fourth check 60s later (success) -> 3 out of 4 = 75.0%
+    let (h4, p4) = update_recent_checks(Some(&h3), true, now + 180, window_min);
+    assert_eq!(p4, 75.0);
+
+    // 5. Check at now + 350s (success) -> first check (at now) is 350s old (> 300s window), so dropped!
+    // Remaining in window: now+60 (ok), now+120 (fail), now+180 (ok), now+350 (ok) -> 3 out of 4 = 75.0%
+    let (h5, p5) = update_recent_checks(Some(&h4), true, now + 350, window_min);
+    assert_eq!(p5, 75.0);
+    assert!(!h5.contains(&format!("{now}:1"))); // original check dropped
+    assert!(h5.contains(&format!("{}:1", now + 60)));
+    assert!(h5.contains(&format!("{}:0", now + 120)));
+    assert!(h5.contains(&format!("{}:1", now + 180)));
+    assert!(h5.contains(&format!("{}:1", now + 350)));
+
+    // 6. Proxy revived after a long downtime (e.g. 1 hour later) -> previous checks all expire!
+    let (h6, p6) = update_recent_checks(Some(&h5), true, now + 5000, window_min);
+    assert_eq!(p6, 100.0);
+    assert_eq!(h6, format!("{}:1", now + 5000));
 }

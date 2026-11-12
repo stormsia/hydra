@@ -210,6 +210,8 @@ async fn test_full_api_workflow() {
     assert_eq!(auth_item.checks_success, 0);
     assert_eq!(auth_item.dead_strikes, 0);
     assert_eq!(auth_item.last_error, None);
+    assert_eq!(auth_item.stability_pct, 0.0);
+    assert_eq!(auth_item.stability_window_min, 5);
     assert!(auth_item.first_seen_at > 0);
     assert!(auth_item.next_check_at > 0);
 
@@ -239,6 +241,8 @@ async fn test_full_api_workflow() {
     assert_eq!(details.auth_user, Some("user".to_string()));
     assert_eq!(details.auth_pass, Some("pass".to_string()));
     assert_eq!(details.url, "http://user:pass@185.22.14.12:3128");
+    assert_eq!(details.policy.stability_window_min, 5);
+    assert_eq!(details.stats.stability_pct, 0.0);
     assert_eq!(details.meta.sources, vec!["premium_source".to_string()]);
     assert_eq!(details.meta.source_details.len(), 1);
     assert_eq!(details.meta.source_details[0].name, "premium_source");
@@ -469,4 +473,89 @@ async fn test_judges_api_list() {
     assert!(judges.iter().any(|j| j.id == "httpbun_com"));
     assert!(judges.iter().any(|j| j.id == "httpbin_org"));
     assert!(judges.iter().any(|j| j.id == "httpbin_dev"));
+}
+
+#[tokio::test]
+async fn test_import_with_stability_policy_and_api_responses() {
+    let (base_url, api_key) = spawn_test_server().await;
+    let client = reqwest::Client::new();
+
+    // 1. Import with custom stability_window_min (10 min) and recheck_alive_sec (15 sec)
+    let import_req = serde_json::json!({
+        "source": "fast_recheck_pool",
+        "policy": {
+            "recheck_alive_sec": 15,
+            "stability_window_min": 10
+        },
+        "proxies": ["185.22.15.201:8080", "185.22.15.202:8080"]
+    });
+
+    let imp_res = client
+        .post(format!("{base_url}/api/v1/proxies/import"))
+        .header("X-API-Key", &api_key)
+        .json(&import_req)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(imp_res.status(), 200);
+
+    // 2. Query list by source and cold_queue state
+    let list_res = client
+        .get(format!("{base_url}/api/v1/proxies?source=fast_recheck_pool&state=cold_queue"))
+        .header("X-API-Key", &api_key)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(list_res.status(), 200);
+    let items: Vec<ProxyShortItem> = list_res.json().await.unwrap();
+    assert_eq!(items.len(), 2);
+    for item in &items {
+        assert_eq!(item.stability_window_min, 10);
+        assert_eq!(item.stability_pct, 0.0);
+    }
+
+    // 3. Query details by ID
+    let details_res = client
+        .get(format!("{base_url}/api/v1/proxies/185.22.15.201:8080"))
+        .header("X-API-Key", &api_key)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(details_res.status(), 200);
+    let details: ProxyFullDetails = details_res.json().await.unwrap();
+    assert_eq!(details.policy.recheck_alive_sec, 15);
+    assert_eq!(details.policy.stability_window_min, 10);
+    assert_eq!(details.stats.stability_pct, 0.0);
+
+    // 4. Update policy via PATCH
+    let patch_req = serde_json::json!({
+        "policy": {
+            "connect_timeout_ms": 3000,
+            "handshake_timeout_ms": 4000,
+            "rw_timeout_ms": 5000,
+            "recheck_alive_sec": 10,
+            "recheck_dead_sec": 300,
+            "max_dead_strikes": 2,
+            "stability_window_min": 3
+        }
+    });
+    let patch_res = client
+        .patch(format!("{base_url}/api/v1/proxies/185.22.15.201:8080"))
+        .header("X-API-Key", &api_key)
+        .json(&patch_req)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(patch_res.status(), 200);
+
+    // 5. Verify patched policy
+    let patched_details_res = client
+        .get(format!("{base_url}/api/v1/proxies/185.22.15.201:8080"))
+        .header("X-API-Key", &api_key)
+        .send()
+        .await
+        .unwrap();
+    let patched: ProxyFullDetails = patched_details_res.json().await.unwrap();
+    assert_eq!(patched.policy.stability_window_min, 3);
+    assert_eq!(patched.policy.recheck_alive_sec, 10);
 }

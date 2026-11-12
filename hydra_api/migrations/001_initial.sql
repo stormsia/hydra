@@ -48,12 +48,15 @@ CREATE TABLE IF NOT EXISTS proxies (
     recheck_alive_sec    INTEGER NOT NULL DEFAULT 60,    -- интервал речека живых
     recheck_dead_sec     INTEGER NOT NULL DEFAULT 1800,  -- карантин мёртвых (0 = не речекать)
     max_dead_strikes     INTEGER NOT NULL DEFAULT 3,     -- лимит ошибок до dead_permanent
+    stability_window_min INTEGER NOT NULL DEFAULT 5,     -- окно стабильности (в минутах)
 
     -- === Статистика ===
     checks_total    INTEGER NOT NULL DEFAULT 0,
     checks_success  INTEGER NOT NULL DEFAULT 0,
     dead_strikes    INTEGER NOT NULL DEFAULT 0,  -- текущий счётчик ошибок подряд
     last_error      TEXT,                        -- "TIMEOUT_TCP", "CONN_REFUSED", etc.
+    stability_pct   REAL NOT NULL DEFAULT 0.0,   -- процент стабильности в рамках окна (0.0 - 100.0)
+    recent_checks   TEXT,                        -- компактная история недавних проверок в окне (ts:status,...)
 
     -- === Метаданные ===
     remark          TEXT,                        -- пользовательская заметка
@@ -110,3 +113,8 @@ CREATE INDEX IF NOT EXISTS idx_dead_purge
 -- I6: Связи proxy_sources (FK lookup при удалении источника).
 CREATE INDEX IF NOT EXISTS idx_ps_source
     ON proxy_sources (source_id);
+
+-- I7: Мгновенная выборка живых прокси по показателю стабильности в окне.
+CREATE INDEX IF NOT EXISTS idx_alive_stability
+    ON proxies (stability_pct DESC, rtt_total_ms ASC)
+    WHERE state = 1;

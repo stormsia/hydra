@@ -55,6 +55,26 @@ pub async fn run_migrations(db: &Database) -> Result<(), libsql::Error> {
     conn.execute("PRAGMA auto_vacuum = INCREMENTAL;", ()).await?;
     let _ = conn.query("PRAGMA journal_mode = WAL;", ()).await;
 
+    // Safe incremental migration for existing databases created with older schema:
+    // We add missing columns BEFORE running execute_batch(schema_sql) so that any
+    // indexes referencing these new columns (such as idx_alive_stability) do not fail with
+    // "no such column: stability_pct" when table `proxies` already existed.
+    let _ = conn
+        .execute(
+            "ALTER TABLE proxies ADD COLUMN stability_window_min INTEGER NOT NULL DEFAULT 5;",
+            (),
+        )
+        .await;
+    let _ = conn
+        .execute(
+            "ALTER TABLE proxies ADD COLUMN stability_pct REAL NOT NULL DEFAULT 0.0;",
+            (),
+        )
+        .await;
+    let _ = conn
+        .execute("ALTER TABLE proxies ADD COLUMN recent_checks TEXT;", ())
+        .await;
+
     let schema_sql = include_str!("../../migrations/001_initial.sql");
     conn.execute_batch(schema_sql).await?;
 

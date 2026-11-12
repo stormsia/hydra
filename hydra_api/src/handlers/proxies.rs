@@ -80,17 +80,17 @@ pub async fn import(
                 out_ip, country, asn, asn_org, anon,
                 rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
                 connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-                recheck_alive_sec, recheck_dead_sec, max_dead_strikes,
-                checks_total, checks_success, dead_strikes, last_error, remark,
+                recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min,
+                checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
                 first_seen_at, last_checked_at, next_check_at
              ) VALUES (
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
                 ?9, ?10, ?11, ?12, ?13,
                 ?14, ?15, ?16,
                 ?17, ?18, ?19,
-                ?20, ?21, ?22,
-                ?23, ?24, ?25, ?26, ?27,
-                ?28, ?29, ?30
+                ?20, ?21, ?22, ?23,
+                ?24, ?25, ?26, ?27, ?28, ?29, ?30,
+                ?31, ?32, ?33
              );",
         )
         .await
@@ -108,8 +108,9 @@ pub async fn import(
                 "UPDATE proxies SET
                     protocol = NULL,
                     auth_user = COALESCE(?1, auth_user),
-                    auth_pass = COALESCE(?2, auth_pass)
-                 WHERE id = ?3;",
+                    auth_pass = COALESCE(?2, auth_pass),
+                    stability_window_min = ?3
+                 WHERE id = ?4;",
             )
             .await
         {
@@ -129,8 +130,9 @@ pub async fn import(
                 "UPDATE proxies SET
                     auth_user = COALESCE(?1, auth_user),
                     auth_pass = COALESCE(?2, auth_pass),
-                    protocol = COALESCE(?3, protocol)
-                 WHERE id = ?4;",
+                    protocol = COALESCE(?3, protocol),
+                    stability_window_min = ?4
+                 WHERE id = ?5;",
             )
             .await
         {
@@ -148,7 +150,7 @@ pub async fn import(
         match conn
             .prepare(
                 "UPDATE proxies
-                 SET state = 0, dead_strikes = 0, next_check_at = ?2
+                 SET state = 0, dead_strikes = 0, next_check_at = ?2, stability_pct = 0.0, recent_checks = NULL
                  WHERE id = ?1 AND state = 3;",
             )
             .await
@@ -219,9 +221,12 @@ pub async fn import(
                 req.policy.recheck_alive_sec as i64,
                 req.policy.recheck_dead_sec as i64,
                 req.policy.max_dead_strikes as i64,
+                req.policy.stability_window_min as i64,
                 0i64,
                 0i64,
                 0i64,
+                Option::<&str>::None,
+                0.0f64,
                 Option::<&str>::None,
                 Option::<&str>::None,
                 now,
@@ -249,6 +254,7 @@ pub async fn import(
                     .execute(libsql::params![
                         parsed.auth_user.as_deref(),
                         parsed.auth_pass.as_deref(),
+                        req.policy.stability_window_min as i64,
                         parsed.id.as_str(),
                     ])
                     .await;
@@ -258,21 +264,20 @@ pub async fn import(
                     return Err(ApiError::from(e));
                 }
             } else if let Some(ref stmt_upd) = stmt_update {
-                if parsed.auth_user.is_some() || parsed.protocol_hint.is_some() {
-                    stmt_upd.reset();
-                    let res = stmt_upd
-                        .execute(libsql::params![
-                            parsed.auth_user.as_deref(),
-                            parsed.auth_pass.as_deref(),
-                            parsed.protocol_hint.as_deref(),
-                            parsed.id.as_str(),
-                        ])
-                        .await;
-                    stmt_upd.reset();
-                    if let Err(e) = res {
-                        let _ = conn.execute("ROLLBACK;", ()).await;
-                        return Err(ApiError::from(e));
-                    }
+                stmt_upd.reset();
+                let res = stmt_upd
+                    .execute(libsql::params![
+                        parsed.auth_user.as_deref(),
+                        parsed.auth_pass.as_deref(),
+                        parsed.protocol_hint.as_deref(),
+                        req.policy.stability_window_min as i64,
+                        parsed.id.as_str(),
+                    ])
+                    .await;
+                stmt_upd.reset();
+                if let Err(e) = res {
+                    let _ = conn.execute("ROLLBACK;", ()).await;
+                    return Err(ApiError::from(e));
                 }
             }
 
@@ -392,6 +397,18 @@ pub async fn get_by_id(
         0.0
     };
 
+    let now = Utc::now().timestamp();
+    let effective_stability = if let Some(last_chk) = row.last_checked_at {
+        let window_sec = (row.stability_window_min.max(1) as i64) * 60;
+        if last_chk < now - window_sec {
+            0.0
+        } else {
+            row.stability_pct
+        }
+    } else {
+        0.0
+    };
+
     Ok(Json(ProxyFullDetails {
         id: row.id,
         ip: row.ip,
@@ -420,11 +437,13 @@ pub async fn get_by_id(
             recheck_alive_sec: row.recheck_alive_sec,
             recheck_dead_sec: row.recheck_dead_sec,
             max_dead_strikes: row.max_dead_strikes,
+            stability_window_min: row.stability_window_min,
         },
         stats: ProxyStatsDto {
             checks_total: row.checks_total,
             checks_success: row.checks_success,
             uptime_pct,
+            stability_pct: effective_stability,
             dead_strikes: row.dead_strikes,
             last_error: row.last_error,
             first_seen_at: row.first_seen_at,

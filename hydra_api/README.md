@@ -22,7 +22,7 @@
 ## ✨ Возможности
 
 * ⚡ **MPSC Micro-Batching (транзакционный буфер 100 мс):** Потоковая группировка результатов валидации устраняет конкуренцию потоков и ошибки `database is locked`, обеспечивая устойчивую скорость обновления до 8 340 проверок/сек без потери транзакционной целостности.
-* 🚀 **Таблицы `WITHOUT ROWID` и 7 B-Tree индексов:** Кластеризованное хранилище на базе libSQL гарантирует точечный поиск по первичному ключу `ip:port` за **0.01 мс** и сложную многофакторную фильтрацию (страна + протокол + анонимность) за **0.06 мс** на 10 миллионах записей.
+* 🚀 **Таблицы `WITHOUT ROWID` и 8 B-Tree индексов:** Кластеризованное хранилище на базе libSQL гарантирует точечный поиск по первичному ключу `ip:port` за **0.01 мс** и сложную многофакторную фильтрацию (страна + протокол + анонимность + стабильность) за **0.06 мс** на 10 миллионах записей.
 * 🗺️ **Lock-free MaxMind GeoIP / ASN на базе `ArcSwap`:** Фоновое обогащение IP-адресов метаданными страны и автономной системы без блокировок Tokio worker-потоков и без накладных расходов на мьютексы.
 * 🔄 **Автоматическое обновление GeoIP баз по ETag:** Непрерывный мониторинг CDN-зеркал (jsDelivr) с поддержкой HTTP `304 Not Modified` и горячей перезагрузкой баз данных на лету без перезапуска сервиса.
 * 🛡️ **Контур обратной связи (`POST /report-fail`):** Оперативная изоляция нестабильных или заблокированных целевыми сайтами прокси — клиентские приложения моментально отправляют сигнал сбоя, перемещая прокси в карантин `cooldown`.
@@ -65,7 +65,7 @@ graph TD
 
     subgraph Storage["Слой персистентности (libSQL WAL)"]
         DB[("hydra.db (WITHOUT ROWID)<br/>proxies, sources, proxy_sources")]
-        Indexes["7 B-Tree Индексов<br/>(idx_scheduler_prio, idx_alive_fastest и др.)"]
+        Indexes["8 B-Tree Индексов<br/>(idx_scheduler_prio, idx_alive_fastest, idx_alive_stability и др.)"]
     end
 
     UserApp -->|REST API + X-API-Key| Router
@@ -248,7 +248,8 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/import \
     "policy": {
       "connect_timeout_ms": 3000,
       "recheck_alive_sec": 60,
-      "max_dead_strikes": 3
+      "max_dead_strikes": 3,
+      "stability_window_min": 5
     },
     "proxies": [
       "socks5://user:pass@185.220.101.5:1080",
@@ -282,7 +283,8 @@ curl -G http://127.0.0.1:3000/api/v1/proxies \
   -H "X-API-Key: my_secure_hydra_key_12345" \
   --data-urlencode "country=DE" \
   --data-urlencode "protocol=socks5" \
-  --data-urlencode "anonymity=elite" \
+  --data-urlencode "anon=elite" \
+  --data-urlencode "min_stability=90" \
   --data-urlencode "limit=2"
 ```
 
@@ -294,16 +296,32 @@ curl -G http://127.0.0.1:3000/api/v1/proxies \
     "id": "185.220.101.5:1080",
     "ip": "185.220.101.5",
     "port": 1080,
+    "url": "socks5://185.220.101.5:1080",
     "protocol": "socks5",
-    "state": 1,
+    "has_auth": false,
+    "auth_user": null,
+    "auth_pass": null,
+    "state": "alive",
+    "supports_https": true,
+    "out_ip": "185.220.101.5",
     "country": "DE",
-    "asn": 200000,
-    "as_org": "Example Data Center GmbH",
-    "anonymity": "elite",
-    "rtt_total_ms": 42.15,
+    "asn": 24940,
+    "asn_org": "Hetzner Online GmbH",
+    "anon": "elite",
+    "rtt_tcp_ms": 25,
+    "rtt_handshake_ms": 17,
+    "rtt_total_ms": 42,
     "uptime_pct": 99.8,
-    "check_count": 1420,
-    "last_check_at": 1731362400
+    "stability_pct": 100.0,
+    "stability_window_min": 5,
+    "checks_total": 1420,
+    "checks_success": 1417,
+    "dead_strikes": 0,
+    "last_error": null,
+    "remark": null,
+    "first_seen_at": 1731300000,
+    "last_checked_at": 1731362400,
+    "next_check_at": 1731362460
   }
 ]
 ```
