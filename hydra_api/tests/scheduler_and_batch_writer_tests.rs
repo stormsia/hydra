@@ -36,6 +36,7 @@ async fn test_row_to_target_mapping() {
         recheck_dead_sec: 1200,
         max_dead_strikes: 2,
         stability_window_min: 5,
+        dead_backoff_mult: 1.5,
         checks_total: 0,
         checks_success: 0,
         dead_strikes: 0,
@@ -93,6 +94,7 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         recheck_dead_sec: 300,
         max_dead_strikes: 2,
         stability_window_min: 5,
+        dead_backoff_mult: 1.5,
         checks_total: 0,
         checks_success: 0,
         dead_strikes: 0,
@@ -136,6 +138,7 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         max_dead_strikes: proxy.max_dead_strikes,
         current_strikes: 0,
         stability_window_min: proxy.stability_window_min,
+        dead_backoff_mult: proxy.dead_backoff_mult,
         recent_checks: proxy.recent_checks.clone(),
     };
 
@@ -168,6 +171,7 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         max_dead_strikes: proxy.max_dead_strikes,
         current_strikes: 0,
         stability_window_min: proxy.stability_window_min,
+        dead_backoff_mult: proxy.dead_backoff_mult,
         recent_checks: p_alive.recent_checks.clone(),
     };
     let mut buf = vec![meta_fail1];
@@ -194,6 +198,7 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         max_dead_strikes: proxy.max_dead_strikes,
         current_strikes: 1, // current is now 1 -> next is 2 >= max
         stability_window_min: proxy.stability_window_min,
+        dead_backoff_mult: proxy.dead_backoff_mult,
         recent_checks: p_cool.recent_checks.clone(),
     };
     let mut buf = vec![meta_fail2];
@@ -238,6 +243,7 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
         recheck_dead_sec: 300,
         max_dead_strikes: 2,
         stability_window_min: 5,
+        dead_backoff_mult: 1.5,
         checks_total: 0,
         checks_success: 0,
         dead_strikes: 0,
@@ -265,6 +271,7 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
         max_dead_strikes: proxy.max_dead_strikes,
         current_strikes: 0,
         stability_window_min: proxy.stability_window_min,
+        dead_backoff_mult: proxy.dead_backoff_mult,
         recent_checks: proxy.recent_checks.clone(),
     };
 
@@ -335,4 +342,41 @@ fn test_stability_window_calculation_and_expiration() {
     let (h6, p6) = update_recent_checks(Some(&h5), true, now + 5000, window_min);
     assert_eq!(p6, 100.0);
     assert_eq!(h6, format!("{}:1", now + 5000));
+}
+
+#[test]
+fn test_exponential_dead_backoff_calculation() {
+    use hydra_api::services::batch_writer::calculate_dead_next_check;
+
+    let now = 10_000i64;
+    let base_sec = 300u32; // 5 minutes
+
+    // 1. Multiplier 2.0 (doubling delay)
+    // Strike 1: delay = 300 * 2^0 = 300
+    assert_eq!(calculate_dead_next_check(now, base_sec, 2.0, 1), now + 300);
+    // Strike 2: delay = 300 * 2^1 = 600
+    assert_eq!(calculate_dead_next_check(now, base_sec, 2.0, 2), now + 600);
+    // Strike 3: delay = 300 * 2^2 = 1200
+    assert_eq!(calculate_dead_next_check(now, base_sec, 2.0, 3), now + 1200);
+    // Strike 4: delay = 300 * 2^3 = 2400
+    assert_eq!(calculate_dead_next_check(now, base_sec, 2.0, 4), now + 2400);
+
+    // 2. Multiplier 1.5 (default)
+    // Strike 1: 300 * 1.5^0 = 300
+    assert_eq!(calculate_dead_next_check(now, base_sec, 1.5, 1), now + 300);
+    // Strike 2: 300 * 1.5^1 = 450
+    assert_eq!(calculate_dead_next_check(now, base_sec, 1.5, 2), now + 450);
+    // Strike 3: 300 * 1.5^2 = 675
+    assert_eq!(calculate_dead_next_check(now, base_sec, 1.5, 3), now + 675);
+
+    // 3. Multiplier 1.0 or less -> fixed interval (no backoff)
+    assert_eq!(calculate_dead_next_check(now, base_sec, 1.0, 1), now + 300);
+    assert_eq!(calculate_dead_next_check(now, base_sec, 1.0, 5), now + 300);
+    assert_eq!(calculate_dead_next_check(now, base_sec, 0.5, 5), now + 300);
+
+    // 4. recheck_dead_sec == 0 -> permanent (365 days)
+    assert_eq!(calculate_dead_next_check(now, 0, 2.0, 1), now + 365 * 86400);
+
+    // 5. Huge strikes capped at 30 days
+    assert_eq!(calculate_dead_next_check(now, base_sec, 2.0, 50), now + 30 * 86400);
 }

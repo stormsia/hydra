@@ -11,9 +11,10 @@ fn default_recheck_alive() -> u32 { 60 }
 fn default_recheck_dead() -> u32 { 1800 }
 fn default_max_strikes() -> u32 { 3 }
 fn default_stability_window_min() -> u32 { 5 }
+fn default_dead_backoff_mult() -> f32 { 1.5 }
 
 /// Политика тайм-аутов и расписания проверок прокси-серверов
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 #[schema(example = json!({
     "connect_timeout_ms": 3000,
     "handshake_timeout_ms": 4000,
@@ -21,7 +22,8 @@ fn default_stability_window_min() -> u32 { 5 }
     "recheck_alive_sec": 60,
     "recheck_dead_sec": 1800,
     "max_dead_strikes": 3,
-    "stability_window_min": 5
+    "stability_window_min": 5,
+    "dead_backoff_mult": 1.5
 }))]
 pub struct CheckPolicyDto {
     /// Предельное время установки TCP-соединения (в миллисекундах)
@@ -58,6 +60,11 @@ pub struct CheckPolicyDto {
     #[serde(default = "default_stability_window_min", alias = "stability_window", alias = "window_min", alias = "window_minutes")]
     #[schema(example = 5, minimum = 1, maximum = 1440, default = 5)]
     pub stability_window_min: u32,
+
+    /// Множитель экспоненциального увеличения задержки речека для мертвых прокси в карантине (cooldown)
+    #[serde(default = "default_dead_backoff_mult", alias = "backoff_multiplier", alias = "recheck_dead_multiplier", alias = "dead_multiplier", alias = "recheck_dead_mult", alias = "multiplier")]
+    #[schema(example = 1.5, minimum = 1.0, maximum = 10.0, default = 1.5)]
+    pub dead_backoff_mult: f32,
 }
 
 impl Default for CheckPolicyDto {
@@ -70,6 +77,7 @@ impl Default for CheckPolicyDto {
             recheck_dead_sec: default_recheck_dead(),
             max_dead_strikes: default_max_strikes(),
             stability_window_min: default_stability_window_min(),
+            dead_backoff_mult: default_dead_backoff_mult(),
         }
     }
 }
@@ -156,7 +164,8 @@ impl From<&str> for ProxyInputItem {
         "recheck_alive_sec": 45,
         "recheck_dead_sec": 900,
         "max_dead_strikes": 3,
-        "stability_window_min": 5
+        "stability_window_min": 5,
+        "dead_backoff_mult": 1.5
     },
     "proxies": [
         "socks5://user:pass@185.220.101.5:1080",
@@ -333,7 +342,8 @@ pub struct ReportFailResponse {
         "recheck_alive_sec": 30,
         "recheck_dead_sec": 600,
         "max_dead_strikes": 2,
-        "stability_window_min": 5
+        "stability_window_min": 5,
+        "dead_backoff_mult": 1.5
     }
 }))]
 pub struct PatchProxyRequest {
@@ -578,7 +588,8 @@ pub struct ProxyShortItem {
         "recheck_alive_sec": 60,
         "recheck_dead_sec": 1800,
         "max_dead_strikes": 3,
-        "stability_window_min": 5
+        "stability_window_min": 5,
+        "dead_backoff_mult": 1.5
     },
     "stats": {
         "checks_total": 450,

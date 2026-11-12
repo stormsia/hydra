@@ -60,6 +60,7 @@ pub struct ProxyRow {
     pub recheck_dead_sec: u32,
     pub max_dead_strikes: u32,
     pub stability_window_min: u32,
+    pub dead_backoff_mult: f32,
     pub checks_total: u64,
     pub checks_success: u64,
     pub dead_strikes: u32,

@@ -248,8 +248,10 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/import \
     "policy": {
       "connect_timeout_ms": 3000,
       "recheck_alive_sec": 60,
+      "recheck_dead_sec": 300,
       "max_dead_strikes": 3,
-      "stability_window_min": 5
+      "stability_window_min": 5,
+      "dead_backoff_mult": 1.5
     },
     "proxies": [
       "socks5://user:pass@185.220.101.5:1080",

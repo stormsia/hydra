@@ -98,9 +98,11 @@ fn test_models_defaults_and_serde() {
     assert_eq!(policy.recheck_dead_sec, 1800);
     assert_eq!(policy.max_dead_strikes, 3);
     assert_eq!(policy.stability_window_min, 5);
+    assert_eq!(policy.dead_backoff_mult, 1.5);
 
-    let custom_policy: CheckPolicyDto = serde_json::from_str(r#"{"window_min": 10}"#).unwrap();
+    let custom_policy: CheckPolicyDto = serde_json::from_str(r#"{"window_min": 10, "backoff_multiplier": 2.5}"#).unwrap();
     assert_eq!(custom_policy.stability_window_min, 10);
+    assert_eq!(custom_policy.dead_backoff_mult, 2.5);
 
     let state = ProxyState::from_i64(1);
     assert_eq!(state, ProxyState::Alive);

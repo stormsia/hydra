@@ -18,7 +18,29 @@ pub struct CheckResultWithMeta {
     pub max_dead_strikes: u32,
     pub current_strikes: u32,
     pub stability_window_min: u32,
+    pub dead_backoff_mult: f32,
     pub recent_checks: Option<String>,
+}
+
+/// Вычисляет следующий Unix timestamp проверки для упавшего прокси с учетом экспоненциального бэкоффа.
+///
+/// Для первого сбоя (new_strikes = 1) задержка равна базовому `recheck_dead_sec`.
+/// Для каждого последующего сбоя задержка умножается на `dead_backoff_mult` (например, 1.5 или 2.0).
+/// Если `dead_backoff_mult <= 1.0`, задержка остается фиксированной.
+pub fn calculate_dead_next_check(
+    now: i64,
+    recheck_dead_sec: u32,
+    dead_backoff_mult: f32,
+    new_strikes: u32,
+) -> i64 {
+    if recheck_dead_sec == 0 {
+        return now + 365 * 86400;
+    }
+    let mult = (dead_backoff_mult as f64).max(1.0);
+    let exponent = new_strikes.saturating_sub(1) as i32;
+    let delay_sec = ((recheck_dead_sec as f64) * mult.powi(exponent)).round() as i64;
+    let capped_delay = delay_sec.clamp(1, 30 * 86400);
+    now + capped_delay
 }
 
 /// Вычисляет обновленную историю проверок и процент стабильности в рамках плавающего окна N минут.
@@ -253,7 +275,12 @@ pub async fn flush_batch(
             let next_check = if is_permanent {
                 now + 365 * 86400
             } else {
-                now + item.recheck_dead_sec as i64
+                calculate_dead_next_check(
+                    now,
+                    item.recheck_dead_sec,
+                    item.dead_backoff_mult,
+                    new_strikes,
+                )
             };
 
             let err_str = cr.error_reason.map(|r| r.as_str());

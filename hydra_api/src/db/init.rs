@@ -67,6 +67,12 @@ pub async fn run_migrations(db: &Database) -> Result<(), libsql::Error> {
         .await;
     let _ = conn
         .execute(
+            "ALTER TABLE proxies ADD COLUMN dead_backoff_mult REAL NOT NULL DEFAULT 1.5;",
+            (),
+        )
+        .await;
+    let _ = conn
+        .execute(
             "ALTER TABLE proxies ADD COLUMN stability_pct REAL NOT NULL DEFAULT 0.0;",
             (),
         )

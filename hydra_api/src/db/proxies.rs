@@ -18,7 +18,7 @@ pub async fn insert_proxy_if_not_exists(
                 out_ip, country, asn, asn_org, anon,
                 rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
                 connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-                recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min,
+                recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
                 checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
                 first_seen_at, last_checked_at, next_check_at
              ) VALUES (
@@ -26,9 +26,9 @@ pub async fn insert_proxy_if_not_exists(
                 ?9, ?10, ?11, ?12, ?13,
                 ?14, ?15, ?16,
                 ?17, ?18, ?19,
-                ?20, ?21, ?22, ?23,
-                ?24, ?25, ?26, ?27, ?28, ?29, ?30,
-                ?31, ?32, ?33
+                ?20, ?21, ?22, ?23, ?24,
+                ?25, ?26, ?27, ?28, ?29, ?30, ?31,
+                ?32, ?33, ?34
              );",
             libsql::params![
                 row.id.as_str(),
@@ -54,6 +54,7 @@ pub async fn insert_proxy_if_not_exists(
                 row.recheck_dead_sec as i64,
                 row.max_dead_strikes as i64,
                 row.stability_window_min as i64,
+                row.dead_backoff_mult as f64,
                 row.checks_total as i64,
                 row.checks_success as i64,
                 row.dead_strikes as i64,
@@ -135,12 +136,13 @@ fn map_proxy_row(row: &libsql::Row) -> Result<ProxyRow, libsql::Error> {
     let recheck_dead: i64 = row.get(20)?;
     let max_strikes: i64 = row.get(21)?;
     let stability_window: i64 = row.get(22)?;
-    let checks_total: i64 = row.get(23)?;
-    let checks_success: i64 = row.get(24)?;
-    let dead_strikes: i64 = row.get(25)?;
+    let dead_backoff: f64 = row.get(23)?;
+    let checks_total: i64 = row.get(24)?;
+    let checks_success: i64 = row.get(25)?;
+    let dead_strikes: i64 = row.get(26)?;
     let asn_val: Option<i64> = row.get(10)?;
     let port_num: i64 = row.get(2)?;
-    let stability_pct_val: f64 = row.get(27)?;
+    let stability_pct_val: f64 = row.get(28)?;
 
     Ok(ProxyRow {
         id: row.get(0)?,
@@ -166,16 +168,17 @@ fn map_proxy_row(row: &libsql::Row) -> Result<ProxyRow, libsql::Error> {
         recheck_dead_sec: recheck_dead as u32,
         max_dead_strikes: max_strikes as u32,
         stability_window_min: stability_window as u32,
+        dead_backoff_mult: dead_backoff as f32,
         checks_total: checks_total as u64,
         checks_success: checks_success as u64,
         dead_strikes: dead_strikes as u32,
-        last_error: row.get(26)?,
+        last_error: row.get(27)?,
         stability_pct: stability_pct_val as f32,
-        recent_checks: row.get(28)?,
-        remark: row.get(29)?,
-        first_seen_at: row.get(30)?,
-        last_checked_at: row.get(31)?,
-        next_check_at: row.get(32)?,
+        recent_checks: row.get(29)?,
+        remark: row.get(30)?,
+        first_seen_at: row.get(31)?,
+        last_checked_at: row.get(32)?,
+        next_check_at: row.get(33)?,
     })
 }
 
@@ -186,7 +189,7 @@ pub async fn get_proxy_by_id(
     let sql = "SELECT id, ip, port, auth_user, auth_pass, state, protocol, supports_https,
                       out_ip, country, asn, asn_org, anon, rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
                       connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-                      recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min,
+                      recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
                       checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
                       first_seen_at, last_checked_at, next_check_at
                FROM proxies WHERE id = ?1;";
@@ -482,6 +485,9 @@ pub async fn patch_proxy(
 
         params.push((policy.stability_window_min as i64).into());
         sets.push(format!("stability_window_min = ?{}", params.len()));
+
+        params.push((policy.dead_backoff_mult as f64).into());
+        sets.push(format!("dead_backoff_mult = ?{}", params.len()));
     }
 
     if req.force_recheck.unwrap_or(false) {
@@ -660,7 +666,7 @@ pub async fn fetch_due_proxies(
         SELECT id, ip, port, auth_user, auth_pass, state, protocol, supports_https,
                out_ip, country, asn, asn_org, anon, rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
                connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-               recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min,
+               recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
                checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
                first_seen_at, last_checked_at, next_check_at
         FROM proxies

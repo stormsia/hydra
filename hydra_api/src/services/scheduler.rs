@@ -134,6 +134,7 @@ pub async fn scheduler_loop(state: AppState, cancel: CancellationToken) {
                                     max_dead_strikes: row.max_dead_strikes,
                                     current_strikes: row.dead_strikes,
                                     stability_window_min: row.stability_window_min,
+                                    dead_backoff_mult: row.dead_backoff_mult,
                                     recent_checks: row.recent_checks,
                                 };
 

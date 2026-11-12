@@ -80,7 +80,7 @@ pub async fn import(
                 out_ip, country, asn, asn_org, anon,
                 rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
                 connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-                recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min,
+                recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
                 checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
                 first_seen_at, last_checked_at, next_check_at
              ) VALUES (
@@ -88,9 +88,9 @@ pub async fn import(
                 ?9, ?10, ?11, ?12, ?13,
                 ?14, ?15, ?16,
                 ?17, ?18, ?19,
-                ?20, ?21, ?22, ?23,
-                ?24, ?25, ?26, ?27, ?28, ?29, ?30,
-                ?31, ?32, ?33
+                ?20, ?21, ?22, ?23, ?24,
+                ?25, ?26, ?27, ?28, ?29, ?30, ?31,
+                ?32, ?33, ?34
              );",
         )
         .await
@@ -109,8 +109,9 @@ pub async fn import(
                     protocol = NULL,
                     auth_user = COALESCE(?1, auth_user),
                     auth_pass = COALESCE(?2, auth_pass),
-                    stability_window_min = ?3
-                 WHERE id = ?4;",
+                    stability_window_min = ?3,
+                    dead_backoff_mult = ?4
+                 WHERE id = ?5;",
             )
             .await
         {
@@ -131,8 +132,9 @@ pub async fn import(
                     auth_user = COALESCE(?1, auth_user),
                     auth_pass = COALESCE(?2, auth_pass),
                     protocol = COALESCE(?3, protocol),
-                    stability_window_min = ?4
-                 WHERE id = ?5;",
+                    stability_window_min = ?4,
+                    dead_backoff_mult = ?5
+                 WHERE id = ?6;",
             )
             .await
         {
@@ -222,6 +224,7 @@ pub async fn import(
                 req.policy.recheck_dead_sec as i64,
                 req.policy.max_dead_strikes as i64,
                 req.policy.stability_window_min as i64,
+                req.policy.dead_backoff_mult as f64,
                 0i64,
                 0i64,
                 0i64,
@@ -255,6 +258,7 @@ pub async fn import(
                         parsed.auth_user.as_deref(),
                         parsed.auth_pass.as_deref(),
                         req.policy.stability_window_min as i64,
+                        req.policy.dead_backoff_mult as f64,
                         parsed.id.as_str(),
                     ])
                     .await;
@@ -271,6 +275,7 @@ pub async fn import(
                         parsed.auth_pass.as_deref(),
                         parsed.protocol_hint.as_deref(),
                         req.policy.stability_window_min as i64,
+                        req.policy.dead_backoff_mult as f64,
                         parsed.id.as_str(),
                     ])
                     .await;
@@ -438,6 +443,7 @@ pub async fn get_by_id(
             recheck_dead_sec: row.recheck_dead_sec,
             max_dead_strikes: row.max_dead_strikes,
             stability_window_min: row.stability_window_min,
+            dead_backoff_mult: row.dead_backoff_mult,
         },
         stats: ProxyStatsDto {
             checks_total: row.checks_total,

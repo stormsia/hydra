@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS proxies (
     recheck_dead_sec     INTEGER NOT NULL DEFAULT 1800,  -- карантин мёртвых (0 = не речекать)
     max_dead_strikes     INTEGER NOT NULL DEFAULT 3,     -- лимит ошибок до dead_permanent
     stability_window_min INTEGER NOT NULL DEFAULT 5,     -- окно стабильности (в минутах)
+    dead_backoff_mult    REAL NOT NULL DEFAULT 1.5,      -- множитель экспоненциального речека мертвых (>= 1.0)
 
     -- === Статистика ===
     checks_total    INTEGER NOT NULL DEFAULT 0,
