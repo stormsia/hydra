@@ -11,19 +11,19 @@ tokio-util = { version = "0.7", features = ["io"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 ring = "0.17"
-webpki-roots = "0.26"
+webpki-roots = "1.0"
 httparse = "1.9"
-compact_str = { version = "0.8", features = ["serde"] }
+compact_str = { version = "0.10", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-socket2 = "0.5"
+socket2 = "0.6"
 futures = "0.3"
-base64 = "0.22"
+base64 = "0.23"
 url = { version = "2.5", features = ["serde"] }
 tracing = { version = "0.1", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1.43", features = ["full", "test-util"] }
-rcgen = "0.13"
+rcgen = "0.14"
 
 
