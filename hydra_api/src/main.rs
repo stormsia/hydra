@@ -15,6 +15,7 @@ use hydra_api::services::scheduler::scheduler_loop;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    hydra_api::init_crypto_provider();
     dotenvy::dotenv().ok();
 
     tracing_subscriber::fmt()

@@ -35,7 +35,8 @@ compact_str = { version = "0.10", features = ["serde"] }
 maxminddb = "0.32"
 arc-swap = "1.7"
 flate2 = "1.0"
-reqwest = { version = "0.13", features = ["json"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "charset", "http2", "system-proxy", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 
 # Logging
 tracing = "0.1"

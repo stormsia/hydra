@@ -89,16 +89,19 @@ impl GeoIpResolver {
         let mut result = GeoIpResult::default();
 
         if let Some(ref cr) = guard.country_reader
-            && let Ok(country) = cr.lookup::<maxminddb::geoip2::Country>(ip)
-                && let Some(c) = country.country {
-                    result.country = c.iso_code.map(|s| s.to_string());
-                }
+            && let Ok(lookup) = cr.lookup(ip)
+            && let Ok(Some(country)) = lookup.decode::<maxminddb::geoip2::Country>()
+        {
+            result.country = country.country.iso_code.map(|s| s.to_string());
+        }
 
         if let Some(ref ar) = guard.asn_reader
-            && let Ok(asn) = ar.lookup::<maxminddb::geoip2::Asn>(ip) {
-                result.asn = asn.autonomous_system_number;
-                result.asn_org = asn.autonomous_system_organization.map(|s| s.to_string());
-            }
+            && let Ok(lookup) = ar.lookup(ip)
+            && let Ok(Some(asn)) = lookup.decode::<maxminddb::geoip2::Asn>()
+        {
+            result.asn = asn.autonomous_system_number;
+            result.asn_org = asn.autonomous_system_organization.map(|s| s.to_string());
+        }
 
         result
     }

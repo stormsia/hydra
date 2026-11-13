@@ -46,7 +46,7 @@ pub fn build_server_tls_config(config: &JudgeConfig) -> Result<Arc<ServerConfig>
             .map_err(|e| JudgeError::Tls(format!("Failed to generate self-signed cert: {e}")))?;
 
         let cert_der = cert.cert.der().to_vec();
-        let key_der = cert.key_pair.serialize_der();
+        let key_der = cert.signing_key.serialize_der();
 
         let certs = vec![CertificateDer::from(cert_der)];
         let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key_der));

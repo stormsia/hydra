@@ -16,7 +16,7 @@ async fn test_socks5_tls_tunnel_end_to_end() {
     let san = vec!["judge.example.com".to_string(), "93.184.216.34".to_string()];
     let cert = rcgen::generate_simple_self_signed(san).unwrap();
     let cert_der = cert.cert.der().to_vec();
-    let key_der = cert.key_pair.serialize_der();
+    let key_der = cert.signing_key.serialize_der();
 
     // 2. Build ServerConfig for mock TLS Judge
     let cert_chain = vec![CertificateDer::from(cert_der.clone())];
@@ -106,7 +106,7 @@ async fn test_socks5_mitm_untrusted_cert_rejected() {
     let san = vec!["93.184.216.34".to_string()];
     let mitm_cert = rcgen::generate_simple_self_signed(san).unwrap();
     let mitm_cert_der = mitm_cert.cert.der().to_vec();
-    let mitm_key_der = mitm_cert.key_pair.serialize_der();
+    let mitm_key_der = mitm_cert.signing_key.serialize_der();
 
     let cert_chain = vec![CertificateDer::from(mitm_cert_der)];
     let private_key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(mitm_key_der));

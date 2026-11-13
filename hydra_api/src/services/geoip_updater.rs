@@ -172,6 +172,7 @@ pub async fn check_and_update_all(
 /// Creates an HTTP client configured specifically for binary mmdb downloads
 /// (disabling transparent gzip/brotli decoding to preserve raw archive stream)
 pub fn build_http_client() -> reqwest::Client {
+    crate::init_crypto_provider();
     reqwest::Client::builder()
         .no_gzip()
         .no_brotli()

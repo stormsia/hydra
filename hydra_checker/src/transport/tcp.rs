@@ -72,7 +72,7 @@ impl Dialer for TcpDialer {
         // Forces the kernel to emit TCP RST on drop, instantly reclaiming the port
         // and bypassing the 60s TIME_WAIT state that exhausts ephemeral ports.
         let _ = socket.set_linger(Some(Duration::ZERO));
-        let _ = socket.set_nodelay(true);
+        let _ = socket.set_tcp_nodelay(true);
 
         // Limit kernel socket buffers (16KB RX, 4KB TX) to avoid gigabytes of RAM exhaustion
         // under tens of thousands of concurrent connections
