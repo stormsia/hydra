@@ -13,7 +13,7 @@ fn default_max_strikes() -> u32 { 3 }
 fn default_stability_window_min() -> u32 { 5 }
 fn default_dead_backoff_mult() -> f32 { 1.5 }
 
-/// Политика тайм-аутов и расписания проверок прокси-серверов
+/// Timeout policy and verification schedule for proxy servers
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 #[schema(example = json!({
     "connect_timeout_ms": 3000,
@@ -26,42 +26,42 @@ fn default_dead_backoff_mult() -> f32 { 1.5 }
     "dead_backoff_mult": 1.5
 }))]
 pub struct CheckPolicyDto {
-    /// Предельное время установки TCP-соединения (в миллисекундах)
+    /// Maximum TCP connection establishment timeout (in milliseconds)
     #[serde(default = "default_connect_timeout")]
     #[schema(example = 3000, minimum = 100, maximum = 60000, default = 3000)]
     pub connect_timeout_ms: u32,
 
-    /// Предельное время завершения SSL/TLS или протокольного рукопожатия (в миллисекундах)
+    /// Maximum timeout for completing SSL/TLS or protocol handshake (in milliseconds)
     #[serde(default = "default_handshake_timeout")]
     #[schema(example = 4000, minimum = 100, maximum = 60000, default = 4000)]
     pub handshake_timeout_ms: u32,
 
-    /// Тайм-аут на чтение/запись данных при валидации через тестовый judge (в миллисекундах)
+    /// Read/write I/O timeout during judge validation (in milliseconds)
     #[serde(default = "default_rw_timeout")]
     #[schema(example = 5000, minimum = 100, maximum = 60000, default = 5000)]
     pub rw_timeout_ms: u32,
 
-    /// Интервал регулярной фоновой перепроверки живых прокси (в секундах)
+    /// Interval for periodic background rechecks of alive proxies (in seconds)
     #[serde(default = "default_recheck_alive")]
     #[schema(example = 60, minimum = 10, maximum = 86400, default = 60)]
     pub recheck_alive_sec: u32,
 
-    /// Интервал перепроверки прокси в карантине (в секундах)
+    /// Interval for rechecking quarantined proxies in cooldown (in seconds)
     #[serde(default = "default_recheck_dead")]
     #[schema(example = 1800, minimum = 30, maximum = 604800, default = 1800)]
     pub recheck_dead_sec: u32,
 
-    /// Количество последовательных сбоев до отправки прокси в статус dead_permanent
+    /// Number of consecutive failures before marking proxy as dead_permanent
     #[serde(default = "default_max_strikes")]
     #[schema(example = 3, minimum = 1, maximum = 50, default = 3)]
     pub max_dead_strikes: u32,
 
-    /// Окно расчета показателя стабильности (в минутах, по умолчанию: 5)
+    /// Time window for calculating stability percentage (in minutes, default: 5)
     #[serde(default = "default_stability_window_min", alias = "stability_window", alias = "window_min", alias = "window_minutes")]
     #[schema(example = 5, minimum = 1, maximum = 1440, default = 5)]
     pub stability_window_min: u32,
 
-    /// Множитель экспоненциального увеличения задержки речека для мертвых прокси в карантине (cooldown)
+    /// Exponential backoff multiplier for rechecking failed proxies in quarantine (cooldown)
     #[serde(default = "default_dead_backoff_mult", alias = "backoff_multiplier", alias = "recheck_dead_multiplier", alias = "dead_multiplier", alias = "recheck_dead_mult", alias = "multiplier")]
     #[schema(example = 1.5, minimum = 1.0, maximum = 10.0, default = 1.5)]
     pub dead_backoff_mult: f32,
@@ -82,7 +82,7 @@ impl Default for CheckPolicyDto {
     }
 }
 
-/// Структурированные параметры прокси при импорте
+/// Structured proxy parameters for import
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[schema(example = json!({
     "ip": "185.220.101.5",
@@ -93,37 +93,37 @@ impl Default for CheckPolicyDto {
     "ignore_protocol": false
 }))]
 pub struct ProxyInputObject {
-    /// IP-адрес хоста прокси (IPv4 или IPv6)
+    /// Proxy host IP address (IPv4 or IPv6)
     #[schema(example = "185.220.101.5", min_length = 3, max_length = 45)]
     pub ip: String,
 
-    /// Порт подключения (1..=65535)
+    /// Connection port (1..=65535)
     #[schema(example = 1080, minimum = 1, maximum = 65535)]
     pub port: u16,
 
-    /// Ожидаемый протокол прокси (например: socks5, http, socks4)
+    /// Expected proxy protocol (e.g., socks5, http, socks4)
     #[schema(example = "socks5", max_length = 16)]
     pub protocol: Option<String>,
 
-    /// Логин пользователя для авторизации на приватном прокси
+    /// Username for private proxy authentication
     #[schema(example = "myuser", max_length = 128)]
     pub auth_user: Option<String>,
 
-    /// Пароль пользователя для авторизации на приватном прокси
+    /// Password for private proxy authentication
     #[schema(example = "mypassword", max_length = 128)]
     pub auth_pass: Option<String>,
 
-    /// Игнорировать указанный протокол и перебирать в режиме авто-детекта (каскад)
+    /// Ignore specified protocol and force auto-detection cascade (SOCKS5 -> SOCKS4 -> HTTP)
     #[serde(default, alias = "ignore_type")]
     #[schema(example = false, default = false)]
     pub ignore_protocol: Option<bool>,
 }
 
-/// Элемент входного массива импорта: текстовая строка любого формата или структурированный JSON-объект
+/// Item of import array: text string in any supported format or structured JSON object
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum ProxyInputItem {
-    /// Текстовая строка в поддерживаемых форматах:
+    /// Text string in supported formats:
     /// - `protocol://user:pass@ip:port`
     /// - `ip:port:user:pass`
     /// - `user:pass@ip:port`
@@ -133,7 +133,7 @@ pub enum ProxyInputItem {
     #[schema(example = "socks5://user:pass@185.220.101.5:1080")]
     String(String),
 
-    /// Структурированный объект с явными полями хоста, порта и авторизации
+    /// Structured object with explicit host, port, and authentication fields
     Object(ProxyInputObject),
 }
 
@@ -149,7 +149,7 @@ impl From<&str> for ProxyInputItem {
     }
 }
 
-/// Запрос на пакетный импорт сырых прокси-адресов
+/// Request for batch importing raw proxy addresses
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "source": "premium_pool_v1",
@@ -182,33 +182,33 @@ impl From<&str> for ProxyInputItem {
     ]
 }))]
 pub struct ImportBatchRequest {
-    /// Уникальное кодовое имя источника импорта (например, "free_spys_ru", "vendor_pack_1")
+    /// Unique code name for the import source (e.g., "free_spys_ru", "vendor_pack_1")
     #[schema(example = "premium_pool_v1", min_length = 1, max_length = 128)]
     pub source: String,
 
-    /// URL-адрес внешнего фида или API источника (если применимо)
+    /// URL of external feed or source API (if applicable)
     #[schema(example = "https://provider.example.com/api/feed.txt", max_length = 2048)]
     pub source_url: Option<String>,
 
-    /// Пользовательская заметка или комментарий к источнику
+    /// User note or comment for the source
     #[schema(example = "Primary corporate subnet proxies", max_length = 512)]
     pub remark: Option<String>,
 
-    /// Сбрасывать ли счетчик ошибок и воскрешать прокси, находившиеся в статусе dead_permanent
+    /// Whether to reset failure counters and resurrect dead_permanent proxies
     #[serde(default)]
     #[schema(example = true, default = false)]
     pub revive_dead: bool,
 
-    /// Флаг игнорирования указанного типа/протокола: если true, принудительно перебирать прокси в режиме авто-детекта (SOCKS5 -> SOCKS4 -> HTTP)
+    /// Whether to ignore provided protocol: if true, forces cascade auto-detection (SOCKS5 -> SOCKS4 -> HTTP)
     #[serde(default, alias = "ignore_type")]
     #[schema(example = false, default = false)]
     pub ignore_protocol: bool,
 
-    /// Индивидуальная политика проверки для импортируемого пула
+    /// Custom check policy for imported pool
     #[serde(default)]
     pub policy: CheckPolicyDto,
 
-    /// Массив прокси. Поддерживаются как текстовые строки (с авторизацией и без):
+    /// Array of proxies. Supports both formatted text strings (with or without auth):
     /// - `protocol://user:pass@ip:port`
     /// - `ip:port:user:pass`
     /// - `user:pass@ip:port`
@@ -216,72 +216,72 @@ pub struct ImportBatchRequest {
     /// - `ip:port`
     /// - `[ipv6]:port`
     ///
-    /// так и структурированные JSON-объекты `{"ip": "...", "port": ..., "auth_user": "...", "auth_pass": "..."}`
+    /// and structured JSON objects `{"ip": "...", "port": ..., "auth_user": "...", "auth_pass": "..."}`
     #[schema(example = json!(["socks5://user:pass@185.220.101.5:1080", "195.154.255.3:8080"]))]
     pub proxies: Vec<ProxyInputItem>,
 }
 
-/// Параметры фильтрации и пагинации списка прокси
+/// Filter and pagination parameters for proxy query
 #[derive(Debug, Clone, Default, Serialize, Deserialize, IntoParams)]
 pub struct ProxyFilterQuery {
-    /// Фильтр по текущему состоянию жизненного цикла
+    /// Filter by current lifecycle state
     #[param(example = "alive")]
     pub state: Option<ProxyState>,
 
-    /// Двухбуквенный ISO 3166-1 alpha-2 код страны или список кодов через запятую (например, "DE" или "DE,NL,FR" для региональной выборки)
+    /// Two-letter ISO 3166-1 alpha-2 country code or comma-separated list (e.g., "DE" or "DE,NL,FR")
     #[param(example = "DE,NL,FR", min_length = 2, max_length = 128)]
     pub country: Option<String>,
 
-    /// Исключить страны из выборки (ISO 3166-1 alpha-2 коды через запятую, например, "RU,CN")
+    /// Exclude countries from query (comma-separated ISO 3166-1 alpha-2 codes, e.g., "RU,CN")
     #[param(example = "RU,CN", min_length = 2, max_length = 128)]
     pub exclude_country: Option<String>,
 
-    /// Сетевой протокол прокси (например, "socks5", "http", "socks4")
+    /// Proxy network protocol (e.g., "socks5", "http", "socks4")
     #[param(example = "socks5", max_length = 16)]
     pub protocol: Option<String>,
 
-    /// Уровень анонимности (elite, anonymous, transparent)
+    /// Anonymity level (elite, anonymous, transparent)
     #[param(example = "elite", max_length = 16)]
     pub anon: Option<String>,
 
-    /// Поддержка CONNECT туннелирования для HTTPS
+    /// Whether proxy supports CONNECT tunneling for HTTPS
     #[param(example = true)]
     pub supports_https: Option<bool>,
 
-    /// Фильтр по наличию авторизации (true — только приватные с логином/паролем, false — только публичные без авторизации)
+    /// Filter by authentication requirement (true: private with credentials only, false: public only)
     #[param(example = false)]
     pub has_auth: Option<bool>,
 
-    /// Максимально допустимый суммарный RTT в миллисекундах
+    /// Maximum allowed total RTT in milliseconds
     #[param(example = 350, minimum = 1, maximum = 60000)]
     pub max_rtt: Option<u32>,
 
-    /// Минимальный процент аптайма (0.0 — 100.0)
+    /// Minimum uptime percentage (0.0 — 100.0)
     #[param(example = 95.0, minimum = 0.0, maximum = 100.0)]
     pub min_uptime: Option<f32>,
 
-    /// Минимальный процент стабильности в рамках плавающего окна N минут (0.0 — 100.0)
+    /// Minimum stability percentage within rolling window of N minutes (0.0 — 100.0)
     #[param(example = 90.0, minimum = 0.0, maximum = 100.0)]
     pub min_stability: Option<f32>,
 
-    /// Фильтр по размеру окна расчета стабильности (в минутах)
+    /// Filter by stability calculation window size (in minutes)
     #[param(example = 5, minimum = 1, maximum = 1440)]
     pub stability_window_min: Option<u32>,
 
-    /// Фильтр по названию источника импорта
+    /// Filter by import source name
     #[param(example = "premium_pool_v1", min_length = 1, max_length = 128)]
     pub source: Option<String>,
 
-    /// Максимальное количество записей в ответе (по умолчанию: 50, передайте 0 для неограниченной выгрузки всех прокси пула для Gateway)
+    /// Maximum records in response (default: 50, pass 0 for unlimited pool export for Gateway)
     #[param(example = 50, minimum = 0, maximum = 100000, default = 50)]
     pub limit: Option<u32>,
 
-    /// Смещение для пагинации результатов
+    /// Offset for pagination
     #[param(example = 0, minimum = 0, default = 0)]
     pub offset: Option<u32>,
 }
 
-/// Запрос на экстренное сообщение о сбое прокси из клиентского приложения (одиночный или пакетный)
+/// Request to report proxy failure from client application (single or batch)
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "id": "185.220.101.5:1080:myuser:mypassword",
@@ -289,20 +289,20 @@ pub struct ProxyFilterQuery {
     "reason": "Connection reset by peer during target handshake"
 }))]
 pub struct ReportFailRequest {
-    /// Одиночный идентификатор прокси (в формате `ip:port` или `ip:port:login:pwd`)
+    /// Single proxy identifier (format: `ip:port` or `ip:port:login:pwd`)
     #[schema(example = "185.220.101.5:1080:myuser:mypassword", max_length = 256)]
     pub id: Option<String>,
 
-    /// Массив идентификаторов прокси для пакетной отправки сбоев (например, при падении узла провайдера)
+    /// Array of proxy identifiers for batch failure reporting
     #[schema(example = json!(["185.220.101.5:1080:myuser:mypassword", "195.154.255.3:8080"]))]
     pub ids: Option<Vec<String>>,
 
-    /// Причина или стек ошибки, зафиксированный клиентом
+    /// Reason or error message recorded by client
     #[schema(example = "Connection reset by peer during target handshake", min_length = 1, max_length = 1024)]
     pub reason: String,
 }
 
-/// Результат фиксации клиентского сбоя прокси
+/// Result of recording client proxy failure report
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[schema(example = json!({
     "status": "reported",
@@ -311,23 +311,23 @@ pub struct ReportFailRequest {
     "proxy_id": "185.220.101.5:1080:myuser:mypassword"
 }))]
 pub struct ReportFailResponse {
-    /// Статус операции подтверждения регистрации сбоя
+    /// Operation confirmation status
     #[schema(example = "reported", min_length = 1, max_length = 64)]
     pub status: String,
 
-    /// Количество прокси, успешно переведенных в карантин (cooldown)
+    /// Number of proxies successfully transitioned to quarantine (cooldown)
     #[schema(example = 2, minimum = 0)]
     pub affected_count: usize,
 
-    /// Массив идентификаторов прокси, для которых зафиксирован сбой
+    /// Array of proxy IDs for which failure was recorded
     pub reported_ids: Vec<String>,
 
-    /// Идентификатор прокси (сохраняется для обратной совместимости при одиночных запросах)
+    /// Proxy ID (retained for backward compatibility on single requests)
     #[schema(example = "185.220.101.5:1080:myuser:mypassword")]
     pub proxy_id: Option<String>,
 }
 
-/// Запрос на частичное обновление параметров прокси-сервера
+/// Request for partial proxy update
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "remark": "Reserved for scraper worker #4",
@@ -347,32 +347,32 @@ pub struct ReportFailResponse {
     }
 }))]
 pub struct PatchProxyRequest {
-    /// Обновленный комментарий / заметка к прокси
+    /// Updated comment / note for proxy
     #[schema(example = "Reserved for scraper worker #4", max_length = 512)]
     pub remark: Option<String>,
 
-    /// Логин пользователя для авторизации на приватном прокси
+    /// Username for private proxy authentication
     #[schema(example = "myuser", max_length = 128)]
     pub auth_user: Option<String>,
 
-    /// Пароль пользователя для авторизации на приватном прокси
+    /// Password for private proxy authentication
     #[schema(example = "mypassword", max_length = 128)]
     pub auth_pass: Option<String>,
 
-    /// Сбросить протокол на авто-детект (каскадный перебор SOCKS5 -> SOCKS4 -> HTTP)
+    /// Reset protocol to auto-detection (cascade SOCKS5 -> SOCKS4 -> HTTP)
     #[serde(default, alias = "ignore_type")]
     #[schema(example = false, default = false)]
     pub ignore_protocol: Option<bool>,
 
-    /// Обновленная политика тайм-аутов и периодичности проверок
+    /// Updated timeout and verification policy
     pub policy: Option<CheckPolicyDto>,
 
-    /// Принудительно запланировать проверку прокси на текущий момент времени
+    /// Force immediate check schedule for proxy
     #[schema(example = true, default = false)]
     pub force_recheck: Option<bool>,
 }
 
-/// Результат обработки пакета сырых прокси
+/// Result of raw proxy batch processing
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "source_id": 1,
@@ -383,32 +383,32 @@ pub struct PatchProxyRequest {
     "invalid_format": 2
 }))]
 pub struct ImportBatchResponse {
-    /// Первичный ключ источника в базе данных
+    /// Source primary key in database
     #[schema(example = 1, minimum = 1)]
     pub source_id: i64,
 
-    /// Общее количество строк, переданных в запросе
+    /// Total lines/items provided in request
     #[schema(example = 100, minimum = 0)]
     pub total_received: usize,
 
-    /// Количество новых уникальных прокси, добавленных в очередь
+    /// Number of new unique proxies added to queue
     #[schema(example = 78, minimum = 0)]
     pub inserted_new: usize,
 
-    /// Количество уже существовавших прокси, привязанных к новому источнику
+    /// Number of existing proxies linked to new source
     #[schema(example = 20, minimum = 0)]
     pub updated_existing: usize,
 
-    /// Количество реанимированных прокси (переведенных из dead_permanent в cold_queue)
+    /// Number of revived proxies (transitioned from dead_permanent to cold_queue)
     #[schema(example = 5, minimum = 0)]
     pub revived: usize,
 
-    /// Количество строк с некорректным форматом адреса или bogon IP
+    /// Number of rejected lines with invalid format or bogon IP
     #[schema(example = 2, minimum = 0)]
     pub invalid_format: usize,
 }
 
-/// Краткая информация о прокси в выборках и списках
+/// Concise proxy summary for query lists and selections
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "id": "185.220.101.5:1080:user:secret123",
@@ -442,123 +442,123 @@ pub struct ImportBatchResponse {
     "next_check_at": 1731256860
 }))]
 pub struct ProxyShortItem {
-    /// Полный уникальный идентификатор прокси (`ip:port` или `ip:port:login:pwd`)
+    /// Full unique proxy identifier (`ip:port` or `ip:port:login:pwd`)
     #[schema(example = "185.220.101.5:1080:user:secret123", min_length = 3, max_length = 256)]
     pub id: String,
 
-    /// IP-адрес хоста прокси
+    /// Proxy host IP address
     #[schema(example = "185.220.101.5", min_length = 3, max_length = 45)]
     pub ip: String,
 
-    /// Порт подключения
+    /// Connection port
     #[schema(example = 1080, minimum = 1, maximum = 65535)]
     pub port: u16,
 
-    /// Готовый URL для подключения (содержит логин и пароль при наличии)
+    /// Formatted connection URL (includes credentials when present)
     #[schema(example = "socks5://user:secret123@185.220.101.5:1080", min_length = 7, max_length = 512)]
     pub url: String,
 
-    /// Определенный сетевой протокол (socks5, socks4, http) или null, если еще не определен (в очереди cold_queue)
+    /// Detected network protocol (socks5, socks4, http) or null if pending in cold_queue
     #[schema(example = "socks5", max_length = 16)]
     pub protocol: Option<String>,
 
-    /// Флаг наличия учетных данных авторизации (логин/пароль)
+    /// Whether credentials (username/password) are present
     #[schema(example = true)]
     pub has_auth: bool,
 
-    /// Логин пользователя для авторизации (если прокси приватный)
+    /// Username for proxy authentication (if private)
     #[schema(example = "user", max_length = 128)]
     pub auth_user: Option<String>,
 
-    /// Пароль пользователя для авторизации (если прокси приватный)
+    /// Password for proxy authentication (if private)
     #[schema(example = "secret123", max_length = 128)]
     pub auth_pass: Option<String>,
 
-    /// Текущее состояние жизненного цикла прокси в пуле (cold_queue, alive, cooldown, dead_permanent)
+    /// Current lifecycle state in pool (cold_queue, alive, cooldown, dead_permanent)
     pub state: ProxyState,
 
-    /// Флаг поддержки туннелирования CONNECT для HTTPS
+    /// Whether CONNECT tunneling for HTTPS is supported
     #[schema(example = true)]
     pub supports_https: bool,
 
-    /// Реальный исходящий IP-адрес, зафиксированный тестовым Judge
+    /// Real outgoing IP address observed by verification Judge
     #[schema(example = "185.220.101.5", min_length = 3, max_length = 45)]
     pub out_ip: Option<String>,
 
-    /// Двухбуквенный ISO-код страны местонахождения
+    /// Two-letter ISO country code
     #[schema(example = "DE", min_length = 2, max_length = 2)]
     pub country: Option<String>,
 
-    /// Номер автономной системы (BGP ASN)
+    /// Autonomous System Number (BGP ASN)
     #[schema(example = 24940, minimum = 1)]
     pub asn: Option<u32>,
 
-    /// Название провайдера / владельца автономной системы
+    /// Autonomous System / ISP organization name
     #[schema(example = "Hetzner Online GmbH", max_length = 256)]
     pub asn_org: Option<String>,
 
-    /// Уровень анонимности: elite (высокая), anonymous, transparent (прозрачная) или null, если еще не проверена
+    /// Anonymity level: elite, anonymous, transparent, or null if pending check
     #[schema(example = "elite", max_length = 16)]
     pub anon: Option<String>,
 
-    /// Время установки базового TCP соединения (RTT в миллисекундах)
+    /// Base TCP connection latency (RTT in milliseconds)
     #[schema(example = 42, minimum = 0)]
     pub rtt_tcp_ms: Option<u32>,
 
-    /// Время завершения протокольного рукопожатия (в миллисекундах)
+    /// Protocol handshake completion latency (in milliseconds)
     #[schema(example = 68, minimum = 0)]
     pub rtt_handshake_ms: Option<u32>,
 
-    /// Суммарная задержка до получения ответа от judge (в миллисекундах)
+    /// Total end-to-end latency to receive judge response (in milliseconds)
     #[schema(example = 110, minimum = 0)]
     pub rtt_total_ms: Option<u32>,
 
-    /// Процент успешных проверок за все время жизни
+    /// All-time success check rate percentage
     #[schema(example = 98.5, minimum = 0.0, maximum = 100.0)]
     pub uptime_pct: f32,
 
-    /// Процент стабильности успешных проверок в рамках плавающего окна N минут (0.0 — 100.0)
+    /// Stability percentage within rolling window of N minutes (0.0 — 100.0)
     #[schema(example = 100.0, minimum = 0.0, maximum = 100.0)]
     pub stability_pct: f32,
 
-    /// Окно расчета показателя стабильности (в минутах)
+    /// Time window for stability calculation (in minutes)
     #[schema(example = 5, minimum = 1, maximum = 1440, default = 5)]
     pub stability_window_min: u32,
 
-    /// Общее количество выполненных проверок
+    /// Total number of checks performed
     #[schema(example = 450, minimum = 0)]
     pub checks_total: u64,
 
-    /// Количество успешных проверок
+    /// Number of successful checks
     #[schema(example = 445, minimum = 0)]
     pub checks_success: u64,
 
-    /// Текущее число последовательных сбоев подряд
+    /// Current consecutive failure count
     #[schema(example = 0, minimum = 0)]
     pub dead_strikes: u32,
 
-    /// Текст последней зафиксированной ошибки (если была)
+    /// Last recorded error message (if any)
     #[schema(example = "Connection timeout after 3000ms", max_length = 1024)]
     pub last_error: Option<String>,
 
-    /// Пользовательская заметка / тег
+    /// User note / tag
     #[schema(example = "High performance German node", max_length = 512)]
     pub remark: Option<String>,
 
-    /// Unix-timestamp первого обнаружения прокси в системе (в секундах)
+    /// Unix timestamp of initial discovery (in seconds)
     #[schema(example = 1731200000, minimum = 0)]
     pub first_seen_at: i64,
 
-    /// Unix-timestamp последней завершенной проверки (в секундах)
+    /// Unix timestamp of last completed check (in seconds)
     #[schema(example = 1731256800, minimum = 0)]
     pub last_checked_at: Option<i64>,
 
-    /// Unix-timestamp запланированной следующей проверки (в секундах)
+    /// Unix timestamp of scheduled next check (in seconds)
     #[schema(example = 1731256860, minimum = 0)]
     pub next_check_at: i64,
 }
 
-/// Полная карточка прокси со всей историей, метриками и источниками
+/// Detailed proxy card with full history, metrics, and linked sources
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "id": "185.220.101.5:1080:user:secret123",
@@ -608,79 +608,79 @@ pub struct ProxyShortItem {
     }
 }))]
 pub struct ProxyFullDetails {
-    /// Полный уникальный идентификатор в формате `ip:port` или `ip:port:login:pwd`
+    /// Full unique identifier in `ip:port` or `ip:port:login:pwd` format
     #[schema(example = "185.220.101.5:1080:user:secret123", min_length = 3, max_length = 256)]
     pub id: String,
 
-    /// IP-адрес входящего хоста
+    /// Inbound host IP address
     #[schema(example = "185.220.101.5", min_length = 3, max_length = 45)]
     pub ip: String,
 
-    /// Порт подключения
+    /// Connection port
     #[schema(example = 1080, minimum = 1, maximum = 65535)]
     pub port: u16,
 
-    /// Форматированный URL подключения
+    /// Formatted connection URL
     #[schema(example = "socks5://user:secret123@185.220.101.5:1080", min_length = 7, max_length = 512)]
     pub url: String,
 
-    /// Флаг наличия учетных данных (логин/пароль)
+    /// Whether credentials (username/password) are present
     #[schema(example = true)]
     pub has_auth: bool,
 
-    /// Логин пользователя для авторизации
+    /// Username for authentication
     #[schema(example = "user", max_length = 128)]
     pub auth_user: Option<String>,
 
-    /// Пароль пользователя для авторизации
+    /// Password for authentication
     #[schema(example = "secret123", max_length = 128)]
     pub auth_pass: Option<String>,
 
-    /// Текущее состояние прокси в пуле
+    /// Current proxy state in pool
     pub state: ProxyState,
 
-    /// Подтвержденный протокол
+    /// Confirmed network protocol
     #[schema(example = "socks5", max_length = 16)]
     pub protocol: Option<String>,
 
-    /// Поддержка CONNECT туннелирования для HTTPS
+    /// Whether proxy supports CONNECT tunneling for HTTPS
     #[schema(example = true)]
     pub supports_https: bool,
 
-    /// Внешний IP-адрес, видимый целевым серверам
+    /// Outbound IP address observed by target servers
     #[schema(example = "185.220.101.5", min_length = 3, max_length = 45)]
     pub out_ip: Option<String>,
 
-    /// Двухбуквенный ISO-код страны
+    /// Two-letter ISO country code
     #[schema(example = "DE", min_length = 2, max_length = 2)]
     pub country: Option<String>,
 
-    /// Номер автономной системы (ASN)
+    /// Autonomous System Number (ASN)
     #[schema(example = 24940, minimum = 1)]
     pub asn: Option<u32>,
 
-    /// Организация-владелец автономной системы
+    /// Organization owning the Autonomous System
     #[schema(example = "Hetzner Online GmbH", max_length = 256)]
     pub asn_org: Option<String>,
 
-    /// Уровень анонимности (elite, anonymous, transparent)
+    /// Anonymity level (elite, anonymous, transparent)
     #[schema(example = "elite", max_length = 16)]
     pub anon: Option<String>,
 
-    /// Сетевые задержки (RTT метрики)
+    /// Network latencies (RTT metrics)
     pub metrics: ProxyMetricsDto,
 
-    /// Политика проверки прокси
+    /// Proxy check policy
     pub policy: CheckPolicyDto,
 
-    /// Статистика проверок и доступности
+    /// Check and availability statistics
     pub stats: ProxyStatsDto,
 
-    /// Пользовательские метаданные и источники
+    /// User metadata and linked sources
     pub meta: ProxyMetaDto,
 }
 
-/// Задержки сети и отклика (RTT метрики)
+/// Network and response latencies (RTT metrics)
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "rtt_tcp_ms": 42,
@@ -688,20 +688,20 @@ pub struct ProxyFullDetails {
     "rtt_total_ms": 110
 }))]
 pub struct ProxyMetricsDto {
-    /// RTT базового TCP подключения к прокси (мс)
+    /// Base TCP connect latency to proxy (ms)
     #[schema(example = 42, minimum = 0)]
     pub rtt_tcp_ms: Option<u32>,
 
-    /// RTT прохождения протокольного хэндшейка (мс)
+    /// Protocol handshake latency (ms)
     #[schema(example = 68, minimum = 0)]
     pub rtt_handshake_ms: Option<u32>,
 
-    /// Полный RTT от начала подключения до получения валидного ответа от judge (мс)
+    /// Total end-to-end RTT from connect start to valid judge response (ms)
     #[schema(example = 110, minimum = 0)]
     pub rtt_total_ms: Option<u32>,
 }
 
-/// Статистика успешности и тайминги проверок прокси
+/// Success statistics and check timings for proxy
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "checks_total": 450,
@@ -715,60 +715,60 @@ pub struct ProxyMetricsDto {
     "next_check_at": 1731256860
 }))]
 pub struct ProxyStatsDto {
-    /// Общее количество выполненных проверок
+    /// Total number of checks performed
     #[schema(example = 450, minimum = 0)]
     pub checks_total: u64,
 
-    /// Количество успешных проверок
+    /// Number of successful checks
     #[schema(example = 445, minimum = 0)]
     pub checks_success: u64,
 
-    /// Процент доступности (аптайм)
+    /// Uptime availability percentage
     #[schema(example = 98.88, minimum = 0.0, maximum = 100.0)]
     pub uptime_pct: f32,
 
-    /// Процент стабильности успешных проверок в рамках плавающего окна N минут (0.0 — 100.0)
+    /// Stability percentage within rolling window of N minutes (0.0 — 100.0)
     #[schema(example = 100.0, minimum = 0.0, maximum = 100.0)]
     pub stability_pct: f32,
 
-    /// Текущее число последовательных сбоев подряд
+    /// Current consecutive failure count
     #[schema(example = 0, minimum = 0)]
     pub dead_strikes: u32,
 
-    /// Текст последней ошибки (если была)
+    /// Last recorded error message (if any)
     #[schema(example = "Connection timeout after 3000ms", max_length = 1024)]
     pub last_error: Option<String>,
 
-    /// Unix-timestamp первого добавления в систему
+    /// Unix timestamp of first addition to system
     #[schema(example = 1731200000, minimum = 0)]
     pub first_seen_at: i64,
 
-    /// Unix-timestamp последней проверки
+    /// Unix timestamp of last check
     #[schema(example = 1731256800, minimum = 0)]
     pub last_checked_at: Option<i64>,
 
-    /// Unix-timestamp запланированной следующей проверки
+    /// Unix timestamp of scheduled next check
     #[schema(example = 1731256860, minimum = 0)]
     pub next_check_at: i64,
 }
 
-/// Детализированная информация о привязке прокси к источнику
+/// Detailed information on proxy source association
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[schema(example = json!({
     "name": "premium_pool_v1",
     "added_at": 1731200000
 }))]
 pub struct ProxySourceMetaDto {
-    /// Наименование источника
+    /// Source name
     #[schema(example = "premium_pool_v1")]
     pub name: String,
 
-    /// Unix-timestamp добавления прокси из этого источника
+    /// Unix timestamp when proxy was discovered from this source
     #[schema(example = 1731200000, minimum = 0)]
     pub added_at: i64,
 }
 
-/// Метаинформация и связь с источниками
+/// Metadata and association with sources
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "remark": "High performance German node",
@@ -779,19 +779,19 @@ pub struct ProxySourceMetaDto {
     ]
 }))]
 pub struct ProxyMetaDto {
-    /// Пользовательская заметка / тег
+    /// User note / tag
     #[schema(example = "High performance German node", max_length = 512)]
     pub remark: Option<String>,
 
-    /// Список названий источников, в которых был обнаружен данный прокси
+    /// List of source names where proxy was discovered
     #[schema(example = json!(["premium_pool_v1", "backup_tor_feed"]))]
     pub sources: Vec<String>,
 
-    /// Детализированный список источников с меткой времени добавления
+    /// Detailed list of sources with discovery timestamps
     pub source_details: Vec<ProxySourceMetaDto>,
 }
 
-/// Статистика качества и производительности источника прокси
+/// Quality and performance metrics for a proxy source
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "id": 1,
@@ -810,64 +810,64 @@ pub struct ProxyMetaDto {
     "last_checked_at": 1731256800
 }))]
 pub struct SourceStatsItem {
-    /// Первичный идентификатор источника
+    /// Source primary identifier
     #[schema(example = 1, minimum = 1)]
     pub id: i64,
 
-    /// Уникальное наименование источника
+    /// Unique source name
     #[schema(example = "premium_pool_v1", min_length = 1, max_length = 128)]
     pub name: String,
 
-    /// URL-адрес источника (если настроен)
+    /// Source feed/API URL (if configured)
     #[schema(example = "https://provider.example.com/api/feed.txt", max_length = 2048)]
     pub url: Option<String>,
 
-    /// Заметка об источнике
+    /// Source note/remark
     #[schema(example = "Primary corporate subnet proxies", max_length = 512)]
     pub remark: Option<String>,
 
-    /// Общее количество прокси, привязанных к источнику
+    /// Total proxies associated with source
     #[schema(example = 1000, minimum = 0)]
     pub total_proxies: u64,
 
-    /// Количество рабочих (alive) прокси
+    /// Number of working (alive) proxies
     #[schema(example = 850, minimum = 0)]
     pub alive_proxies: u64,
 
-    /// Количество прокси в первичной очереди (cold_queue)
+    /// Number of proxies in initial cold queue
     #[schema(example = 50, minimum = 0)]
     pub cold_queue_proxies: u64,
 
-    /// Количество прокси на карантине (cooldown)
+    /// Number of quarantined proxies in cooldown
     #[schema(example = 70, minimum = 0)]
     pub cooldown_proxies: u64,
 
-    /// Количество окончательно мертвых прокси (dead_permanent)
+    /// Number of permanently dead proxies
     #[schema(example = 30, minimum = 0)]
     pub dead_proxies: u64,
 
-    /// Процент выхода живых прокси (alive / total * 100)
+    /// Yield percentage of alive proxies (alive / total * 100)
     #[schema(example = 85.0, minimum = 0.0, maximum = 100.0)]
     pub yield_pct: f32,
 
-    /// Средняя задержка (RTT) по всем живым прокси данного источника (мс)
+    /// Average latency (RTT) across all alive proxies of this source (ms)
     #[schema(example = 145, minimum = 0)]
     pub avg_rtt_ms: Option<u32>,
 
-    /// Unix-timestamp создания источника в базе данных
+    /// Unix timestamp of source creation in database
     #[schema(example = 1731200000, minimum = 0)]
     pub created_at: i64,
 
-    /// Unix-timestamp последнего добавления/импорта прокси в этот источник
+    /// Unix timestamp of last proxy import into this source
     #[schema(example = 1731250000, minimum = 0)]
     pub last_added_at: Option<i64>,
 
-    /// Unix-timestamp последней проверки любого прокси из этого источника
+    /// Unix timestamp of last check for any proxy in this source
     #[schema(example = 1731256800, minimum = 0)]
     pub last_checked_at: Option<i64>,
 }
 
-/// Статистика доступности прокси по провайдерам / автономным системам (ASN)
+/// Proxy availability statistics by ASN / provider
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "asn": 24940,
@@ -876,24 +876,24 @@ pub struct SourceStatsItem {
     "avg_rtt_ms": 85
 }))]
 pub struct AsnStatsDto {
-    /// Номер автономной системы (ASN)
+    /// Autonomous System Number (ASN)
     #[schema(example = 24940, minimum = 1)]
     pub asn: u32,
 
-    /// Название организации / интернет-провайдера (ASN Org)
+    /// Autonomous System / ISP organization name
     #[schema(example = "Hetzner Online GmbH", max_length = 256)]
     pub asn_org: Option<String>,
 
-    /// Количество доступных (alive) прокси в этой автономной системе
+    /// Number of alive proxies in this Autonomous System
     #[schema(example = 3200, minimum = 0)]
     pub alive_count: u64,
 
-    /// Средний суммарный RTT для прокси этого ASN (мс)
+    /// Average total RTT for proxies in this ASN (ms)
     #[schema(example = 85, minimum = 0)]
     pub avg_rtt_ms: u32,
 }
 
-/// Метрики качества, задержек и возможностей пула прокси
+/// Pool-wide quality, latency, and capability metrics
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "total_checks": 85000,
@@ -908,48 +908,48 @@ pub struct AsnStatsDto {
     "total_sources": 12
 }))]
 pub struct PoolQualityDto {
-    /// Суммарное количество выполненных проверок по всем прокси пула
+    /// Total checks executed across all proxies in pool
     #[schema(example = 85000, minimum = 0)]
     pub total_checks: u64,
 
-    /// Количество успешных проверок по всем прокси пула
+    /// Number of successful checks across all proxies in pool
     #[schema(example = 81500, minimum = 0)]
     pub total_checks_success: u64,
 
-    /// Общий процент доступности (uptime) по всему пулу
+    /// Overall uptime availability percentage across pool
     #[schema(example = 95.88, minimum = 0.0, maximum = 100.0)]
     pub uptime_pct: f32,
 
-    /// Средняя суммарная задержка (RTT) по всем живым прокси (мс)
+    /// Average total latency (RTT) across all alive proxies (ms)
     #[schema(example = 115, minimum = 0)]
     pub avg_rtt_ms: Option<u32>,
 
-    /// Средняя задержка TCP SYN/SYN-ACK по всем живым прокси (мс)
+    /// Average TCP SYN/SYN-ACK latency across all alive proxies (ms)
     #[schema(example = 45, minimum = 0)]
     pub avg_rtt_tcp_ms: Option<u32>,
 
-    /// Средняя задержка рукопожатия протокола по всем живым прокси (мс)
+    /// Average protocol handshake latency across all alive proxies (ms)
     #[schema(example = 70, minimum = 0)]
     pub avg_rtt_handshake_ms: Option<u32>,
 
-    /// Количество живых прокси с поддержкой CONNECT для HTTPS
+    /// Number of alive proxies supporting CONNECT for HTTPS
     #[schema(example = 7800, minimum = 0)]
     pub supports_https_count: u64,
 
-    /// Количество живых приватных прокси с учетными данными авторизации
+    /// Number of alive private proxies requiring authentication
     #[schema(example = 2100, minimum = 0)]
     pub with_auth_count: u64,
 
-    /// Количество живых публичных прокси без авторизации
+    /// Number of alive public proxies without authentication
     #[schema(example = 6300, minimum = 0)]
     pub no_auth_count: u64,
 
-    /// Общее количество зарегистрированных источников прокси в системе
+    /// Total registered proxy sources in system
     #[schema(example = 12, minimum = 0)]
     pub total_sources: u64,
 }
 
-/// Глобальная телеметрия и статистика системы
+/// Global system telemetry and pool statistics
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "engine": {
@@ -1003,35 +1003,35 @@ pub struct PoolQualityDto {
     ]
 }))]
 pub struct GlobalStatsResponse {
-    /// Состояние и показатели движка проверок
+    /// Engine state and runtime metrics
     pub engine: EngineStatsDto,
 
-    /// Распределение общего пула прокси по статусам
+    /// Distribution of proxy pool across states
     pub pool: PoolCountsDto,
 
-    /// Метрики качества, задержек и возможностей пула
+    /// Pool quality, latency, and capability metrics
     pub quality: PoolQualityDto,
 
-    /// Распределение живых прокси по протоколам (socks5, http, socks4)
+    /// Distribution of alive proxies by protocol (socks5, http, socks4)
     #[schema(example = json!({"socks5": 5200, "http": 3200}))]
     pub by_protocol: HashMap<String, u64>,
 
-    /// Распределение живых прокси по уровням анонимности
+    /// Distribution of alive proxies by anonymity level
     #[schema(example = json!({"elite": 6800, "anonymous": 1400, "transparent": 200}))]
     pub by_anonymity: HashMap<String, u64>,
 
-    /// Распределение зафиксированных причин сбоев и ошибок проверок
+    /// Distribution of recorded check errors and failure reasons
     #[schema(example = json!({"TIMEOUT_TCP": 850, "CONN_REFUSED": 430, "HANDSHAKE_TIMEOUT": 210}))]
     pub by_error: HashMap<String, u64>,
 
-    /// Топ стран по количеству доступных прокси
+    /// Top countries by available proxy count
     pub top_countries: Vec<CountryStatsDto>,
 
-    /// Топ интернет-провайдеров / ASN по количеству доступных прокси
+    /// Top ISPs / ASNs by available proxy count
     pub top_asns: Vec<AsnStatsDto>,
 }
 
-/// Метрики производительности асинхронного движка
+/// Performance metrics for async checker engine
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "active_workers": 128,
@@ -1041,28 +1041,28 @@ pub struct GlobalStatsResponse {
     "judge_healthy": true
 }))]
 pub struct EngineStatsDto {
-    /// Количество параллельных воркеров проверки
+    /// Number of concurrent verification workers
     #[schema(example = 128, minimum = 0)]
     pub active_workers: u32,
 
-    /// Текущая скорость проверки (проверок в секунду)
+    /// Current verification throughput (checks per second)
     #[schema(example = 45.2, minimum = 0.0)]
     pub checks_per_sec: f32,
 
-    /// Суммарное количество проверок, выполненных движком с момента запуска сервиса
+    /// Total checks executed by engine since service startup
     #[schema(example = 15420, minimum = 0)]
     pub checks_completed: u64,
 
-    /// Текущий размер буфера результатов, ожидающих пакетной записи в БД
+    /// Current size of result buffer awaiting batch write to DB
     #[schema(example = 15, minimum = 0)]
     pub batch_buffer_size: usize,
 
-    /// Флаг доступности тестового judge-сервера
+    /// Availability status of default test judge server
     #[schema(example = true)]
     pub judge_healthy: bool,
 }
 
-/// Количественное распределение пула по состояниям
+/// Pool count breakdown by lifecycle state
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "total": 12500,
@@ -1072,28 +1072,28 @@ pub struct EngineStatsDto {
     "dead_permanent": 800
 }))]
 pub struct PoolCountsDto {
-    /// Общее количество прокси всех состояний в базе данных
+    /// Total count of proxies across all states in database
     #[schema(example = 12500, minimum = 0)]
     pub total: u64,
 
-    /// Количество рабочих прокси, готовых к использованию
+    /// Count of verified working proxies ready for use
     #[schema(example = 8400, minimum = 0)]
     pub alive: u64,
 
-    /// Количество новых прокси в очереди на первичную проверку
+    /// Count of fresh proxies pending initial verification in queue
     #[schema(example = 1500, minimum = 0)]
     pub cold_queue: u64,
 
-    /// Количество прокси на карантине после временных сбоев
+    /// Count of quarantined proxies undergoing cooldown rechecks
     #[schema(example = 1800, minimum = 0)]
     pub cooldown: u64,
 
-    /// Количество окончательно мертвых прокси, исключенных из проверок
+    /// Count of permanently dead proxies excluded from active checks
     #[schema(example = 800, minimum = 0)]
     pub dead_permanent: u64,
 }
 
-/// Статистика доступности прокси по стране
+/// Proxy availability statistics by country
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "country": "DE",
@@ -1101,20 +1101,20 @@ pub struct PoolCountsDto {
     "avg_rtt_ms": 85
 }))]
 pub struct CountryStatsDto {
-    /// Двухбуквенный ISO-код страны
+    /// Two-letter ISO country code
     #[schema(example = "DE", min_length = 2, max_length = 2)]
     pub country: String,
 
-    /// Количество доступных (alive) прокси в этой стране
+    /// Number of available (alive) proxies in this country
     #[schema(example = 3200, minimum = 0)]
     pub alive_count: u64,
 
-    /// Средний суммарный RTT для прокси этой страны (мс)
+    /// Average total RTT for proxies in this country (ms)
     #[schema(example = 85, minimum = 0)]
     pub avg_rtt_ms: u32,
 }
 
-/// Информация о judge-сервере и его текущей доступности
+/// Judge server status and health details
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "id": "azenv_net",
@@ -1133,78 +1133,78 @@ pub struct CountryStatsDto {
     "last_error": null
 }))]
 pub struct JudgeReportDto {
-    /// Уникальный идентификатор judge-сервера
+    /// Unique judge server identifier
     #[schema(example = "azenv_net")]
     pub id: String,
 
-    /// Человекочитаемое имя
+    /// Human-readable judge name
     #[schema(example = "AZenv.net")]
     pub name: String,
 
-    /// HTTP эндпоинт
+    /// HTTP judge endpoint
     #[schema(example = "http://azenv.net/")]
     pub http_url: String,
 
-    /// HTTPS эндпоинт
+    /// HTTPS judge endpoint
     #[schema(example = "https://azenv.net/")]
     pub https_url: String,
 
-    /// Флаг встроенного локального judge
+    /// Whether judge is embedded locally in API instance
     #[schema(example = false)]
     pub is_builtin: bool,
 
-    /// Приоритет выбора (0 = наивысший, 1+ = резервные)
+    /// Selection priority (0 = primary, 1+ = fallbacks)
     #[schema(example = 1)]
     pub priority: u32,
 
-    /// Поддержка классификации анонимности по заголовкам
+    /// Supports header-based anonymity level detection
     #[schema(example = true)]
     pub supports_anonymity: bool,
 
-    /// Флаг активности в пуле
+    /// Active status in pool
     #[schema(example = true)]
     pub enabled: bool,
 
-    /// Текущий статус доступности: healthy, degraded, unhealthy, unknown
+    /// Current health status: healthy, degraded, unhealthy, unknown
     #[schema(example = "healthy")]
     pub status: String,
 
-    /// Задержка ответа при последней проверке доступности (мс)
+    /// Response latency during latest health check (ms)
     #[schema(example = 420)]
     pub latency_ms: Option<u64>,
 
-    /// Количество последовательных сбоев
+    /// Consecutive failure count
     #[schema(example = 0)]
     pub consecutive_failures: u32,
 
-    /// Количество последовательных успешных проверок
+    /// Consecutive success count
     #[schema(example = 12)]
     pub consecutive_successes: u32,
 
-    /// Время последней проверки доступности (Unix timestamp)
+    /// Last health probe Unix timestamp
     #[schema(example = 1794400500)]
     pub last_checked_at: Option<u64>,
 
-    /// Текст последней ошибки при проверке доступности
+    /// Last recorded health probe error
     pub last_error: Option<String>,
 }
 
-/// Результат проверки доступности пула судей
+/// Result of judge pool health check probe
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct JudgeHealthCheckResponse {
-    /// Количество проверенных judge-серверов
+    /// Total checked judge servers count
     #[schema(example = 6)]
     pub total_judges: usize,
 
-    /// Количество доступных и здоровых judge-серверов
+    /// Healthy and available judge servers count
     #[schema(example = 5)]
     pub healthy_judges: usize,
 
-    /// Идентификатор активного судьи, выбранного текущей стратегией
+    /// Active judge ID selected by current strategy
     #[schema(example = "builtin")]
     pub active_judge: Option<String>,
 
-    /// Детальный список статусов всех судей
+    /// Detailed status list for all judge servers
     pub judges: Vec<JudgeReportDto>,
 }
 

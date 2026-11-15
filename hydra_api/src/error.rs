@@ -4,18 +4,18 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Стандартизированный JSON-ответ с ошибкой API
+/// Standardized API error JSON response
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[schema(example = json!({
     "error": "not_found",
     "message": "Proxy '185.22.14.9:1080' not found"
 }))]
 pub struct ApiError {
-    /// Машинно-читаемый код ошибки (например: bad_request, not_found, unauthorized, internal_error)
+    /// Machine-readable error code (e.g., bad_request, not_found, unauthorized, internal_error)
     #[schema(example = "not_found", min_length = 1, max_length = 64)]
     pub error: String,
 
-    /// Человеко-читаемое описание возникшей ошибки
+    /// Human-readable error description
     #[schema(example = "Proxy '185.22.14.9:1080' not found", min_length = 1, max_length = 2048)]
     pub message: String,
 }

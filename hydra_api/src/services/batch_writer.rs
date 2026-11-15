@@ -22,11 +22,11 @@ pub struct CheckResultWithMeta {
     pub recent_checks: Option<String>,
 }
 
-/// Вычисляет следующий Unix timestamp проверки для упавшего прокси с учетом экспоненциального бэкоффа.
+/// Calculates the next check Unix timestamp for a failed proxy using exponential backoff.
 ///
-/// Для первого сбоя (new_strikes = 1) задержка равна базовому `recheck_dead_sec`.
-/// Для каждого последующего сбоя задержка умножается на `dead_backoff_mult` (например, 1.5 или 2.0).
-/// Если `dead_backoff_mult <= 1.0`, задержка остается фиксированной.
+/// For the first failure (new_strikes = 1), the delay equals the base `recheck_dead_sec`.
+/// For each consecutive failure, delay is multiplied by `dead_backoff_mult` (e.g., 1.5 or 2.0).
+/// If `dead_backoff_mult <= 1.0`, the delay remains constant.
 pub fn calculate_dead_next_check(
     now: i64,
     recheck_dead_sec: u32,
@@ -43,10 +43,10 @@ pub fn calculate_dead_next_check(
     now + capped_delay
 }
 
-/// Вычисляет обновленную историю проверок и процент стабильности в рамках плавающего окна N минут.
+/// Computes updated check history and stability percentage within a rolling window of N minutes.
 ///
-/// Записи кодируются компактно: "ts:status,ts:status" (где 1 = успех, 0 = ошибка).
-/// Записи старше `(now - window_min * 60)` автоматически отбрасываются при сдвиге окна.
+/// Records are compactly encoded: "ts:status,ts:status" (where 1 = success, 0 = failure).
+/// Records older than `(now - window_min * 60)` are automatically pruned as the window shifts.
 pub fn update_recent_checks(
     raw: Option<&str>,
     is_alive: bool,

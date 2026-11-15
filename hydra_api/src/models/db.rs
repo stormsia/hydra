@@ -1,20 +1,20 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Состояние прокси-сервера в жизненном цикле пула
+/// Lifecycle state of a proxy in the pool
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ProxyState {
-    /// Новая прокси, ожидает первой проверки в очереди
+    /// Fresh proxy waiting for its initial check in the queue
     #[schema(rename = "cold_queue")]
     ColdQueue = 0,
-    /// Проверенная рабочая прокси в активном пуле
+    /// Verified working proxy in the active pool
     #[schema(rename = "alive")]
     Alive = 1,
-    /// Временная ошибка проверки, ожидает повторного речека в карантине
+    /// Temporary check failure, quarantined awaiting recheck
     #[schema(rename = "cooldown")]
     Cooldown = 2,
-    /// Превышен лимит ошибок, окончательно выведена из оборота
+    /// Consecutive error threshold exceeded, permanently decommissioned
     #[schema(rename = "dead_permanent")]
     DeadPermanent = 3,
 }
@@ -34,7 +34,7 @@ impl ProxyState {
     }
 }
 
-/// Строка из таблицы `proxies` (полная)
+/// Full row representation from the `proxies` table
 #[derive(Debug, Clone)]
 pub struct ProxyRow {
     pub id: String, // "ip:port"
@@ -73,7 +73,7 @@ pub struct ProxyRow {
     pub next_check_at: i64,
 }
 
-/// Строка из таблицы `sources`
+/// Row representation from the `sources` table
 #[derive(Debug, Clone)]
 pub struct SourceRow {
     pub id: i64,
