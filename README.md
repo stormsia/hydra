@@ -158,13 +158,42 @@ cp .env.example .env
 
 ### 2. Сборка всего монорепозитория
 ```bash
+# Стандартная оптимизированная сборка (LTO fat, opt-level 3, codegen-units 1, strip)
 cargo build --workspace --release
+
+# Максимальная производительность (с оптимизацией под микроархитектуру CPU хоста — AVX2/BMI2)
+RUSTFLAGS="-C target-cpu=native" cargo build --workspace --release
 ```
 
-### 3. Запуск в All-In-One режиме (API + Встроенный Judge)
+### 3. Запуск скомпилированного сервиса
+
+После сборки исполняемые бинарные файлы находятся в директории `target/release/`. Запускайте их из корня проекта, где расположен файл `.env`:
+
+#### 🐧 Linux / macOS:
 ```bash
-cargo run -p hydra_api --release
+# Увеличение лимита открытых сокетов/файлов (критично для 5000+ воркеров)
+ulimit -n 65535
+
+# Запуск основного сервиса Hydra API (All-In-One или с внешним Judge)
+./target/release/hydra_api
+
+# Запуск автономного эхо-сервера Judge (на отдельном сервере)
+./target/release/hydra_judge
+
 ```
+
+#### 🪟 Windows (PowerShell / CMD):
+```powershell
+# Запуск основного сервиса Hydra API
+.\target\release\hydra_api.exe
+
+# Запуск автономного эхо-сервера Judge
+.\target\release\hydra_judge.exe
+```
+
+> [!TIP]
+> Для быстрой локальной отладки без предварительного ручного запуска бинарника также доступна команда:
+> `cargo run -p hydra_api --release`
 
 После старта доступны следующие интерфейсы:
 - **Интерактивный Swagger UI:** [http://127.0.0.1:3000/swagger-ui](http://127.0.0.1:3000/swagger-ui)
