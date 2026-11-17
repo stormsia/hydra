@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="Hydra Logo" width="650">
+</p>
+
 # Hydra — High-Performance Distributed Proxy Engine
 
 [![Rust 2024](https://img.shields.io/badge/rust-2024%20edition-dea584.svg?style=flat-square&logo=rust)](https://www.rust-lang.org/)
@@ -213,7 +217,10 @@ cargo run -p hydra_judge --release
 | `JUDGE_HTTPS_URL` | `Url` | `http://127.0.0.1:8080` | Нет | HTTPS URL судьи для валидации туннелей CONNECT и SOCKS4/5. |
 | `JUDGE_SECRET_TOKEN` | `String` | `hydra_secret_token` | Нет | Секретный статический токен для валидации ответа эхо-сервера. |
 | `CHECKER_CONCURRENCY` | `usize` | `5000` | Нет | Лимит одновременно выполняемых параллельных проверок сетевым ядром. |
-| `GEOIP_AUTO_UPDATE` | `bool` | `false` | Нет | Фоновая загрузка и обновление баз MaxMind Country/ASN по ETag. |
+| `CHECKER_REAL_IP` | `IpAddr` | *(нет)* | Нет | Реальный внешний IP чекера (для точной классификации Transparent прокси и anti-self-scan). |
+| `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | Нет | Использование пула внешних судей (httpbingo, httpbun, httpbin) при сбоях. |
+| `JUDGE_SELECTION_STRATEGY` | `String` | `lowest_latency` | Нет | Стратегия выбора судьи: `lowest_latency`, `priority`, `round_robin`. |
+| `GEOIP_AUTO_UPDATE` | `bool` | `true` | Нет | Фоновая загрузка и обновление баз MaxMind Country/ASN по ETag. |
 
 <details>
 <summary>👉 <b>Развернуть расширенные параметры тюнинга (таймауты, ротация HMAC, батчинг)</b></summary>
@@ -221,14 +228,13 @@ cargo run -p hydra_judge --release
 | Переменная | Тип | По умолчанию | Описание |
 |---|:---:|:---:|---|
 | `JUDGE_SECRET_KEY` | `String` | *(нет)* | Ключ HMAC-SHA256 для включения динамической 24-часовой ротации токенов. |
+| `JUDGE_HEALTH_CHECK_INTERVAL_SECS`| `u64` | `30` | Период зондирования доступности судей в секундах. |
+| `ADDITIONAL_JUDGES` | `String` | *(нет)* | Дополнительные пользовательские судьи через запятую (`HTTP_URL\|HTTPS_URL,...`). |
 | `CHECKER_CONNECT_TIMEOUT_MS` | `u64` | `3000` | Таймаут на L4 TCP SYN рукопожатие с прокси (в миллисекундах). |
 | `CHECKER_HANDSHAKE_TIMEOUT_MS` | `u64` | `4000` | Таймаут на протокольное согласование (SOCKS, HTTP CONNECT). |
 | `CHECKER_READ_WRITE_TIMEOUT_MS` | `u64` | `5000` | Таймаут на чтение ответа судьи через туннель. |
 | `CHECKER_MAX_READ_BYTES` | `usize` | `8192` | Максимальный объем читаемого ответа (защита от tarpit). |
-| `CHECKER_REAL_IP` | `IpAddr` | *(нет)* | Реальный внешний IP чекера (для выявления Transparent прокси). |
-| `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | Использование пула внешних судей (httpbingo, httpbun, httpbin) при сбоях. |
-| `JUDGE_SELECTION_STRATEGY` | `String` | `lowest_latency` | Стратегия выбора судьи: `lowest_latency`, `priority`, `round_robin`. |
-| `JUDGE_HEALTH_CHECK_INTERVAL_SECS`| `u64` | `30` | Период зондирования доступности судей в секундах. |
+| `CHECKER_LOCAL_BIND_IP` | `IpAddr` | *(нет)* | Локальный сетевой IP интерфейса для привязки исходящих сокетов чекера. |
 | `SCHEDULER_BATCH_SIZE` | `usize` | `10000` | Размер пачки прокси, выбираемых планировщиком в секунду. |
 | `BATCH_FLUSH_INTERVAL_MS` | `u64` | `100` | Интервал сброса буфера результатов MPSC в БД (миллисекунды). |
 | `DEAD_PROXY_RETENTION_DAYS` | `u32` | `30` | Срок хранения мертвых прокси в днях до их физического удаления. |

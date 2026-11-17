@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 240" width="100%" height="100%">
+  <defs>
+    <!-- Background subtle gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0e17" />
+      <stop offset="100%" stop-color="#05080f" />
+    </linearGradient>
+
+    <!-- Glowing cyan to emerald gradient for Hydra heads/circuits -->
+    <linearGradient id="hydraNeon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+
+    <!-- Glow effect filter -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+  </defs>
+
+  <style>
+    .brand-title {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, sans-serif;
+      font-weight: 800;
+      letter-spacing: 0.28em;
+      fill: url(#textGrad);
+      font-size: 54px;
+    }
+    .brand-subtitle {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, sans-serif;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      fill: #38bdf8;
+      font-size: 13.5px;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+    .accent-tag {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      fill: #64748b;
+    }
+  </style>
+
+  <!-- Dark container with sleek border -->
+  <rect width="100%" height="100%" rx="16" fill="url(#bgGrad)" />
+  <rect width="100%" height="100%" rx="16" fill="none" stroke="#1e293b" stroke-width="1.5" />
+
+  <!-- LOGO EMBLEM / ICON (Geometric center strictly at X: 115, Y: 115) -->
+  <g>
+    <!-- Ambient back-glow perfectly centered -->
+    <circle cx="115" cy="115" r="58" fill="#00f2fe" opacity="0.05" />
+
+    <!-- Outer Regular Hexagon (Center: 115, 115; Radius: 65) -->
+    <!-- Points: (115, 50), (171.3, 82.5), (171.3, 147.5), (115, 180), (58.7, 147.5), (58.7, 82.5) -->
+    <polygon points="115,50 171.3,82.5 171.3,147.5 115,180 58.7,147.5 58.7,82.5" 
+             fill="none" 
+             stroke="#1e293b" 
+             stroke-width="1.8" 
+             stroke-dasharray="6,4" />
+
+    <!-- Core Network Node (Base of Hydra at bottom axis) -->
+    <circle cx="115" cy="150" r="5" fill="#38bdf8" />
+    <circle cx="115" cy="150" r="9" fill="none" stroke="#38bdf8" stroke-width="1.5" opacity="0.4" />
+
+    <!-- Circuit paths representing the 3 Hydra Heads / Proxy Streams -->
+    <!-- Center Head (Forward Proxy Tunnel) -->
+    <path d="M 115,145 L 115,75" 
+          fill="none" 
+          stroke="url(#hydraNeon)" 
+          stroke-width="3" 
+          stroke-linecap="round" 
+          filter="url(#neonGlow)" />
+
+    <!-- Left Head (SOCKS5 / Tunnels Branch) -->
+    <path d="M 111,142 C 99,130 81,118 81,87" 
+          fill="none" 
+          stroke="url(#hydraNeon)" 
+          stroke-width="3" 
+          stroke-linecap="round" 
+          filter="url(#neonGlow)" />
+
+    <!-- Right Head (L7 Echo / Judge Branch) -->
+    <path d="M 119,142 C 131,130 149,118 149,87" 
+          fill="none" 
+          stroke="url(#hydraNeon)" 
+          stroke-width="3" 
+          stroke-linecap="round" 
+          filter="url(#neonGlow)" />
+
+    <!-- Cross-mesh routing connection (inter-node mesh line) -->
+    <path d="M 81,85 L 115,72 L 149,85" 
+          fill="none" 
+          stroke="#38bdf8" 
+          stroke-width="1" 
+          stroke-dasharray="3,3" 
+          opacity="0.65" />
+
+    <!-- Hydra Head Nodes / Network Vertices -->
+    <!-- Center Node (115, 72) -->
+    <circle cx="115" cy="72" r="5" fill="#ffffff" filter="url(#neonGlow)" />
+    <circle cx="115" cy="72" r="8" fill="none" stroke="#38bdf8" stroke-width="2" />
+
+    <!-- Left Node (81, 85) -->
+    <circle cx="81" cy="85" r="4.5" fill="#ffffff" filter="url(#neonGlow)" />
+    <circle cx="81" cy="85" r="7.5" fill="none" stroke="#00f2fe" stroke-width="2" />
+
+    <!-- Right Node (149, 85) -->
+    <circle cx="149" cy="85" r="4.5" fill="#ffffff" filter="url(#neonGlow)" />
+    <circle cx="149" cy="85" r="7.5" fill="none" stroke="#10b981" stroke-width="2" />
+  </g>
+
+  <!-- BRAND TYPOGRAPHY -->
+  <g transform="translate(225, 0)">
+    <!-- Project Name -->
+    <text x="0" y="108" class="brand-title">HYDRA</text>
+
+    <!-- Descriptor / Category -->
+    <text x="3" y="142" class="brand-subtitle">High-Performance Distributed Proxy Engine</text>
+
+    <!-- Technical metadata badge line -->
+    <text x="3" y="170" class="accent-tag">Rust 2024 • Tokio 1.43 • Micro-Batching • L4/L7 Fail-Fast</text>
+  </g>
+</svg>

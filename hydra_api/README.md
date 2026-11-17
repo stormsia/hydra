@@ -203,11 +203,11 @@ curl -H "X-API-Key: my_secure_hydra_key_12345" http://127.0.0.1:3000/api/v1/stat
 | :--- | :---: | :---: | :---: | :--- |
 | `JUDGE_SELECTION_STRATEGY` | `enum` | `lowest_latency` | Нет | Стратегия выбора судьи из пула (`lowest_latency`, `priority`, `round_robin`). |
 | `JUDGE_SECRET_KEY` | `string` | — | Нет | Мастер-ключ HMAC-SHA256 для динамической посуточной ротации токенов судьи. |
-| `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `false` | Нет | Разрешить использование внешних публичных судей при отказе основного пула. |
-| `JUDGE_HEALTH_CHECK_INTERVAL_SECS` | `int` | `60` | Нет | Интервал автоматической проверки доступности судей (в секундах). |
-| `ADDITIONAL_JUDGES` | `string` | — | Нет | Список дополнительных судей в формате JSON или comma-separated URL. |
+| `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | Нет | Разрешить использование внешних публичных судей при отказе основного пула. |
+| `JUDGE_HEALTH_CHECK_INTERVAL_SECS` | `int` | `30` | Нет | Интервал автоматической проверки доступности судей (в секундах). |
+| `ADDITIONAL_JUDGES` | `string` | — | Нет | Список дополнительных судей в формате `HTTP_URL\|HTTPS_URL,...`. |
 | `CHECKER_REAL_IP` | `string` | — | Нет | Статический внешний IP чекера для точного определения уровня анонимности (`elite`/`transparent`). |
-| `GEOIP_AUTO_UPDATE` | `bool` | `false` | Нет | Автоматическая загрузка и обновление баз GeoLite2 из CDN-зеркала (jsDelivr). |
+| `GEOIP_AUTO_UPDATE` | `bool` | `true` | Нет | Автоматическая загрузка и обновление баз GeoLite2 из CDN-зеркала (jsDelivr). |
 | `GEOIP_COUNTRY_PATH` | `string` | `./geo/GeoLite2-Country.mmdb` | Нет | Путь к файлу базы стран MaxMind GeoLite2 Country. |
 | `GEOIP_ASN_PATH` | `string` | `./geo/GeoLite2-ASN.mmdb` | Нет | Путь к файлу базы автономных систем MaxMind GeoLite2 ASN. |
 | `GEOIP_RELOAD_SECS` | `int` | `3600` | Нет | Период перечитки файлов баз с диска без перезапуска (в секундах). |

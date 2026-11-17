@@ -132,6 +132,30 @@ impl CheckerConfig {
             }
         }
 
+        if let Ok(add_judges_str) = std::env::var("ADDITIONAL_JUDGES") {
+            for (idx, entry) in add_judges_str.split(',').enumerate() {
+                let parts: Vec<&str> = entry.trim().split('|').collect();
+                if !parts.is_empty() {
+                    if let Ok(http_url) = parts[0].trim().parse::<Url>() {
+                        let https_url = if parts.len() > 1 {
+                            parts[1].trim().parse::<Url>().unwrap_or_else(|_| http_url.clone())
+                        } else {
+                            http_url.clone()
+                        };
+                        let custom_ep = JudgeEndpoint::third_party(
+                            format!("custom_{}", idx + 1),
+                            format!("Custom Judge {}", idx + 1),
+                            http_url,
+                            https_url,
+                            10 + idx as u32,
+                            true,
+                        );
+                        builder = builder.add_judge(custom_ep);
+                    }
+                }
+            }
+        }
+
         builder.build().await
     }
 
@@ -539,5 +563,119 @@ impl CheckerConfigBuilder {
             judge_pool,
             cached_tls_req,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    struct EnvGuard {
+        vars: Vec<&'static str>,
+    }
+
+    impl EnvGuard {
+        fn new(vars: Vec<&'static str>) -> Self {
+            for &k in &vars {
+                unsafe { std::env::remove_var(k) };
+            }
+            Self { vars }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            for &k in &self.vars {
+                unsafe { std::env::remove_var(k) };
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_config_from_env_defaults() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::new(vec![
+            "JUDGE_HTTP_URL",
+            "JUDGE_HTTPS_URL",
+            "JUDGE_SECRET_TOKEN",
+            "JUDGE_SECRET_KEY",
+            "CHECKER_CONCURRENCY",
+            "CHECKER_CONNECT_TIMEOUT_MS",
+            "CHECKER_HANDSHAKE_TIMEOUT_MS",
+            "CHECKER_READ_WRITE_TIMEOUT_MS",
+            "CHECKER_MAX_READ_BYTES",
+            "CHECKER_LOCAL_BIND_IP",
+            "CHECKER_REAL_IP",
+            "ENABLE_THIRD_PARTY_JUDGES",
+            "JUDGE_SELECTION_STRATEGY",
+            "ADDITIONAL_JUDGES",
+        ]);
+
+        let cfg = CheckerConfig::from_env().await.expect("config should load with defaults");
+        assert_eq!(cfg.judge_http_url.as_str(), "http://127.0.0.1:8080/");
+        assert_eq!(cfg.judge_https_url.as_str(), "http://127.0.0.1:8080/");
+        assert_eq!(cfg.judge_expected_token.as_str(), "hydra_secret_token");
+        assert!(cfg.judge_secret_key.is_none());
+        assert_eq!(cfg.concurrency_limit, 5000);
+        assert_eq!(cfg.connect_timeout, Duration::from_millis(3000));
+        assert_eq!(cfg.handshake_timeout, Duration::from_millis(4000));
+        assert_eq!(cfg.read_write_timeout, Duration::from_millis(5000));
+        assert_eq!(cfg.max_read_bytes, 8192);
+        assert!(cfg.local_bind_ip.is_none());
+        assert!(cfg.real_ip.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_config_from_env_custom_values() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::new(vec![
+            "JUDGE_HTTP_URL",
+            "JUDGE_HTTPS_URL",
+            "JUDGE_SECRET_TOKEN",
+            "JUDGE_SECRET_KEY",
+            "CHECKER_CONCURRENCY",
+            "CHECKER_CONNECT_TIMEOUT_MS",
+            "CHECKER_HANDSHAKE_TIMEOUT_MS",
+            "CHECKER_READ_WRITE_TIMEOUT_MS",
+            "CHECKER_MAX_READ_BYTES",
+            "CHECKER_LOCAL_BIND_IP",
+            "CHECKER_REAL_IP",
+            "ENABLE_THIRD_PARTY_JUDGES",
+            "JUDGE_SELECTION_STRATEGY",
+            "ADDITIONAL_JUDGES",
+        ]);
+
+        unsafe {
+            std::env::set_var("JUDGE_HTTP_URL", "http://127.0.0.1:9090");
+            std::env::set_var("JUDGE_HTTPS_URL", "https://127.0.0.1:9443");
+            std::env::set_var("JUDGE_SECRET_TOKEN", "custom_secret_marker");
+            std::env::set_var("JUDGE_SECRET_KEY", "secret_hmac_master_key");
+            std::env::set_var("CHECKER_CONCURRENCY", "12000");
+            std::env::set_var("CHECKER_CONNECT_TIMEOUT_MS", "2500");
+            std::env::set_var("CHECKER_HANDSHAKE_TIMEOUT_MS", "3500");
+            std::env::set_var("CHECKER_READ_WRITE_TIMEOUT_MS", "4500");
+            std::env::set_var("CHECKER_MAX_READ_BYTES", "16384");
+            std::env::set_var("CHECKER_LOCAL_BIND_IP", "127.0.0.1");
+            std::env::set_var("CHECKER_REAL_IP", "203.0.113.50");
+            std::env::set_var("ENABLE_THIRD_PARTY_JUDGES", "false");
+            std::env::set_var("JUDGE_SELECTION_STRATEGY", "round_robin");
+            std::env::set_var("ADDITIONAL_JUDGES", "http://127.0.0.1:8001|https://127.0.0.1:8002");
+        }
+
+        let cfg = CheckerConfig::from_env().await.expect("custom config should parse");
+        assert_eq!(cfg.judge_http_url.as_str(), "http://127.0.0.1:9090/");
+        assert_eq!(cfg.judge_https_url.as_str(), "https://127.0.0.1:9443/");
+        assert_eq!(cfg.judge_expected_token.as_str(), "custom_secret_marker");
+        assert_eq!(cfg.judge_secret_key.as_deref(), Some("secret_hmac_master_key"));
+        assert_eq!(cfg.concurrency_limit, 12000);
+        assert_eq!(cfg.connect_timeout, Duration::from_millis(2500));
+        assert_eq!(cfg.handshake_timeout, Duration::from_millis(3500));
+        assert_eq!(cfg.read_write_timeout, Duration::from_millis(4500));
+        assert_eq!(cfg.max_read_bytes, 16384);
+        assert_eq!(cfg.local_bind_ip, Some("127.0.0.1".parse().unwrap()));
+        assert_eq!(cfg.real_ip, Some("203.0.113.50".parse().unwrap()));
     }
 }

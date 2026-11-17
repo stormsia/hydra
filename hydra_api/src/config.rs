@@ -100,7 +100,7 @@ impl ApiConfig {
 
         let geoip_auto_update = env::var("GEOIP_AUTO_UPDATE")
             .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-            .unwrap_or(false);
+            .unwrap_or(true);
 
         let mut geoip_country_path = env::var("GEOIP_COUNTRY_PATH").ok();
         let mut geoip_asn_path = env::var("GEOIP_ASN_PATH").ok();
@@ -263,7 +263,7 @@ mod tests {
             geoip_country_path: geo_country.map(|s| s.to_string()),
             geoip_asn_path: geo_asn.map(|s| s.to_string()),
             geoip_reload_secs: 3600,
-            geoip_auto_update: false,
+            geoip_auto_update: true,
             geoip_update_interval_secs: 86400,
             geoip_country_url: String::new(),
             geoip_asn_url: String::new(),
