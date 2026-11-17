@@ -32,10 +32,10 @@ impl Modify for SecurityAddon {
         description = "Hydra is a high-performance distributed proxy verification, scoring, and lifecycle management engine.\n\n### Core Capabilities\n- **Multi-protocol verification**: SOCKS5, SOCKS4, HTTP, HTTPS CONNECT tunneling\n- **GeoIP & ASN enrichment**: MaxMind City & ASN reader with lock-free atomic hot-reloading\n- **Lifecycle State Machine**: `cold_queue` → `alive` ↔ `cooldown` → `dead_permanent`\n- **Batched Persistence**: High-throughput transactional batch writer with WAL mode\n- **Client Feedback**: Real-time failure reporting and priority rechecks\n\n### Authentication\nAll operational endpoints require the `X-API-Key` HTTP header (configured via `API_KEY` in environment).",
         contact(
             name = "Hydra Core Team",
-            email = "dev@hydra-checker.internal"
+            url = "https://github.com/stormsia/hydra"
         ),
         license(
-            name = "MIT OR Apache-2.0"
+            name = "MIT"
         )
     ),
     servers(
