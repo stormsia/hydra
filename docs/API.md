@@ -1,3 +1,5 @@
+[← Назад к Hydra README](../README.md)
+
 # Hydra REST API
 
 Base URL: `http://127.0.0.1:3000`  

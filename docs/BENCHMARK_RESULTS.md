@@ -1,3 +1,5 @@
+[← Назад к Hydra README](../README.md)
+
 # Hydra Proxy Checker — Результаты бенчмарков и метрики производительности
 
 ## 1. Пропускная способность и задержки (Throughput & Latency)
