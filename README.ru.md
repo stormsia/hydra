@@ -22,7 +22,7 @@
 
 <br>
 
-[⚡ Быстрый старт](#-быстрый-старт-quick-start-guide) • [✨ Возможности](#-возможности-и-архитектурные-решения-features--benefits) • [📊 Бенчмарки](#-бенчмарки-производительности-10m-proxy-stress-test--latency) • [⚖️ Сравнение](#-сравнение-с-аналогами-benchmark-comparison) • [📐 Архитектура](#-архитектура-монорепозитория) • [⚙️ Конфигурация](#-конфигурация-окружения-env) • [📖 REST API](docs/API.ru.md)
+[⚡ Быстрый старт](#quick-start) • [✨ Возможности](#features) • [📊 Бенчмарки](#benchmarks) • [⚖️ Сравнение](#comparison) • [📐 Архитектура](#architecture) • [⚙️ Конфигурация](#configuration) • [📖 REST API](docs/API.ru.md)
 
 </div>
 
@@ -39,7 +39,7 @@
 
 ---
 
-## 🚀 Быстрый старт (Quick Start Guide)
+## <a id="quick-start"></a>🚀 Быстрый старт (Quick Start Guide)
 
 > [!IMPORTANT]
 > **Системные требования:**
@@ -119,7 +119,7 @@ $env:EMBED_JUDGE="true"; .\target\release\hydra_api.exe
 
 ---
 
-## ⚡ Возможности и архитектурные решения (Features & Benefits)
+## <a id="features"></a>⚡ Возможности и архитектурные решения (Features & Benefits)
 
 | Задача / Проблема | Как решает Hydra | Результат |
 |---|---|---|
@@ -136,7 +136,7 @@ $env:EMBED_JUDGE="true"; .\target\release\hydra_api.exe
 
 ---
 
-## ⚖️ Сравнение с аналогами (Benchmark Comparison)
+## <a id="comparison"></a>⚖️ Сравнение с аналогами (Benchmark Comparison)
 
 | Характеристика / Движок | **Hydra** | **[ProxyBroker](https://github.com/bluet/proxybroker2)** | **[proxypool](https://github.com/henson/proxypool)** | **[proxy-checker](https://www.npmjs.com/package/proxy-checker)** |
 |---|:---:|:---:|:---:|:---:|
@@ -152,7 +152,7 @@ $env:EMBED_JUDGE="true"; .\target\release\hydra_api.exe
 
 ---
 
-## 📊 Бенчмарки производительности (10M Proxy Stress-Test & Latency)
+## <a id="benchmarks"></a>📊 Бенчмарки производительности (10M Proxy Stress-Test & Latency)
 
 Результаты стресс-тестирования при **5 000 параллельных воркерах** на базе в **10 000 000 прокси** (размер базы данных `hydra.db` — 3.57 GB).
 
@@ -194,7 +194,7 @@ Hydra Monorepo
 
 ---
 
-## 📐 Архитектура монорепозитория
+## <a id="architecture"></a>📐 Архитектура монорепозитория
 
 ```mermaid
 flowchart LR
@@ -319,7 +319,7 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
 
 ---
 
-## ⚙️ Конфигурация окружения (.env)
+## <a id="configuration"></a>⚙️ Конфигурация окружения (.env)
 
 ### Основные параметры
 

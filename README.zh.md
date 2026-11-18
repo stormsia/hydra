@@ -22,7 +22,7 @@
 
 <br>
 
-[⚡ 快速上手](#-快速上手-quick-start-guide) • [✨ 核心特性](#-核心特性与架构设计-features--benefits) • [📊 性能基准](#-性能基准测试-10m-代理压力测试与延迟) • [⚖️ 横向对比](#-与同类产品对比-benchmark-comparison) • [📐 系统架构](#-系统架构-monorepo-architecture) • [⚙️ 环境配置](#-环境配置-env) • [📖 REST API](docs/API.zh.md)
+[⚡ 快速上手](#quick-start) • [✨ 核心特性](#features) • [📊 性能基准](#benchmarks) • [⚖️ 横向对比](#comparison) • [📐 系统架构](#architecture) • [⚙️ 环境配置](#configuration) • [📖 REST API](docs/API.zh.md)
 
 </div>
 
@@ -39,7 +39,7 @@
 
 ---
 
-## 🚀 快速上手 (Quick Start Guide)
+## <a id="quick-start"></a>🚀 快速上手 (Quick Start Guide)
 
 > [!IMPORTANT]
 > **系统环境要求：**
@@ -119,7 +119,7 @@ $env:EMBED_JUDGE="true"; .\target\release\hydra_api.exe
 
 ---
 
-## ⚡ 核心特性与架构设计 (Features & Benefits)
+## <a id="features"></a>⚡ 核心特性与架构设计 (Features & Benefits)
 
 | 场景 / 业务痛点 | Hydra 解决方案 | 达成效果 |
 |---|---|---|
@@ -136,7 +136,7 @@ $env:EMBED_JUDGE="true"; .\target\release\hydra_api.exe
 
 ---
 
-## ⚖️ 与同类产品对比 (Benchmark Comparison)
+## <a id="comparison"></a>⚖️ 与同类产品对比 (Benchmark Comparison)
 
 | 维度 / 引擎 | **Hydra** | **[ProxyBroker](https://github.com/bluet/proxybroker2)** | **[proxypool](https://github.com/henson/proxypool)** | **[proxy-checker](https://www.npmjs.com/package/proxy-checker)** |
 |---|:---:|:---:|:---:|:---:|
@@ -152,7 +152,7 @@ $env:EMBED_JUDGE="true"; .\target\release\hydra_api.exe
 
 ---
 
-## 📊 性能基准测试 (10M 代理压力测试与延迟)
+## <a id="benchmarks"></a>📊 性能基准测试 (10M 代理压力测试与延迟)
 
 本基准测试在 **5,000 个并发 Worker** 持续高压下针对 **10,000,000 个代理** 数据集进行测试（`hydra.db` 文件大小为 3.57 GB）。
 
@@ -194,7 +194,7 @@ Hydra Monorepo
 
 ---
 
-## 📐 系统架构 (Monorepo Architecture)
+## <a id="architecture"></a>📐 系统架构 (Monorepo Architecture)
 
 ```mermaid
 flowchart LR
@@ -319,7 +319,7 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
 
 ---
 
-## ⚙️ 环境配置 (.env)
+## <a id="configuration"></a>⚙️ 环境配置 (.env)
 
 ### 常用核心参数
 

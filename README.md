@@ -22,7 +22,7 @@
 
 <br>
 
-[⚡ Quick Start](#-quick-start-guide) • [✨ Features & Benefits](#-features--architectural-decisions) • [📊 Benchmarks](#-performance-benchmarks-10m-proxy-stress-test--latency) • [⚖️ Comparison](#-comparison-with-alternatives) • [📐 Architecture](#-monorepo-architecture) • [⚙️ Configuration](#-environment-configuration-env) • [📖 REST API](docs/API.md)
+[⚡ Quick Start](#quick-start) • [✨ Features & Benefits](#features) • [📊 Benchmarks](#benchmarks) • [⚖️ Comparison](#comparison) • [📐 Architecture](#architecture) • [⚙️ Configuration](#configuration) • [📖 REST API](docs/API.md)
 
 </div>
 
@@ -39,7 +39,7 @@
 
 ---
 
-## 🚀 Quick Start Guide
+## <a id="quick-start"></a>🚀 Quick Start Guide
 
 > [!IMPORTANT]
 > **System Requirements:**
@@ -119,7 +119,7 @@ Once running, the following endpoints are available:
 
 ---
 
-## ⚡ Features & Architectural Decisions
+## <a id="features"></a>⚡ Features & Architectural Decisions
 
 | Challenge / Bottleneck | How Hydra Solves It | Result / Benefit |
 |---|---|---|
@@ -136,7 +136,7 @@ Once running, the following endpoints are available:
 
 ---
 
-## ⚖️ Comparison with Alternatives
+## <a id="comparison"></a>⚖️ Comparison with Alternatives
 
 | Feature / Engine | **Hydra** | **[ProxyBroker](https://github.com/bluet/proxybroker2)** | **[proxypool](https://github.com/henson/proxypool)** | **[proxy-checker](https://www.npmjs.com/package/proxy-checker)** |
 |---|:---:|:---:|:---:|:---:|
@@ -152,7 +152,7 @@ Once running, the following endpoints are available:
 
 ---
 
-## 📊 Performance Benchmarks (10M Proxy Stress-Test & Latency)
+## <a id="benchmarks"></a>📊 Performance Benchmarks (10M Proxy Stress-Test & Latency)
 
 Stress-test results under **5,000 concurrent workers** on a dataset of **10,000,000 proxies** (`hydra.db` file size: 3.57 GB).
 
@@ -194,7 +194,7 @@ Hydra Monorepo
 
 ---
 
-## 📐 Monorepo Architecture
+## <a id="architecture"></a>📐 Monorepo Architecture
 
 ```mermaid
 flowchart LR
@@ -319,7 +319,7 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
 
 ---
 
-## ⚙️ Environment Configuration (.env)
+## <a id="configuration"></a>⚙️ Environment Configuration (.env)
 
 ### Core Parameters
 
