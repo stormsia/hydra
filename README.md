@@ -7,13 +7,13 @@
 [![Rust 2024](https://img.shields.io/badge/rust-2024%20edition-dea584.svg?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Tokio Runtime](https://img.shields.io/badge/async-tokio%201.43-ff69b4.svg?style=flat-square&logo=tokio)](https://tokio.rs/)
-[![OpenAPI 3.0](https://img.shields.io/badge/OpenAPI-3.0%20%2F%20Swagger-85EA2D.svg?style=flat-square&logo=swagger)](hydra_api/API.md)
+[![OpenAPI 3.0](https://img.shields.io/badge/OpenAPI-3.0%20%2F%20Swagger-85EA2D.svg?style=flat-square&logo=swagger)](hydra_api/docs/API.md)
 [![Storage: libSQL](https://img.shields.io/badge/storage-libSQL%20WAL-0052cc.svg?style=flat-square)](hydra_api/README.md)
-[![Checked Scale](https://img.shields.io/badge/tested%20scale-10M%20proxies-success.svg?style=flat-square)](BENCHMARK_RESULTS.md)
+[![Checked Scale](https://img.shields.io/badge/tested%20scale-10M%20proxies-success.svg?style=flat-square)](docs/BENCHMARK_RESULTS.md)
 
 **Hydra** — это асинхронный распределенный движок промышленного уровня на языке Rust для непрерывной валидации, классификации анонимности, гео-скоринга и диспетчеризации миллионов прокси-серверов в секунду. Проект решает проблему стремительного устаревания и нестабильности прокси-пулов, автоматизируя обнаружение протоколов, карантин сбойных узлов и фильтрацию без деградации базы данных.
 
-[Быстрый старт](#-быстрый-старт-zero-friction) • [Архитектура](#-системная-архитектура-и-пакеты-монорепозитория) • [Пакеты](#-структура-пакетов-workspace) • [Конфигурация](#-конфигурация-окружения-env) • [Бенчмарки](#-производительность-и-бенчмарки-10m-records) • [API Спецификация](hydra_api/API.md) • [Лицензия](#-лицензия)
+[Быстрый старт](#-быстрый-старт-zero-friction) • [Архитектура](#-системная-архитектура-и-пакеты-монорепозитория) • [Пакеты](#-структура-пакетов-workspace) • [Конфигурация](#-конфигурация-окружения-env) • [Бенчмарки](#-производительность-и-бенчмарки-10m-records) • [API Спецификация](hydra_api/docs/API.md) • [Лицензия](#-лицензия)
 
 ---
 
@@ -38,7 +38,7 @@
 
 | Пакет | Директория | Роль и назначение | Документация |
 |---|---|---|:---:|
-| **`hydra_api`** | [`hydra_api`](hydra_api/README.md) | REST API сервер на Axum, планировщик задач, MPSC буфер записи, хранилище SQLite/libSQL WAL, Swagger UI. | [README](hydra_api/README.md) • [API.md](hydra_api/API.md) |
+| **`hydra_api`** | [`hydra_api`](hydra_api/README.md) | REST API сервер на Axum, планировщик задач, MPSC буфер записи, хранилище SQLite/libSQL WAL, Swagger UI. | [README](hydra_api/README.md) • [docs/API.md](hydra_api/docs/API.md) |
 | **`hydra_checker`** | [`hydra_checker`](hydra_checker/README.md) | Автономное неблокирующее ядро сетевых проверок (L4 TCP, Handshake, TLS, L7 Judge, Bogon-фильтрация). | [README](hydra_checker/README.md) |
 | **`hydra_judge`** | [`hydra_judge`](hydra_judge/README.md) | Высоконагруженный zero-framework L7 эхо-сервер для зеркалирования заголовков и классификации анонимности. | [README](hydra_judge/README.md) |
 
@@ -276,7 +276,7 @@ cargo run -p hydra_judge --release
 
 ## 📊 Производительность и бенчмарки (10M Records)
 
-Сводные результаты стресс-тестирования на базе объемом **10 000 000 прокси** (размер базы `hydra.db` на диске — **3.57 GB**, 935 210 страниц SQLite, 7 B-Tree индексов). Детальный отчет см. в [BENCHMARK_RESULTS.md](BENCHMARK_RESULTS.md).
+Сводные результаты стресс-тестирования на базе объемом **10 000 000 прокси** (размер базы `hydra.db` на диске — **3.57 GB**, 935 210 страниц SQLite, 7 B-Tree индексов). Детальный отчет см. в [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md).
 
 | Метрика | Значение | Условия и контекст тестирования |
 |---|:---:|---|
@@ -333,7 +333,7 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
   }'
 ```
 
-Подробная спецификация всех 13 эндпоинтов со схемами данных представлена в [hydra_api/API.md](hydra_api/API.md).
+Подробная спецификация всех 13 эндпоинтов со схемами данных представлена в [hydra_api/docs/API.md](hydra_api/docs/API.md).
 
 ---
 

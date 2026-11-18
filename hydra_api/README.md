@@ -8,7 +8,7 @@
 hydra_api/
 ├── Cargo.toml                              # Манифест пакета Cargo и зависимости
 ├── .env.example                            # Шаблон переменных окружения
-├── API.md                                  # Детальная спецификация схем и DTO REST API
+├── docs/API.md                                  # Детальная спецификация схем и DTO REST API
 ├── README.md                               # Техническая документация модуля
 ├── migrations/
 │   └── 001_initial.sql                     # SQL-миграция схем таблиц и B-Tree индексов
@@ -115,7 +115,7 @@ hydra_api/
 | `GET` | `/swagger-ui` | Интерактивная веб-документация Swagger UI |
 | `GET` | `/api-docs/openapi.json` | Спецификация OpenAPI 3.0 в формате JSON |
 
-Подробные схемы запросов, DTO и примеры ответов приведены в [API.md](API.md).
+Подробные схемы запросов, DTO и примеры ответов приведены в [docs/API.md](docs/API.md).
 
 ## Сборка и запуск
 
