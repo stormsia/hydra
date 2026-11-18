@@ -164,16 +164,31 @@ async fn test_concurrency_backpressure_rejection() {
         .unwrap();
 
     // While Connection 1 is still being processed, attempt Connection 2
-    let mut stream2 = TcpStream::connect(actual_addr).await.unwrap();
-
-    // Connection 2 exceeds semaphore capacity -> must be dropped immediately with RST or EOF
+    // Connection 2 exceeds semaphore capacity -> must be dropped with RST or EOF (at connect or read time)
     let mut buf = [0u8; 128];
-    let res = stream2.read(&mut buf).await;
-    match res {
-        Ok(0) => {}                                                     // Dropped (EOF)
-        Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {} // TCP RST
-        other => panic!(
-            "Expected connection reset or EOF due to backpressure, got: {:?}",
+    let connect_res = TcpStream::connect(actual_addr).await;
+    match connect_res {
+        Err(e)
+            if e.kind() == std::io::ErrorKind::ConnectionReset
+                || e.kind() == std::io::ErrorKind::ConnectionRefused =>
+        {
+            // Dropped immediately during TCP handshake via RST
+        }
+        Ok(mut stream2) => {
+            let res = stream2.read(&mut buf).await;
+            match res {
+                Ok(0) => {} // Dropped (EOF)
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::ConnectionReset
+                        || e.kind() == std::io::ErrorKind::ConnectionRefused => {} // TCP RST
+                other => panic!(
+                    "Expected connection reset or EOF due to backpressure, got: {:?}",
+                    other
+                ),
+            }
+        }
+        Err(other) => panic!(
+            "Expected connection reset or refused due to backpressure, got: {:?}",
             other
         ),
     }
