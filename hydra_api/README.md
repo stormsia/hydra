@@ -115,7 +115,7 @@ hydra_api/
 | `GET` | `/swagger-ui` | Интерактивная веб-документация Swagger UI |
 | `GET` | `/api-docs/openapi.json` | Спецификация OpenAPI 3.0 в формате JSON |
 
-Подробные схемы запросов, DTO и примеры ответов приведены в [docs/API.md](docs/API.md).
+Подробные схемы запросов, DTO и примеры ответов приведены в [/docs/API.md](/docs/API.md).
 
 ## Сборка и запуск
 
