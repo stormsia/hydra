@@ -1,52 +1,54 @@
-# Руководство контрибьютора (Contributing to Hydra)
+# Contributing to Hydra
 
-Спасибо за интерес к проекту **Hydra**! Мы приветствуем сообщения об ошибках, предложения по оптимизации, улучшение документации и Pull Request'ы.
+Thank you for your interest in **Hydra**! We warmly welcome bug reports, performance optimizations, documentation improvements, and Pull Requests.
+
+[English](CONTRIBUTING.md) • [Русский](CONTRIBUTING.ru.md) • [简体中文](CONTRIBUTING.zh.md)
 
 ---
 
-## 🛠️ Окружение разработки (Development Setup)
+## 🛠️ Development Setup
 
-Hydra написана на языке Rust (редакция 2024) и представляет собой Cargo-воркспейс из трех модулей:
-- `hydra_api` — REST API сервер, планировщик и хранилище libSQL (SQLite WAL).
-- `hydra_checker` — асинхронное ядро сетевой проверки и классификации прокси.
-- `hydra_judge` — легковесный авторизованный эхо-сервер для оценки анонимности.
+Hydra is written in Rust (2024 edition) and structured as a Cargo workspace consisting of three crates:
+- `hydra_api` — REST API server, background scheduler, and libSQL storage (SQLite WAL).
+- `hydra_checker` — Asynchronous network verification core and proxy classification engine.
+- `hydra_judge` — Lightweight authorized echo server for anonymity evaluation.
 
-### Требования
-- **Rust >= 1.85** (с поддержкой редакции Rust 2024)
-- **Cargo** (стандартный пакетный менеджер)
-- **SQLite / libSQL** (собирается встроенно, внешняя СУБД не требуется)
+### Requirements
+- **Rust >= 1.85** (with support for the `Rust 2024` edition)
+- **Cargo** (standard Rust package manager)
+- **SQLite / libSQL** (bundled and compiled automatically, no external database server required)
 
-### Сборка и тестирование
+### Building and Testing
 
-1. Клонируйте репозиторий:
+1. Clone the repository:
    ```bash
    git clone https://github.com/stormsia/hydra.git
    cd hydra
    ```
 
-2. Создайте файл конфигурации окружения:
+2. Create the environment configuration file:
    ```bash
    cp .env.example .env
    ```
 
-3. Соберите весь воркспейс:
+3. Build the entire workspace:
    ```bash
    cargo build --workspace
    ```
 
-4. Запустите тесты всего проекта:
+4. Run the full workspace test suite:
    ```bash
    cargo test --workspace
    ```
 
-5. Или тесты конкретного модуля при изолированной разработке:
+5. Or test a specific crate during isolated development:
    ```bash
    cargo test -p hydra_checker
    cargo test -p hydra_judge
    cargo test -p hydra_api
    ```
 
-6. Проверьте форматирование и линтер перед отправкой:
+6. Check formatting and linter before submitting code:
    ```bash
    cargo fmt --all -- --check
    cargo clippy --workspace --all-targets -- -D warnings
@@ -54,22 +56,22 @@ Hydra написана на языке Rust (редакция 2024) и пред�
 
 ---
 
-## 📋 Правила оформления Pull Request
+## 📋 Pull Request Guidelines
 
-1. **Именование веток**: используйте префиксы назначения:
-   - `feat/feature-name` — новая функциональность
-   - `fix/bug-description` — исправление ошибки
-   - `perf/optimization` — оптимизация производительности
-   - `docs/doc-update` — изменения в документации
-2. **Сообщения коммитов**: придерживайтесь формата [Conventional Commits](https://www.conventionalcommits.org/):
+1. **Branch Naming**: use purpose-based prefixes:
+   - `feat/feature-name` — new feature
+   - `fix/bug-description` — bug fix
+   - `perf/optimization` — performance improvement
+   - `docs/doc-update` — documentation updates
+2. **Commit Messages**: follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
    - `feat(checker): add support for protocol X`
    - `fix(api): correct pagination offset handling`
    - `docs(readme): update architecture diagram`
-3. **Покрытие тестами**: любая новая функциональность или исправление бага должны сопровождаться модульными или интеграционными тестами в директории `tests/`.
-4. **Документация**: при добавлении параметров ENV или роутов API обязательно обновляйте `.env.example`, `/docs/API.md` и соответствующие файлы `README.md`.
+3. **Test Coverage**: any new feature or bug fix must include unit or integration tests in the corresponding `tests/` directory.
+4. **Documentation**: when introducing new environment variables or API endpoints, make sure to update `.env.example`, `docs/API.md`, and relevant module `README.md` files.
 
 ---
 
-## 🔒 Безопасность (Security Vulnerabilities)
+## 🔒 Security Vulnerabilities
 
-Если вы обнаружили уязвимость безопасности в Hydra, пожалуйста, **не создавайте публичные issues**. Сообщайте о них через функцию приватных отчетов безопасности на GitHub (Security Advisories).
+If you discover a security vulnerability in Hydra, please **do not open a public issue**. Report it privately via GitHub Security Advisories.

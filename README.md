@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo.svg" alt="Hydra Logo" width="720" style="max-width: 100%; height: auto;">
+<img src="assets/logo.svg" alt="Hydra Logo" width="100%" style="max-width: 100%; height: auto;">
 
 # Hydra — High-Performance Rust Proxy Checker, Validator & Pool Engine
 
@@ -15,53 +15,57 @@
 
 <p align="center">
   <b>High-throughput, asynchronous proxy validation engine and streaming pool manager written in pure Rust.</b><br>
-  Промышленный асинхронный движок на Rust для валидации, скоринга, классификации анонимности и потоковой маршрутизации десятков миллионов прокси в реальном времени.
+  Industrial-grade asynchronous engine built in Rust for validation, scoring, anonymity classification, and real-time streaming routing across tens of millions of proxies.
 </p>
 
-[⚡ Быстрый старт](#-быстрый-старт-quick-start-guide) • [✨ Возможности](#-возможности-и-архитектурные-решения-features--benefits) • [📊 Бенчмарки](#-бенчмарки-производительности-10m-proxy-stress-test--latency) • [⚖️ Сравнение](#-сравнение-с-аналогами-benchmark-comparison) • [📐 Архитектура](#-архитектура-монорепозитория) • [⚙️ Конфигурация](#-конфигурация-окружения-env) • [📖 REST API](docs/API.md)
+[English](README.md) • [Русский](README.ru.md) • [简体中文](README.zh.md)
+
+<br>
+
+[⚡ Quick Start](#-quick-start-guide) • [✨ Features & Benefits](#-features--architectural-decisions) • [📊 Benchmarks](#-performance-benchmarks-10m-proxy-stress-test--latency) • [⚖️ Comparison](#-comparison-with-alternatives) • [📐 Architecture](#-monorepo-architecture) • [⚙️ Configuration](#-environment-configuration-env) • [📖 REST API](docs/API.md)
 
 </div>
 
 ---
 
 > [!NOTE]
-> **Для кого создана Hydra?** Проект устраняет падения по памяти при чеке сотен тысяч IP, исключает ошибки блокировки баз данных (`database locked`), нивелирует утечки TCP-дескрипторов (`TIME_WAIT`) и автоматически нормализует «сырые» прокси от сотен разношерстных поставщиков.
+> **Who is Hydra built for?** Hydra solves out-of-memory crashes when scanning hundreds of thousands of IPs, completely eliminates `database locked` contention errors, prevents OS socket leaks and port exhaustion (`TIME_WAIT`), and automatically normalizes raw proxy lists from hundreds of heterogeneous providers.
 
-### 🎯 Три ключевых преимущества:
+### 🎯 Three Key Advantages:
 
-1. **Zero-Config инжест любых форматов (14 000+ прокси/сек)**: Прием «сырых» списков прокси без предварительной ручной очистки — распознает `ip:port`, `ip:port:user:pass`, `user:pass@ip:port`, URL-схемы, IPv6 (`[::1]:port`) и структурированный JSON. Система на лету отсекает Bogon/Private IP и выполняет каскадный автодетект рабочих протоколов (`SOCKS5` &rarr; `SOCKS4/4a` &rarr; `HTTP CONNECT` &rarr; `Plain HTTP`).
-2. **Гранулярные политики жизненного цикла (SLA для каждого пула)**: Индивидуальный контроль проверок через гибкие профили политик — раздельные тайм-ауты (L4 Connect, L7 Handshake, I/O), периодичность планового речека живых узлов, экспоненциальный карантинный бэкофф (`cooldown`) и настраиваемые лимиты ошибок (`max_dead_strikes`). Планировщик автоматически поддерживает базу в актуальном состоянии 24/7.
-3. **Отдача живых прокси за 0.06 мс и 0 ошибок блокировки БД**: Кластеризованные таблицы и 8 специализированных B-Tree индексов в режиме SQLite WAL обеспечивают ультрабыструю фильтрацию по странам, ASN, протоколам и уровню анонимности. Архитектура MPSC микробатчинга (транзакционный сброс каждые 100 мс) гарантирует 100% стабильность транзакций даже при непрерывной параллельной нагрузке в 10 000 000 прокси.
+1. **Zero-Config Ingestion of Any Format (14,000+ proxies/sec)**: Ingest raw, messy proxy lists without prior manual cleaning — automatically parsing `ip:port`, `ip:port:user:pass`, `user:pass@ip:port`, URL schemes, IPv6 (`[::1]:port`), and structured JSON. Hydra discards Bogon/Private IPs on the fly and performs cascading protocol auto-detection (`SOCKS5` &rarr; `SOCKS4/4a` &rarr; `HTTP CONNECT` &rarr; `Plain HTTP`).
+2. **Granular Lifecycle Policies (Custom SLA per Pool)**: Fine-grained verification control via customizable Check Policies — distinct timeouts (L4 Connect, L7 Handshake, I/O), scheduled recheck intervals for alive nodes, exponential quarantine backoff (`cooldown`), and configurable failure thresholds (`max_dead_strikes`). The background scheduler keeps the pool healthy 24/7.
+3. **0.06 ms Lookup Latency & Zero Database Locks**: Clustered tables and 8 specialized B-Tree indexes under SQLite WAL mode deliver sub-millisecond filtering across country, ASN, protocol, and anonymity levels. An MPSC micro-batching architecture (committing every 100 ms) guarantees 100% transactional stability even under a sustained concurrent load of 10,000,000 proxies.
 
 ---
 
-## 🚀 Быстрый старт (Quick Start Guide)
+## 🚀 Quick Start Guide
 
 > [!IMPORTANT]
-> **Системные требования:**
-> * Компилятор **Rust >= 1.85** (поддержка редакции `Rust 2024`).
-> * Утилита **Git**.
+> **System Requirements:**
+> * **Rust compiler >= 1.85** (supporting the `Rust 2024` edition).
+> * **Git** command line utility.
 
-### 1. Клонирование и настройка окружения
+### 1. Clone & Configure Environment
 ```bash
 git clone https://github.com/stormsia/hydra.git
 cd hydra
 cp .env.example .env
 ```
 
-В файле `.env` задайте ваш мастер-ключ доступа к API:
+In `.env`, set your secure API master key:
 ```env
 API_KEY=my_secure_hydra_key_12345
 ```
 
-### 2. Сборка монорепозитория
+### 2. Build Monorepo
 
-#### Стандартная сборка:
+#### Standard Release Build:
 ```bash
 cargo build --workspace --release
 ```
 
-#### Максимальная производительность (с инструкциями AVX2/BMI2 процессора хоста):
+#### Maximum Performance (enabling native AVX2/BMI2 instructions of host CPU):
 ```bash
 # Linux / macOS (Bash):
 RUSTFLAGS="-C target-cpu=native" cargo build --workspace --release
@@ -75,122 +79,122 @@ REM Windows (CMD):
 set RUSTFLAGS=-C target-cpu=native && cargo build --workspace --release
 ```
 
-### 3. Запуск
+### 3. Running
 
 > [!TIP]
-> По умолчанию в конфигурации параметр `EMBED_JUDGE` равен `false`. Для быстрого локального запуска в режиме **All-In-One** (с встроенным judge-сервером проверки анонимности) передайте переменную окружения `EMBED_JUDGE=true` либо укажите `EMBED_JUDGE=true` в файле `.env`.
+> By default, `EMBED_JUDGE` is set to `false`. For an instant local **All-In-One** deployment (running an embedded anonymity verification Judge inside the API process), set `EMBED_JUDGE=true` in your environment or inside `.env`.
 
 #### 🐧 Linux / macOS:
 ```bash
-# Увеличение лимита файловых сокетов (критично для 5 000+ параллельных воркеров)
+# Increase open file socket limits (critical for 5,000+ concurrent workers)
 ulimit -n 65535
 
-# Запуск в All-In-One режиме (встроенный эхо-сервер Judge на порту 8080):
+# Run in All-In-One mode (embedded Judge echo server on port 8080):
 EMBED_JUDGE=true ./target/release/hydra_api
 
-# Фоновый запуск в продакшене (nohup):
+# Background production daemon (nohup):
 nohup ./target/release/hydra_api > hydra_api.log 2>&1 &
 ```
 
 #### 🪟 Windows (PowerShell):
 ```powershell
-# Запуск в All-In-One режиме:
+# Run in All-In-One mode:
 $env:EMBED_JUDGE="true"; .\target\release\hydra_api.exe
 ```
 
-#### Автономный запуск выделенного L7 Judge (продакшен):
-При развертывании в распределенном контуре судья запускается как отдельный сервис:
+#### Standalone Dedicated L7 Judge (Production):
+In distributed setups, judges are deployed as separate standalone instances across different regions:
 ```bash
-# Запуск автономного высоконагруженного эхо-сервера
+# Start standalone high-throughput echo server
 ./target/release/hydra_judge
 ```
 
-После старта доступны интерфейсы:
-* 📖 **Интерактивный Swagger UI:** [http://127.0.0.1:3000/swagger-ui](http://127.0.0.1:3000/swagger-ui)
-* 📋 **Спецификация OpenAPI 3.0 (JSON):** [http://127.0.0.1:3000/api-docs/openapi.json](http://127.0.0.1:3000/api-docs/openapi.json)
-* ⚡ **Телеметрия движка в реальном времени:**
+Once running, the following endpoints are available:
+* 📖 **Interactive Swagger UI:** [http://127.0.0.1:3000/swagger-ui](http://127.0.0.1:3000/swagger-ui)
+* 📋 **OpenAPI 3.0 Specification (JSON):** [http://127.0.0.1:3000/api-docs/openapi.json](http://127.0.0.1:3000/api-docs/openapi.json)
+* ⚡ **Real-time Engine Telemetry:**
   ```bash
   curl -H "X-API-Key: my_secure_hydra_key_12345" http://127.0.0.1:3000/api/v1/stats/engine
   ```
 
 ---
 
-## ⚡ Возможности и архитектурные решения (Features & Benefits)
+## ⚡ Features & Architectural Decisions
 
-| Задача / Проблема | Как решает Hydra | Результат |
+| Challenge / Bottleneck | How Hydra Solves It | Result / Benefit |
 |---|---|---|
-| **Разрозненные форматы от сотен поставщиков** | **Zero-Config парсер с автодетектом**: парсит `ip:port`, `ip:port:user:pass`, URL-нотацию, IPv6 и JSON | Нулевая ручная предобработка списков; инжест на скорости **14 000+ прокси/с** |
-| **Неизвестные протоколы прокси** | **Каскадный протокольный автодетект**: `SOCKS5` &rarr; `SOCKS4/4a` &rarr; `HTTP CONNECT` &rarr; `Plain HTTP` | Не нужно заранее знать тип прокси: движок определяет рабочий протокол автоматически |
-| **Разные требования к пулам под разные задачи** | **Гранулярные политики жизненного цикла**: кастомные L4/L7 тайм-ауты, интервалы речека, окно стабильности | Каждому пулу/источнику назначается индивидуальная политика (Check Policy) |
-| **Блокировки БД при пиковых нагрузках** | Неблокирующий **MPSC Micro-Batching (100 мс)** в режиме **SQLite WAL** | До **8 340 проверок/с** на запись и **14 000+ прокси/с** на импорт при **0 ошибок `database locked`** |
-| **Утечки сокетов и исчерпание портов (`TIME_WAIT`)** | Прямое управление сокетами через **`SO_LINGER=0` (TCP RST drop)** | Нулевое накопление дескрипторов при 5 000+ параллельных воркерах |
-| **Лишний трафик на неживых IP** | **4-фазный Fail-Fast конвейер**: L4 Connect &rarr; Handshake &rarr; TLS/Judge &rarr; Anonymity | Экономия до 95% сетевого трафика и дескрипторов (отсечение на этапе SYN) |
-| **Отказ тестовых судей (Judge)** | **Динамический Failover Judge Pool** (выбор по минимальной задержке `lowest_latency`) | При отказе лидера трафик за секунды переключается на здоровый резерв |
-| **Сканирование эхо-серверов ботами** | **Anti-Abuse Token Guard** + суточная скользящая ротация **HMAC-SHA256** | Неавторизованные сканеры (Shodan, Censys) сбрасываются мгновенным TCP RST |
-| **Устаревание гео-баз** | **Lock-Free GeoIP/ASN на `ArcSwap`** с автообновлением по HTTP ETag | Базы MaxMind обновляются на лету без блокировок Tokio runtime и без рестарта |
-| **Реакция на блокировки целевыми сайтами** | Контур обратной связи **`POST /api/v1/proxies/report-fail`** | Мгновенный перевод сбойных прокси в карантин `cooldown` с экспоненциальным бэкоффом |
+| **Messy formats from hundreds of providers** | **Zero-Config parser with auto-detection**: parses `ip:port`, `ip:port:user:pass`, URL notation, IPv6, and JSON | Zero manual list cleaning; ingest throughput up to **14,000+ proxies/sec** |
+| **Unknown proxy protocols** | **Cascading protocol auto-detection**: `SOCKS5` &rarr; `SOCKS4/4a` &rarr; `HTTP CONNECT` &rarr; `Plain HTTP` | No need to know proxy types in advance: engine infers working protocol automatically |
+| **Differing SLA requirements per pool** | **Granular lifecycle policies**: customizable L4/L7 timeouts, recheck intervals, stability window | Each pool/source can be assigned an isolated Check Policy |
+| **Database lock contention under heavy writes** | Non-blocking **MPSC Micro-Batching (100 ms)** with **SQLite WAL** mode | Up to **8,340 checks/sec** write throughput and **14,000+ proxies/sec** import with **zero `database locked` errors** |
+| **Socket leaks and port exhaustion (`TIME_WAIT`)** | Low-level socket control with **`SO_LINGER=0` (TCP RST drop)** | Zero descriptor accumulation across 5,000+ concurrent workers |
+| **Wasted bandwidth on dead IPs** | **4-Phase Fail-Fast Pipeline**: L4 Connect &rarr; Handshake &rarr; TLS/Judge &rarr; Anonymity Verdict | Up to 95% bandwidth and socket savings by discarding dead IPs at the SYN stage |
+| **Single point of failure for verification judges** | **Dynamic Failover Judge Pool** (using `lowest_latency` strategy) | Traffic shifts to healthy standby mirrors in seconds if leader fails |
+| **Echo server abuse by public port scanners** | **Anti-Abuse Token Guard** + 24h rolling sliding-window **HMAC-SHA256** | Unauthorized bots (Shodan, Censys) are immediately dropped with TCP RST |
+| **Outdated geolocation databases** | **Lock-Free GeoIP/ASN via `ArcSwap`** with HTTP ETag auto-updates | MaxMind databases update on the fly without Tokio runtime pauses or restarts |
+| **Downstream target site rate limits/bans** | Feedback loop via **`POST /api/v1/proxies/report-fail`** | Failed proxies immediately quarantined into `cooldown` with exponential backoff |
 
 ---
 
-## ⚖️ Сравнение с аналогами (Benchmark Comparison)
+## ⚖️ Comparison with Alternatives
 
-| Характеристика / Движок | **Hydra** | **[ProxyBroker](https://github.com/bluet/proxybroker2)** | **[proxypool](https://github.com/henson/proxypool)** | **[proxy-checker](https://www.npmjs.com/package/proxy-checker)** |
+| Feature / Engine | **Hydra** | **[ProxyBroker](https://github.com/bluet/proxybroker2)** | **[proxypool](https://github.com/henson/proxypool)** | **[proxy-checker](https://www.npmjs.com/package/proxy-checker)** |
 |---|:---:|:---:|:---:|:---:|
-| **Язык разработки** | **Rust 2024 (Tokio 1.43)** | Python (asyncio) | Go (goroutines) | Node.js (JavaScript) |
-| **Пропускная способность проверок** | **2 100 – 8 340+ пров/сек** | ~100 – 250 пров/сек | ~400 – 800 пров/сек | ~200 – 500 пров/сек |
-| **Проверенная емкость базы** | **10 000 000+ прокси** | < 50 000 (утечки памяти) | < 200 000 (деградация Redis) | < 100 000 (деградация GC) |
-| **Потребление RAM под нагрузкой** | **~92 MB RAM** | 400 – 900+ MB | 250 – 500 MB | 300 – 700 MB |
-| **Предотвращение сокетов TIME_WAIT** | **Да (`SO_LINGER=0` TCP RST)** | Нет (дефолтные сокеты ОС) | Частично | Нет |
-| **Слой персистентности** | **Встроенный libSQL/WAL (MPSC)** | SQLite (блокируется) | Внешний Redis | MongoDB / In-memory |
-| **Гранулярные SLA-политики пулов** | **Да (индивидуальный речек)** | Нет (глобальные флаги) | Нет | Нет |
-| **Анти-скан защита судьи (HMAC/RST)** | **Да (скользящее окно 24ч)** | Нет | Нет | Нет |
-| **Каскадный автодетект протоколов** | **SOCKS5/4 &rarr; CONNECT &rarr; HTTP** | Ограниченный | Ограниченный | Ручной выбор |
+| **Language & Runtime** | **Rust 2024 (Tokio 1.43)** | Python (asyncio) | Go (goroutines) | Node.js (JavaScript) |
+| **Check Throughput** | **2,100 – 8,340+ checks/sec** | ~100 – 250 checks/sec | ~400 – 800 checks/sec | ~200 – 500 checks/sec |
+| **Tested Pool Capacity** | **10,000,000+ proxies** | < 50,000 (OOM leaks) | < 200,000 (Redis bottlenecks) | < 100,000 (GC pauses) |
+| **RAM Footprint under Load** | **~92 MB RAM** | 400 – 900+ MB | 250 – 500 MB | 300 – 700 MB |
+| **TIME_WAIT Socket Elimination** | **Yes (`SO_LINGER=0` TCP RST)** | No (OS socket defaults) | Partial | No |
+| **Persistence Layer** | **Embedded libSQL/WAL (MPSC)** | SQLite (locks under load) | External Redis | MongoDB / In-memory |
+| **Granular SLA Policies per Pool** | **Yes (isolated recheck schedules)** | No (global flags only) | No | No |
+| **Anti-Scan Judge Defense (HMAC)** | **Yes (24h sliding window)** | No | No | No |
+| **Cascading Protocol Fallback** | **SOCKS5/4 &rarr; CONNECT &rarr; HTTP** | Limited | Limited | Manual selection |
 
 ---
 
-## 📊 Бенчмарки производительности (10M Proxy Stress-Test & Latency)
+## 📊 Performance Benchmarks (10M Proxy Stress-Test & Latency)
 
-Результаты стресс-тестирования при **5 000 параллельных воркерах** на базе в **10 000 000 прокси** (размер базы данных `hydra.db` — 3.57 GB).
+Stress-test results under **5,000 concurrent workers** on a dataset of **10,000,000 proxies** (`hydra.db` file size: 3.57 GB).
 
 > [!NOTE]
-> Задержки API измерены **под 100% параллельной нагрузкой сетевого чекера** (5 000 воркеров непрерывно валидируют и записывают результаты). Внутренний SQL overhead поиска по кластеризованному B-Tree индексу составляет **0.06 мс** (по ID — **0.01 мс**).
+> REST API latencies were measured **under 100% concurrent network checker load** (5,000 workers continuously validating and batch-writing). Raw internal SQL query overhead using clustered B-Tree indexes is **0.06 ms** (by ID: **0.01 ms**).
 
-| Метрика | Значение | Условия и контекст |
+| Metric | Measured Value | Conditions & Context |
 |---|:---:|---|
-| **Импорт прокси через REST API** | **14 096 прокси/с** | Десериализация JSON, bogon-отсев, дедупликация и пакетная запись |
-| **Устойчивая скорость непрерывного чека** | **2 111.5 проверок/с** | **~7.6 млн проверок/час** (380 725 проверок за 3 минуты) |
-| **Пиковая скорость чека** | **8 340.0 проверок/с** | В моменты массового завершения TCP-сессий |
-| **Потребление RAM под нагрузкой 5 000 воркеров** | **92.4 MB (avg) / 136.4 MB (peak)** | Нулевые утечки памяти на пуле в 10M записей |
-| **Нагрузка на CPU (5 000 воркеров)** | **25.8% (avg) / 47.6% (peak)** | Равномерное распределение по пулу потоков Tokio |
-| **Ошибки блокировки БД (`database locked`)** | **0 ошибок** | За счет транзакционного MPSC буфера (100 мс) |
-| **Задержка API: выборка быстрых (`limit=50`)** | **~25.6 мс** | **Под 100% нагрузкой чекера** на 10M базе (сквозной HTTP RTT) |
-| **Задержка API: выборка по гео (`country=US`)** | **~67.2 мс** | **Под 100% нагрузкой чекера** с сортировкой по RTT |
-| **Телеметрия рантайма (`GET /api/v1/stats/engine`)** | **< 1.0 мс** | In-memory атомарные счетчики без обращения к диску |
+| **Proxy Import via REST API** | **14,096 proxies/sec** | JSON deserialization, bogon filtering, deduplication, and batch write |
+| **Sustained Continuous Check Speed** | **2,111.5 checks/sec** | **~7.6 million checks/hour** (380,725 checks in 3 minutes) |
+| **Peak Check Speed** | **8,340.0 checks/sec** | During massive parallel TCP session termination / handshake drops |
+| **RAM Usage (5,000 workers)** | **92.4 MB (avg) / 136.4 MB (peak)** | Zero memory leaks on a 10M record pool |
+| **CPU Usage (5,000 workers)** | **25.8% (avg) / 47.6% (peak)** | Evenly distributed across the Tokio thread pool |
+| **Database Locks (`database locked`)** | **0 errors** | Guaranteed by transactional MPSC micro-batching buffer (100 ms) |
+| **API Latency: Fast Query (`limit=50`)** | **~25.6 ms** | **Under 100% checker load** on 10M DB (end-to-end HTTP RTT) |
+| **API Latency: Geo Filter (`country=US`)** | **~67.2 ms** | **Under 100% checker load** with dynamic RTT sorting |
+| **Engine Telemetry (`GET /api/v1/stats/engine`)** | **< 1.0 ms** | Pure in-memory atomic counters without disk access |
 
-> 🔬 Подробные протоколы замеров и методология: [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md).
+> 🔬 Full measurement logs and testing methodology: [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md).
 
 ---
 
-## 📦 Пакеты воркспейса
+## 📦 Workspace Crates
 
-Репозиторий спроектирован как модульный Cargo-монорепозиторий:
+The repository is architected as a modular Cargo workspace:
 
 ```
 Hydra Monorepo
-├── hydra_api       — REST API (Axum), планировщик речека, MPSC батчер, хранилище libSQL, Swagger UI
-├── hydra_checker   — Неблокирующее сетевое ядро проверок, протокольный стек, пул судей и фильтрация
-└── hydra_judge     — Сверхбыстрый zero-framework L7 эхо-сервер с защитой от сканеров и HMAC-токенами
+├── hydra_api       — REST API (Axum), recheck scheduler, MPSC batcher, libSQL storage, Swagger UI
+├── hydra_checker   — Non-blocking network validation core, protocol stack, judge pool & filtering
+└── hydra_judge     — High-speed zero-framework L7 echo server with anti-scan & HMAC token protection
 ```
 
-| Пакет | Назначение | Документация |
+| Crate | Purpose | Documentation |
 |---|---|:---:|
-| **`hydra_api`** | Оркестрация жизненного цикла, REST API, Swagger UI, выборка прокси, фоновый планировщик | [README модуля](hydra_api/README.md) • [Спецификация API](docs/API.md) |
-| **`hydra_checker`** | Ядро сетевой валидации, каскадный автодетект, замер задержек и определение анонимности | [README модуля](hydra_checker/README.md) |
-| **`hydra_judge`** | Высоконагруженный эхо-сервер зеркалирования заголовков и внешнего IP с защитой RST | [README модуля](hydra_judge/README.md) |
+| **`hydra_api`** | Lifecycle orchestration, REST API, Swagger UI, proxy retrieval, background scheduler | [Crate README](hydra_api/README.md) • [API Specification](docs/API.md) |
+| **`hydra_checker`** | Network validation core, cascading auto-detect, latency timing, and anonymity scoring | [Crate README](hydra_checker/README.md) |
+| **`hydra_judge`** | High-performance echo server for header mirroring and real IP detection with RST defense | [Crate README](hydra_judge/README.md) |
 
 ---
 
-## 📐 Архитектура монорепозитория
+## 📐 Monorepo Architecture
 
 ```mermaid
 flowchart LR
@@ -200,17 +204,17 @@ flowchart LR
     classDef judge fill:#134e4a,stroke:#14b8a6,stroke-width:2px,color:#f8fafc;
     classDef storage fill:#312e81,stroke:#6366f1,stroke-width:2px,color:#f8fafc;
 
-    subgraph Clients["Клиенты"]
-        Scrapers["Скрейперы / Боты"]:::client
+    subgraph Clients["Clients"]
+        Scrapers["Scrapers / Bots"]:::client
         SwaggerUI["Swagger UI / CLI"]:::client
     end
 
     subgraph API["hydra_api"]
         Auth["X-API-Key Guard"]:::api
         Endpoints["REST API (/api/v1)"]:::api
-        Scheduler["Scheduler Daemon (1с)"]:::api
-        BatchWriter["MPSC Writer (100мс)"]:::api
-        Maintenance["DB Maintenance (1ч)"]:::api
+        Scheduler["Scheduler Daemon (1s)"]:::api
+        BatchWriter["MPSC Writer (100ms)"]:::api
+        Maintenance["DB Maintenance (1h)"]:::api
     end
 
     subgraph Checker["hydra_checker"]
@@ -222,64 +226,64 @@ flowchart LR
         JudgePool["Judge Failover Pool"]:::checker
     end
 
-    subgraph Judges["Эхо-судьи"]
+    subgraph Judges["Echo Judges"]
         HydraJudge["hydra_judge (HMAC Guard)"]:::judge
-        ExternalJudges["Внешние Fallback Судьи"]:::judge
+        ExternalJudges["External Fallback Judges"]:::judge
     end
 
-    subgraph Storage["Хранилище"]
-        DB[("libSQL / SQLite WAL<br/>WITHOUT ROWID (8 индексов)")]:::storage
+    subgraph Storage["Storage Layer"]
+        DB[("libSQL / SQLite WAL<br/>WITHOUT ROWID (8 indexes)")]:::storage
     end
 
     Scrapers --> Auth
     SwaggerUI --> Auth
     Auth --> Endpoints
-    Endpoints -->|"Выборка живых (0.06 мс)"| DB
+    Endpoints -->|"Fetch alive (0.06 ms)"| DB
 
-    Scheduler -->|"Запрос due-узлов"| DB
-    Scheduler -->|"Делегирование проверки"| PreFlight
+    Scheduler -->|"Query due candidates"| DB
+    Scheduler -->|"Dispatch check task"| PreFlight
 
     PreFlight --> L4Probe --> Cascade --> L7Probe --> Verdict
     L7Probe --> JudgePool
-    JudgePool -->|"Probe с токеном"| HydraJudge
-    JudgePool -.->|"Авто-failover"| ExternalJudges
+    JudgePool -->|"Tokenized probe"| HydraJudge
+    JudgePool -.->|"Auto-failover"| ExternalJudges
 
-    Verdict -->|"Результат проверки"| BatchWriter
+    Verdict -->|"Verification verdict"| BatchWriter
     BatchWriter -->|"BEGIN IMMEDIATE batch"| DB
-    Maintenance -->|"Очистка и incremental_vacuum"| DB
+    Maintenance -->|"Cleanup & incremental_vacuum"| DB
 ```
 
 ---
 
-## 🔄 Детерминированный жизненный цикл прокси
+## 🔄 Deterministic Proxy Lifecycle
 
-Управление состоянием узлов исключает потерю рабочих адресов и предотвращает бесконечные проверки мертвых узлов:
+Deterministic state transitions prevent lost working nodes and eliminate infinite checking loops on dead proxies:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> cold_queue: Импорт в систему (state=0, strikes=0)
-    cold_queue --> alive: Первичная проверка успешна (state=1)
-    cold_queue --> cooldown: Ошибка подключения (state=2, strikes=1)
+    [*] --> cold_queue: Imported into system (state=0, strikes=0)
+    cold_queue --> alive: Initial validation passes (state=1)
+    cold_queue --> cooldown: Connection error (state=2, strikes=1)
 
-    alive --> alive: Плановый речек успешен (recheck_alive_sec)
-    alive --> cooldown: Ошибка речека ИЛИ POST /report-fail от клиента
+    alive --> alive: Scheduled recheck passes (recheck_alive_sec)
+    alive --> cooldown: Recheck fails OR client POST /report-fail
 
-    cooldown --> alive: Карантинный речек успешен (strikes=0)
-    cooldown --> cooldown: Повторная ошибка (strikes < max_dead_strikes)
-    cooldown --> dead_permanent: Лимит ошибок исчерпан (state=3)
+    cooldown --> alive: Quarantine recheck passes (strikes reset to 0)
+    cooldown --> cooldown: Repeated failure (strikes < max_dead_strikes)
+    cooldown --> dead_permanent: Strike threshold reached (state=3)
 
-    dead_permanent --> cold_queue: Повторный импорт (revive_dead=true)
-    dead_permanent --> [*]: Физическое удаление фоновым демоном (>30 дней)
+    dead_permanent --> cold_queue: Re-imported with revive_dead=true
+    dead_permanent --> [*]: Physically pruned by background daemon (>30 days)
 ```
 
 > [!NOTE]
-> Подробная формула экспоненциального бэкоффа и параметры политик речека описаны в [Спецификации политик CheckPolicyDto](docs/API.md#13-политика-сетевых-проверок-и-речека-checkpolicydto).
+> Exponential backoff equations and recheck policy parameters are detailed in [CheckPolicyDto Specification](docs/API.md#13-check-policy-and-recheck-scheduling-checkpolicydto).
 
 ---
 
-## 🔍 Быстрые примеры использования REST API
+## 🔍 Quick REST API Usage Examples
 
-### 1. Пакетный импорт прокси (строки или объекты с кастомными политиками)
+### 1. Batch Import Proxies (Strings or Objects with Custom Policies)
 ```bash
 curl -X POST http://127.0.0.1:3000/api/v1/proxies/import \
   -H "Content-Type: application/json" \
@@ -294,13 +298,13 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/import \
   }'
 ```
 
-### 2. Выборка проверенных живых прокси по фильтрам (страна, протокол, анонимность)
+### 2. Query Verified Proxies with Multi-Criteria Filters
 ```bash
 curl -X GET "http://127.0.0.1:3000/api/v1/proxies?country=DE&anon=elite&protocol=socks5&limit=10" \
   -H "X-API-Key: my_secure_hydra_key_12345"
 ```
 
-### 3. Отправка сигнала клиентского сбоя (экстренный перевод в карантин)
+### 3. Report Downstream Target Failure (Immediate Quarantine)
 ```bash
 curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
   -H "Content-Type: application/json" \
@@ -311,85 +315,85 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
   }'
 ```
 
-> 📖 Полный справочник всех 13 эндпоинтов, форматов запросов и ответов: [docs/API.md](docs/API.md).
+> 📖 Full reference of all 13 endpoints with request and response schemas: [docs/API.md](docs/API.md).
 
 ---
 
-## ⚙️ Конфигурация окружения (.env)
+## ⚙️ Environment Configuration (.env)
 
-### Основные параметры
+### Core Parameters
 
-| Переменная | Тип | По умолчанию | Обязательно | Описание |
+| Variable | Type | Default | Required | Description |
 |---|:---:|:---:|:---:|---|
-| `API_KEY` | `String` | *(отсутствует)* | **Да** | Секретный мастер-ключ заголовка `X-API-Key`. |
-| `LISTEN_ADDR` | `SocketAddr` | `0.0.0.0:3000` | Нет | Адрес и порт API-сервера и веб-интерфейса Swagger UI. |
-| `DB_PATH` | `String` | `./data/hydra.db` | Нет | Путь к файлу базы данных libSQL/SQLite (режим WAL). |
-| `EMBED_JUDGE` | `bool` | `false` | Нет | Включение встроенного судьи Judge в процессе API (All-In-One режим). |
-| `EMBED_JUDGE_PORT` | `u16` | `8080` | Нет | Порт встроенного сервера проверки анонимности. |
-| `JUDGE_HTTP_URL` | `Url` | `http://127.0.0.1:8080` | Нет | HTTP URL судьи для проверки незашифрованных HTTP-прокси. |
-| `JUDGE_HTTPS_URL` | `Url` | `http://127.0.0.1:8080` | Нет | HTTPS URL судьи для проверки туннелей CONNECT и SOCKS. |
-| `JUDGE_SECRET_TOKEN` | `String` | `hydra_secret_token` | Нет | Статический проверочный токен верификации эхо-ответа. |
-| `CHECKER_CONCURRENCY` | `usize` | `5000` | Нет | Лимит одновременно выполняемых параллельных сетевых проверок. |
-| `CHECKER_REAL_IP` | `IpAddr` | *(нет)* | Нет | Публичный IP хоста чекера (для точного детекта Transparent прокси). |
-| `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | Нет | Включение пула внешних судей (Httpbingo, Httpbin) для failover. |
-| `JUDGE_SELECTION_STRATEGY` | `String` | `lowest_latency` | Нет | Стратегия выбора судьи: `lowest_latency`, `priority`, `round_robin`. |
-| `GEOIP_AUTO_UPDATE` | `bool` | `true` | Нет | Автоматическая загрузка и обновление баз MaxMind по HTTP ETag. |
+| `API_KEY` | `String` | *(none)* | **Yes** | Master secret key for `X-API-Key` request header authentication. |
+| `LISTEN_ADDR` | `SocketAddr` | `0.0.0.0:3000` | No | Bind socket address for API server and Swagger UI. |
+| `DB_PATH` | `String` | `./data/hydra.db` | No | File path to libSQL/SQLite database (WAL mode). |
+| `EMBED_JUDGE` | `bool` | `false` | No | Run embedded Judge inside API process (All-In-One mode). |
+| `EMBED_JUDGE_PORT` | `u16` | `8080` | No | Port for embedded anonymity evaluation judge. |
+| `JUDGE_HTTP_URL` | `Url` | `http://127.0.0.1:8080` | No | HTTP URL for checking plain HTTP proxy forwarding. |
+| `JUDGE_HTTPS_URL` | `Url` | `http://127.0.0.1:8080` | No | HTTPS URL for checking CONNECT and SOCKS tunnels. |
+| `JUDGE_SECRET_TOKEN` | `String` | `hydra_secret_token` | No | Static validation token for verifying judge echo response. |
+| `CHECKER_CONCURRENCY` | `usize` | `5000` | No | Maximum number of concurrent network verification tasks. |
+| `CHECKER_REAL_IP` | `IpAddr` | *(auto)* | No | Outbound public IP of checker host (for accurate Transparent detection). |
+| `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | No | Enable public fallback judges (Httpbingo, Httpbin) for failover. |
+| `JUDGE_SELECTION_STRATEGY` | `String` | `lowest_latency` | No | Judge selection algorithm: `lowest_latency`, `priority`, `round_robin`. |
+| `GEOIP_AUTO_UPDATE` | `bool` | `true` | No | Automatically download and refresh MaxMind databases via HTTP ETag. |
 
 <details>
-<summary>👉 <b>Развернуть параметры расширенного тюнинга (тайм-ауты, GeoIP пути, ротация HMAC, планировщик)</b></summary>
+<summary>👉 <b>Expand Advanced Tuning Parameters (Timeouts, GeoIP paths, HMAC rotation, Scheduler)</b></summary>
 
-| Переменная | Тип | По умолчанию | Описание |
+| Variable | Type | Default | Description |
 |---|:---:|:---:|---|
-| `GEOIP_COUNTRY_PATH` | `String` | `./geo/GeoLite2-Country.mmdb` | Путь к локальной базе стран MaxMind MMDB. |
-| `GEOIP_ASN_PATH` | `String` | `./geo/GeoLite2-ASN.mmdb` | Путь к локальной базе автономных систем MaxMind MMDB. |
-| `GEOIP_RELOAD_SECS` | `u64` | `3600` | Период автоматической перезагрузки файлов MMDB в память (сек). |
-| `GEOIP_UPDATE_INTERVAL_SECS` | `u64` | `86400` | Интервал проверки свежих версий баз MaxMind по HTTP (сек). |
-| `GEOIP_COUNTRY_URL` | `String` | *(jsdelivr mirror)* | HTTP URL для автозагрузки архива GeoLite2-Country.mmdb.gz. |
-| `GEOIP_ASN_URL` | `String` | *(jsdelivr mirror)* | HTTP URL для автозагрузки архива GeoLite2-ASN.mmdb.gz. |
-| `JUDGE_SECRET_KEY` | `String` | *(нет)* | HMAC-SHA256 ключ скользящей 24-часовой ротации токенов судьи. |
-| `JUDGE_HEALTH_CHECK_INTERVAL_SECS`| `u64` | `30` | Интервал проверки доступности судей (в секундах). |
-| `ADDITIONAL_JUDGES` | `String` | *(нет)* | Дополнительные пользовательские судьи (`HTTP_URL\|HTTPS_URL,...`). |
-| `CHECKER_CONNECT_TIMEOUT_MS` | `u64` | `3000` | Таймаут на L4 TCP SYN подключение к сокету прокси (мс). |
-| `CHECKER_HANDSHAKE_TIMEOUT_MS` | `u64` | `4000` | Таймаут на рукопожатие туннеля (SOCKS, HTTP CONNECT) (мс). |
-| `CHECKER_READ_WRITE_TIMEOUT_MS` | `u64` | `5000` | Таймаут на обмен данными с судьей через туннель (мс). |
-| `CHECKER_MAX_READ_BYTES` | `usize` | `8192` | Максимальный объем читаемого ответа (защита от memory tarpit). |
-| `CHECKER_LOCAL_BIND_IP` | `IpAddr` | *(нет)* | Привязка исходящих сокетов чекера к локальному IP интерфейса. |
-| `SCHEDULER_BATCH_SIZE` | `usize` | `10000` | Число созревших прокси, выбираемых планировщиком в секунду. |
-| `BATCH_FLUSH_INTERVAL_MS` | `u64` | `100` | Интервал транзакционного сброса буфера результатов MPSC в БД (мс). |
-| `DEAD_PROXY_RETENTION_DAYS` | `u32` | `30` | Срок хранения мертвых узлов в днях до физического удаления. |
-| `DB_MAINTENANCE_INTERVAL_SECS` | `u64` | `3600` | Период фонового обслуживания БД (`PRAGMA incremental_vacuum`). |
-| `RUST_LOG` | `String` | `info` | Уровень детализации логов и трассировки (`tracing`). |
+| `GEOIP_COUNTRY_PATH` | `String` | `./geo/GeoLite2-Country.mmdb` | Path to local MaxMind Country MMDB file. |
+| `GEOIP_ASN_PATH` | `String` | `./geo/GeoLite2-ASN.mmdb` | Path to local MaxMind ASN MMDB file. |
+| `GEOIP_RELOAD_SECS` | `u64` | `3600` | Memory reload period for MMDB files (seconds). |
+| `GEOIP_UPDATE_INTERVAL_SECS` | `u64` | `86400` | Upstream check interval for fresh MaxMind databases (seconds). |
+| `GEOIP_COUNTRY_URL` | `String` | *(jsdelivr mirror)* | HTTP URL for downloading GeoLite2-Country.mmdb.gz. |
+| `GEOIP_ASN_URL` | `String` | *(jsdelivr mirror)* | HTTP URL for downloading GeoLite2-ASN.mmdb.gz. |
+| `JUDGE_SECRET_KEY` | `String` | *(none)* | HMAC-SHA256 secret key for 24-hour sliding token rotation. |
+| `JUDGE_HEALTH_CHECK_INTERVAL_SECS`| `u64` | `30` | Health check and RTT ping interval for judges (seconds). |
+| `ADDITIONAL_JUDGES` | `String` | *(none)* | Custom additional judges (`HTTP_URL\|HTTPS_URL,...`). |
+| `CHECKER_CONNECT_TIMEOUT_MS` | `u64` | `3000` | L4 TCP SYN connection timeout to proxy socket (ms). |
+| `CHECKER_HANDSHAKE_TIMEOUT_MS` | `u64` | `4000` | Tunnel handshake timeout (SOCKS, HTTP CONNECT) (ms). |
+| `CHECKER_READ_WRITE_TIMEOUT_MS` | `u64` | `5000` | Data exchange I/O timeout with judge through proxy tunnel (ms). |
+| `CHECKER_MAX_READ_BYTES` | `usize` | `8192` | Max allowed read response payload (defense against memory tarpits). |
+| `CHECKER_LOCAL_BIND_IP` | `IpAddr` | *(none)* | Bind outbound checker sockets to a specific local interface IP. |
+| `SCHEDULER_BATCH_SIZE` | `usize` | `10000` | Number of due candidate proxies polled by scheduler per second. |
+| `BATCH_FLUSH_INTERVAL_MS` | `u64` | `100` | Transactional flush interval for MPSC result buffer into DB (ms). |
+| `DEAD_PROXY_RETENTION_DAYS` | `u32` | `30` | Retention duration in days for dead nodes before physical deletion. |
+| `DB_MAINTENANCE_INTERVAL_SECS` | `u64` | `3600` | Interval for background maintenance (`PRAGMA incremental_vacuum`). |
+| `RUST_LOG` | `String` | `info` | Logging verbosity and tracing filter (`tracing`). |
 
 </details>
 
 ---
 
-## 🛠️ Разработка и тестирование
+## 🛠️ Development & Testing
 
 ```bash
-# Запуск полного набора тестов монорепозитория
+# Run full workspace test suite
 cargo test --workspace
 
-# Тестирование отдельных модулей
+# Run tests for specific crates
 cargo test -p hydra_checker
 cargo test -p hydra_judge
 cargo test -p hydra_api
 
-# Проверка форматирования и статический анализ Clippy
+# Check formatting and run Clippy static analysis
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 ---
 
-## 🤝 Участие в разработке
+## 🤝 Contributing
 
-Мы приветствуем Pull Request'ы, сообщения об ошибках и предложения по оптимизации сетевого стека!
-Пожалуйста, ознакомьтесь с правилами в документе:
-👉 **[Руководство контрибьютора (CONTRIBUTING.md)](CONTRIBUTING.md)**.
+We warmly welcome Pull Requests, bug reports, and performance optimization proposals!
+Please review the contribution guidelines:
+👉 **[Contributor Guide (CONTRIBUTING.md)](CONTRIBUTING.md)**.
 
 ---
 
-## 📄 Лицензия
+## 📄 License
 
-Проект распространяется под открытой лицензией **MIT License**. Подробности в файле [LICENSE](LICENSE).
+Hydra is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.

@@ -1,125 +1,129 @@
+[← Back to Hydra README](../README.md)
+
+[English](README.md) • [Русский](README.ru.md) • [简体中文](README.zh.md)
+
 # hydra_api
 
-Модуль оркестрации, планирования проверок, персистентного хранения и REST API пула прокси-серверов Hydra. Координирует работу чекера (`hydra_checker`), взаимодействует с судьями (`hydra_judge`), управляет состояниями записей в СУБД libSQL (SQLite WAL).
+Orchestration, check scheduling, persistent storage, and REST API module for the Hydra proxy pool engine. Coordinates the checker engine (`hydra_checker`), interacts with validation judges (`hydra_judge`), and manages proxy states in libSQL (SQLite WAL).
 
-## Структура файлов
+## Directory Tree
 
 ```
 hydra_api/
-├── Cargo.toml                              # Манифест пакета Cargo и зависимости
-├── .env.example                            # Шаблон переменных окружения
-├── docs/API.md                                  # Детальная спецификация схем и DTO REST API
-├── README.md                               # Техническая документация модуля
+├── Cargo.toml                              # Cargo package manifest and dependencies
+├── .env.example                            # Environment variables template
+├── docs/API.md                             # Detailed REST API schemas and DTO specification
+├── README.md                               # Module technical documentation
 ├── migrations/
-│   └── 001_initial.sql                     # SQL-миграция схем таблиц и B-Tree индексов
+│   └── 001_initial.sql                     # SQL migration for table schemas and B-Tree indexes
 ├── src/
-│   ├── main.rs                             # Точка входа: запуск фоновых задач и HTTP-сервера
-│   ├── lib.rs                              # Экспорт библиотеки и инициализация crypto provider
-│   ├── app_state.rs                        # Разделяемое состояние приложения (AppState)
-│   ├── config.rs                           # Парсинг и валидация конфигурации из окружения
-│   ├── error.rs                            # Ошибки API и их маппинг в HTTP-статусы
-│   ├── router.rs                           # Маршруты Axum, middleware авторизации, Swagger UI
+│   ├── main.rs                             # Entry point: background services and HTTP server startup
+│   ├── lib.rs                              # Library export and crypto provider initialization
+│   ├── app_state.rs                        # Shared application state (AppState)
+│   ├── config.rs                           # Environment configuration parsing and validation
+│   ├── error.rs                            # API error types and HTTP status mappings
+│   ├── router.rs                           # Axum routes, auth middleware, and Swagger UI
 │   ├── db/
-│   │   ├── mod.rs                          # Реэкспорт функций доступа к базе данных
-│   │   ├── init.rs                         # Инициализация libSQL, PRAGMA-настройки WAL, миграции
-│   │   ├── proxies.rs                      # CRUD операции и выборка созревших прокси
-│   │   ├── sources.rs                      # Учет источников прокси и статистика отдачи
-│   │   └── proxy_sources.rs                # M2M-связи между прокси и источниками
+│   │   ├── mod.rs                          # Database access functions re-export
+│   │   ├── init.rs                         # libSQL initialization, WAL PRAGMA settings, migrations
+│   │   ├── proxies.rs                      # CRUD operations and due proxy queries
+│   │   ├── sources.rs                      # Proxy source tracking and yield statistics
+│   │   └── proxy_sources.rs                # M2M relations between proxies and sources
 │   ├── handlers/
-│   │   ├── mod.rs                          # Реэкспорт HTTP-обработчиков
-│   │   ├── proxies.rs                      # Хендлеры CRUD, импорта и отчетов о сбоях
-│   │   ├── sources.rs                      # Хендлеры управления источниками
-│   │   ├── stats.rs                        # Хендлеры метрик БД и in-memory телеметрии
-│   │   └── judges.rs                       # Хендлеры статуса и проверок судей
+│   │   ├── mod.rs                          # HTTP route handlers re-export
+│   │   ├── proxies.rs                      # CRUD, import, and failure report handlers
+│   │   ├── sources.rs                      # Source management handlers
+│   │   ├── stats.rs                        # Database metrics and in-memory telemetry handlers
+│   │   └── judges.rs                       # Judge health and status handlers
 │   ├── middleware/
-│   │   ├── mod.rs                          # Реэкспорт middleware
-│   │   └── auth.rs                         # Проверка заголовка авторизации X-API-Key
+│   │   ├── mod.rs                          # Middleware re-exports
+│   │   └── auth.rs                         # X-API-Key authorization header validation
 │   ├── models/
-│   │   ├── mod.rs                          # Реэкспорт структур данных
-│   │   ├── api.rs                          # DTO запросов/ответов API и схемы utoipa
-│   │   └── db.rs                           # Модели строк базы данных (ProxyRow, SourceRow)
+│   │   ├── mod.rs                          # Data models re-export
+│   │   ├── api.rs                          # API request/response DTOs and utoipa schemas
+│   │   └── db.rs                           # Database entity models (ProxyRow, SourceRow)
 │   └── services/
-│       ├── mod.rs                          # Реэкспорт фоновых сервисов
-│       ├── scheduler.rs                    # Планировщик регулярного речека созревших прокси
-│       ├── batch_writer.rs                 # MPSC-буфер пакетной транзакционной записи в БД
-│       ├── geoip.rs                        # Lock-free GeoIP/ASN резолвер (MaxMind + ArcSwap)
-│       ├── geoip_updater.rs                # Фоновое обновление mmdb файлов по ETag из CDN
-│       ├── maintenance.rs                  # Очистка устаревших записей и оптимизация WAL/PRAGMA
-│       └── parser.rs                       # Парсинг строковых форматов прокси и отсев Bogon IP
+│       ├── mod.rs                          # Background services re-export
+│       ├── scheduler.rs                    # Periodic scheduler for due proxy re-checks
+│       ├── batch_writer.rs                 # Non-blocking MPSC batch transactional database writer
+│       ├── geoip.rs                        # Lock-free GeoIP/ASN resolver (MaxMind DB + ArcSwap)
+│       ├── geoip_updater.rs                # Background mmdb updater using CDN ETag
+│       ├── maintenance.rs                  # Stale record cleanup and WAL/PRAGMA optimization
+│       └── parser.rs                       # Raw string proxy parser and Bogon IP filter
 └── tests/
-    ├── api_integration_tests.rs            # Интеграционные тесты эндпоинтов REST API
-    ├── db_tests.rs                         # Интеграционные тесты SQL-запросов и миграций
-    ├── models_and_parser_tests.rs          # Тесты парсера прокси и сериализации моделей
-    └── scheduler_and_batch_writer_tests.rs # Тесты логики очередей планировщика и батчинга
+    ├── api_integration_tests.rs            # REST API integration tests
+    ├── db_tests.rs                         # SQL query and migration integration tests
+    ├── models_and_parser_tests.rs          # Proxy parser and model serialization tests
+    └── scheduler_and_batch_writer_tests.rs # Scheduler queue and batching logic tests
 ```
 
-## Основные подсистемы
+## Core Subsystems
 
-- **Роутер (Axum 0.8):** Прием HTTP-запросов, проверка авторизации `X-API-Key`, раздача OpenAPI/Swagger UI и маршрутизация на хендлеры.
-- **Планировщик (Scheduler):** Ежесекундная выборка созревших прокси (`next_check_at <= now`) и диспетчеризация в пул чекера с учетом таймаутов.
-- **Batch Writer:** Неблокирующий MPSC-буфер для группировки результатов проверок и сброса в БД единой транзакцией каждые 100 мс.
-- **GeoIP:** Lock-free обогащение IP метаданными страны и ASN (MaxMind DB через `ArcSwap`) с автообновлением по ETag из CDN.
-- **База данных (libSQL):** Локальное хранилище в режиме WAL с таблицами `WITHOUT ROWID` и 8 B-Tree индексами для быстрого поиска и фильтрации.
+- **Router (Axum 0.8):** Handles incoming HTTP requests, enforces `X-API-Key` authentication, serves OpenAPI/Swagger UI, and dispatches to route handlers.
+- **Scheduler:** Scans for due proxies (`next_check_at <= now`) every second and dispatches validation jobs to the checker pool adhering to timeout policies.
+- **Batch Writer:** Non-blocking MPSC channel buffer aggregating validation outcomes and flushing them in atomic SQLite transactions every 100 ms.
+- **GeoIP Resolver:** Lock-free IP enrichment with country and ASN metadata (MaxMind DB via `ArcSwap`) featuring automated CDN ETag updates.
+- **Database (libSQL):** High-throughput local storage operating in WAL mode with `WITHOUT ROWID` clustered tables and 8 B-Tree indexes for sub-millisecond filtering.
 
-## Переменные окружения
+## Environment Variables
 
-Все параметры считываются из окружения или файла `.env`. Все эндпоинты требуют заголовок `X-API-Key: <API_KEY>`.
+All settings are read from the environment or `.env` file. All endpoints require the `X-API-Key: <API_KEY>` header.
 
-| Переменная | Тип | Дефолт | Назначение |
+| Variable | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `LISTEN_ADDR` | String | `0.0.0.0:3000` | Сетевой адрес и порт API |
-| `API_KEY` | String | — *(обязательно)* | Ключ авторизации заголовка X-API-Key |
-| `DB_PATH` | String | `./data/hydra.db` | Путь к файлу базы данных |
-| `EMBED_JUDGE` | bool | `false` | Запуск встроенного сервера Judge |
-| `EMBED_JUDGE_PORT` | u16 | `8080` | Порт встроенного сервера Judge |
-| `CHECKER_CONCURRENCY` | usize | `5000` | Лимит параллельных проверок чекера |
-| `CHECKER_REAL_IP` | String | — | Внешний IP детекта анонимности |
-| `JUDGE_HTTP_URL` | String | `http://127.0.0.1:8080` | URL эхо-сервера HTTP проверок |
-| `JUDGE_HTTPS_URL` | String | `http://127.0.0.1:8080` | URL эхо-сервера HTTPS проверок |
-| `JUDGE_SECRET_TOKEN` | String | `hydra_secret_token` | Статический токен верификации судьи |
-| `JUDGE_SECRET_KEY` | String | — | HMAC-ключ суточной ротации токенов |
-| `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | Включение пула сторонних судей |
-| `JUDGE_HEALTH_CHECK_INTERVAL_SECS` | u64 | `30` | Интервал проверки доступности судей |
-| `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | Стратегия выбора рабочего судьи |
-| `ADDITIONAL_JUDGES` | String | — | Дополнительные адреса сторонних судей |
-| `GEOIP_AUTO_UPDATE` | bool | `true` | Автообновление баз из CDN |
-| `GEOIP_COUNTRY_PATH` | String | `./geo/GeoLite2-Country.mmdb` | Путь к базе стран MaxMind |
-| `GEOIP_ASN_PATH` | String | `./geo/GeoLite2-ASN.mmdb` | Путь к базе ASN MaxMind |
-| `GEOIP_RELOAD_SECS` | u64 | `3600` | Интервал перечитки баз с диска |
-| `GEOIP_UPDATE_INTERVAL_SECS` | u64 | `86400` | Интервал проверки обновлений CDN |
-| `GEOIP_COUNTRY_URL` | String | `https://cdn.jsdelivr.net/...` | URL загрузки базы стран |
-| `GEOIP_ASN_URL` | String | `https://cdn.jsdelivr.net/...` | URL загрузки базы ASN |
-| `SCHEDULER_BATCH_SIZE` | usize | `10000` | Размер пачки задач планировщика |
-| `BATCH_FLUSH_INTERVAL_MS` | u64 | `100` | Интервал пакетного сброса в БД |
-| `DEAD_PROXY_RETENTION_DAYS` | u32 | `30` | Срок хранения мертвых прокси (дни) |
-| `DB_MAINTENANCE_INTERVAL_SECS` | u64 | `3600` | Интервал фонового обслуживания БД |
-| `RUST_LOG` | String | `info,hydra_api=debug` | Уровень детализации системных логов |
+| `LISTEN_ADDR` | String | `0.0.0.0:3000` | API bind address and port |
+| `API_KEY` | String | — *(required)* | Master authorization key for X-API-Key header |
+| `DB_PATH` | String | `./data/hydra.db` | libSQL database file path |
+| `EMBED_JUDGE` | bool | `false` | Run embedded Judge echo server inside API process |
+| `EMBED_JUDGE_PORT` | u16 | `8080` | Port for embedded Judge server |
+| `CHECKER_CONCURRENCY` | usize | `5000` | Maximum concurrent checker validation tasks |
+| `CHECKER_REAL_IP` | String | — | Real public IP for client anonymity detection |
+| `JUDGE_HTTP_URL` | String | `http://127.0.0.1:8080` | Judge echo server URL for HTTP checks |
+| `JUDGE_HTTPS_URL` | String | `http://127.0.0.1:8080` | Judge echo server URL for HTTPS tunnel checks |
+| `JUDGE_SECRET_TOKEN` | String | `hydra_secret_token` | Static verification token for judge response |
+| `JUDGE_SECRET_KEY` | String | — | HMAC key for rolling daily secret tokens |
+| `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | Enable built-in third-party judge endpoints |
+| `JUDGE_HEALTH_CHECK_INTERVAL_SECS` | u64 | `30` | Interval between judge health check sweeps |
+| `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | Strategy for choosing active judge endpoint |
+| `ADDITIONAL_JUDGES` | String | — | Comma-separated extra judge URLs |
+| `GEOIP_AUTO_UPDATE` | bool | `true` | Auto-download latest GeoIP MMDB from CDN |
+| `GEOIP_COUNTRY_PATH` | String | `./geo/GeoLite2-Country.mmdb` | Local path to MaxMind Country MMDB |
+| `GEOIP_ASN_PATH` | String | `./geo/GeoLite2-ASN.mmdb` | Local path to MaxMind ASN MMDB |
+| `GEOIP_RELOAD_SECS` | u64 | `3600` | Interval to hot-reload MMDB files from disk |
+| `GEOIP_UPDATE_INTERVAL_SECS` | u64 | `86400` | Interval between CDN update checks |
+| `GEOIP_COUNTRY_URL` | String | `https://cdn.jsdelivr.net/...` | Remote download URL for Country MMDB |
+| `GEOIP_ASN_URL` | String | `https://cdn.jsdelivr.net/...` | Remote download URL for ASN MMDB |
+| `SCHEDULER_BATCH_SIZE` | usize | `10000` | Maximum proxies fetched per scheduler tick |
+| `BATCH_FLUSH_INTERVAL_MS` | u64 | `100` | Buffer flush interval to database (ms) |
+| `DEAD_PROXY_RETENTION_DAYS` | u32 | `30` | Retention window for dead proxies (days) |
+| `DB_MAINTENANCE_INTERVAL_SECS` | u64 | `3600` | Database VACUUM / WAL maintenance interval |
+| `RUST_LOG` | String | `info,hydra_api=debug` | System logging filter directive |
 
-## Эндпоинты API
+## API Endpoints
 
-| Метод | Путь | Назначение |
+| Method | Path | Description |
 | :--- | :--- | :--- |
-| `POST` | `/api/v1/proxies/import` | Пакетный импорт сырых прокси в очередь `cold_queue` |
-| `GET` | `/api/v1/proxies` | Выборка прокси с фильтрацией (страна, протокол, анонимность) |
-| `GET` | `/api/v1/proxies/{id}` | Получение детальной информации о прокси по ID |
-| `PATCH` | `/api/v1/proxies/{id}` | Частичное обновление параметров и политики проверки прокси |
-| `DELETE` | `/api/v1/proxies/{id}` | Полное удаление прокси из базы данных |
-| `POST` | `/api/v1/proxies/report-fail` | Отчет клиента о сбое для перевода в `cooldown` |
-| `GET` | `/api/v1/sources` | Список источников и статистика их выхода (yield) |
-| `GET` | `/api/v1/sources/{name}` | Детальная статистика конкретного источника по имени |
-| `DELETE` | `/api/v1/sources/{name}` | Удаление источника и связанных с ним записей |
-| `GET` | `/api/v1/judges` | Состояние, статус доступности и RTT судей |
-| `POST` | `/api/v1/judges/health-check` | Принудительный запуск проверки доступности судей |
-| `GET` | `/api/v1/stats` | Глобальная статистика пула и метрики базы данных |
-| `GET` | `/api/v1/stats/engine` | In-memory телеметрия производительности чекера |
-| `GET` | `/swagger-ui` | Интерактивная веб-документация Swagger UI |
-| `GET` | `/api-docs/openapi.json` | Спецификация OpenAPI 3.0 в формате JSON |
+| `POST` | `/api/v1/proxies/import` | Batch import raw proxies into `cold_queue` |
+| `GET` | `/api/v1/proxies` | Filtered proxy query (country, protocol, anonymity) |
+| `GET` | `/api/v1/proxies/{id}` | Retrieve detailed proxy metadata by ID |
+| `PATCH` | `/api/v1/proxies/{id}` | Partially update proxy parameters or check policy |
+| `DELETE` | `/api/v1/proxies/{id}` | Permanently delete proxy from database |
+| `POST` | `/api/v1/proxies/report-fail` | Report client connection failure and trigger cooldown |
+| `GET` | `/api/v1/sources` | List proxy sources and yield statistics |
+| `GET` | `/api/v1/sources/{name}` | Detailed statistics for a specific source |
+| `DELETE` | `/api/v1/sources/{name}` | Delete source and disassociate linked records |
+| `GET` | `/api/v1/judges` | Judge pool health status and RTT metrics |
+| `POST` | `/api/v1/judges/health-check` | Force immediate health check across all judges |
+| `GET` | `/api/v1/stats` | Global proxy pool statistics and DB metrics |
+| `GET` | `/api/v1/stats/engine` | In-memory checker performance telemetry |
+| `GET` | `/swagger-ui` | Interactive Swagger UI API documentation |
+| `GET` | `/api-docs/openapi.json` | OpenAPI 3.0 specification in JSON format |
 
-Подробные схемы запросов, DTO и примеры ответов приведены в [/docs/API.md](/docs/API.md).
+For detailed request schemas, DTO models, and response examples, refer to [../docs/API.md](../docs/API.md).
 
-## Сборка и запуск
+## Build & Run
 
-### 1. Настройка окружения
+### 1. Configure Environment
 
 Linux / macOS:
 ```bash
@@ -133,21 +137,21 @@ Copy-Item .env.example .env
 (Get-Content .env) -replace 'API_KEY=.*', 'API_KEY=your_secure_key' | Set-Content .env
 ```
 
-### 2. Сборка и запуск
+### 2. Build and Launch
 
 Linux / Windows:
 ```bash
-# Запуск в режиме разработки
+# Run in debug/development mode
 cargo run -p hydra_api
 
-# Запуск в оптимизированном release-режиме
+# Run in optimized release mode
 cargo run --release -p hydra_api
 
-# Компиляция бинарного файла
+# Compile release binary
 cargo build --release -p hydra_api
 ```
 
-### 3. Тестирование
+### 3. Testing
 
 ```bash
 cargo test -p hydra_api

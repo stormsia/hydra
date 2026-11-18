@@ -1,65 +1,65 @@
-[← Назад к Hydra README](../README.md)
+[← Back to Hydra README](../README.md) | [English](API.md) • [Русский](API.ru.md) • [简体中文](API.zh.md)
 
 # Hydra REST API
 
 Base URL: `http://127.0.0.1:3000`  
-Аутентификация: HTTP-заголовок `X-API-Key: <token>` (переменная окружения `API_KEY`). Эндпоинты `/swagger-ui` и `/api-docs/openapi.json` общедоступны.
+Authentication: HTTP header `X-API-Key: <token>` (configured via `API_KEY` environment variable). The endpoints `/swagger-ui` and `/api-docs/openapi.json` are public.
 
 ---
 
-## 1. Справочные таблицы
+## 1. Reference Schemas & Definitions
 
-### 1.1. Состояния жизненного цикла (`ProxyState`)
+### 1.1. Lifecycle States (`ProxyState`)
 
-| Значение `state` | Код | Описание |
+| State Value (`state`) | Code | Description |
 |---|---|---|
-| `cold_queue` | `0` | Новая прокси, ожидает первой проверки в очереди первичного тестирования. |
-| `alive` | `1` | Рабочая прокси в активном пуле, подтвержденная judge-сервером. Готова к выдаче клиентам. |
-| `cooldown` | `2` | Карантин после сбоя проверки или клиентского fail-report. Ожидает речека с экспоненциальным бэкоффом. |
-| `dead_permanent` | `3` | Превышен лимит последовательных сбоев (`max_dead_strikes`). Исключена из очередей речека. |
+| `cold_queue` | `0` | Newly ingested proxy awaiting its initial check in the pre-flight testing queue. |
+| `alive` | `1` | Validated, operational proxy in active pool confirmed by an echo judge. Ready for client rotation. |
+| `cooldown` | `2` | Quarantined following a verification error or client fail report. Scheduled for exponential backoff recheck. |
+| `dead_permanent` | `3` | Consecutive failure threshold exceeded (`max_dead_strikes`). Excluded from scheduling queues. |
 
-### 1.2. Протоколы и уровни анонимности
+### 1.2. Protocols and Anonymity Levels
 
-| Параметр | Возможные значения | Описание |
+| Parameter | Allowed Values | Description |
 |---|---|---|
-| `protocol` | `socks5`, `socks4`, `http` | Сетевой протокол. Для `http` проверяется поддержка CONNECT-туннелирования (`supports_https`). |
-| `anon` | `elite` | Высокая анонимность: факт проксирования и исходный IP скрыты (заголовки `Via`, `X-Forwarded-For` отсутствуют). |
-| | `anonymous` | Средняя анонимность: факт проксирования виден серверу, но реальный IP клиента скрыт. |
-| | `transparent` | Прозрачный: реальный IP клиента передается целевому серверу в заголовках. |
+| `protocol` | `socks5`, `socks4`, `http` | Network protocol. For `http`, support for HTTPS CONNECT tunneling (`supports_https`) is verified. |
+| `anon` | `elite` | High anonymity: proxy headers and client original IP are hidden (no `Via`, `X-Forwarded-For`). |
+| | `anonymous` | Medium anonymity: proxy presence is signaled to the target server, but client real IP is obscured. |
+| | `transparent` | Transparent: real client IP address is forwarded to the destination in request headers. |
 
-### 1.3. Политика сетевых проверок и речека (`CheckPolicyDto`)
+### 1.3. Check Policy and Recheck Scheduling (`CheckPolicyDto`)
 
-Настройки сетевых тайм-аутов, порогов деградации и расписания фонового планировщика. Задаются при импорте пула (`POST /api/v1/proxies/import`) или обновляются индивидуально для каждой прокси через `PATCH /api/v1/proxies/{id}`.
+Network timeouts, degradation thresholds, and background scheduler settings. Configured during pool ingestion (`POST /api/v1/proxies/import`) or patched individually via `PATCH /api/v1/proxies/{id}`.
 
-| Поле (JSON) | Тип | Дефолт | Диапазон | Точное назначение и влияние на планировщик/чекер |
+| JSON Field | Type | Default | Range | Exact Purpose & Influence on Scheduler / Checker |
 |---|---|---|---|---|
-| `connect_timeout_ms` | `u32` | `3000` (мс) | `100` – `60000` | Предельный тайм-аут на установление первичного TCP-соединения с сокетом прокси. При превышении чекер фиксирует сбой этапа `connect`. |
-| `handshake_timeout_ms` | `u32` | `4000` (мс) | `100` – `60000` | Предельный тайм-аут на выполнение протокольного рукопожатия (SOCKS-аутентификация / SSL/TLS-handshake / HTTP CONNECT). Превышение расценивается как сбой этапа `handshake`. |
-| `rw_timeout_ms` | `u32` | `5000` (мс) | `100` – `60000` | Предельный тайм-аут на отправку контрольного HTTP-запроса и чтение ответа от judge-сервера (I/O). При превышении чекер фиксирует сбой этапа валидации (`rw timeout`). |
-| `recheck_alive_sec` | `u32` | `60` (с) | `10` – `86400` | Интервал плановой фоновой перепроверки валидных прокси в статусе `alive`. При успешной проверке планировщик выставляет `next_check_at = now + recheck_alive_sec`. |
-| `recheck_dead_sec` | `u32` | `1800` (с) | `30` – `604800` | Базовый интервал речека сбойных прокси в карантине (`cooldown`). Служит основой для расчета задержки первого и последующих штрафных речеков. При значении `0` прокси сразу помечается как `dead_permanent`. |
-| `max_dead_strikes` | `u32` | `3` | `1` – `50` | Порог допустимых последовательных сбоев (`dead_strikes`). При достижении порога прокси безвозвратно переводится в `dead_permanent` (код `3`) и исключается из очередей планировщика. |
-| `stability_window_min` | `u32` | `5` (мин) | `1` – `1440` | Временное скользящее окно (в минутах) для расчета метрики качества `stability_pct`. Результаты проверок старше `(now - stability_window_min * 60)` автоматически отсекаются. Алиасы: `stability_window`, `window_min`, `window_minutes`. |
-| `dead_backoff_mult` | `f32` | `1.5` | `1.0` – `10.0` | Множитель экспоненциального бэкоффа для расчета задержки повторных проверок в статусе `cooldown`. При значении `1.0` интервал между речеками остается постоянным. Алиасы: `backoff_multiplier`, `recheck_dead_multiplier`, `dead_multiplier`, `recheck_dead_mult`, `multiplier`. |
+| `connect_timeout_ms` | `u32` | `3000` (ms) | `100` – `60000` | Maximum timeout for establishing initial TCP SYN connection to proxy socket. Exceeding triggers a `connect` phase failure. |
+| `handshake_timeout_ms` | `u32` | `4000` (ms) | `100` – `60000` | Maximum timeout for protocol handshake (SOCKS auth / SSL/TLS handshake / HTTP CONNECT). Exceeding triggers a `handshake` phase failure. |
+| `rw_timeout_ms` | `u32` | `5000` (ms) | `100` – `60000` | Maximum timeout for sending test HTTP request and reading full response from judge (I/O). Exceeding triggers a `rw timeout` phase failure. |
+| `recheck_alive_sec` | `u32` | `60` (s) | `10` – `86400` | Interval for routine background re-validation of healthy `alive` proxies. On success, scheduler sets `next_check_at = now + recheck_alive_sec`. |
+| `recheck_dead_sec` | `u32` | `1800` (s) | `30` – `604800` | Base recheck interval for quarantined nodes in `cooldown`. Serves as base delay for exponential backoff. When set to `0`, proxy transitions directly to `dead_permanent`. |
+| `max_dead_strikes` | `u32` | `3` | `1` – `50` | Maximum allowed consecutive failures (`dead_strikes`). Once reached, proxy is permanently transitioned to `dead_permanent` (code `3`) and excluded from active queues. |
+| `stability_window_min` | `u32` | `5` (min) | `1` – `1440` | Sliding time window (minutes) for calculating `stability_pct`. Check history older than `(now - stability_window_min * 60)` is discarded. Aliases: `stability_window`, `window_min`, `window_minutes`. |
+| `dead_backoff_mult` | `f32` | `1.5` | `1.0` – `10.0` | Exponential backoff multiplier for calculating penalty recheck delays in `cooldown`. If `1.0`, recheck interval remains constant. Aliases: `backoff_multiplier`, `recheck_dead_multiplier`, `dead_multiplier`, `recheck_dead_mult`, `multiplier`. |
 
-**Формула расчета карантинного речека в `cooldown`:**
+**Exponential Backoff Formula in `cooldown`:**
 
-При неудачной проверке инкрементируется счетчик последовательных сбоев `strikes` (`new_strikes = current_strikes + 1`). Если `strikes < max_dead_strikes`, прокси переводится в статус `cooldown` (или остается в нем), а задержка следующей проверки вычисляется по формуле:
+When a check fails, consecutive strikes increment: `new_strikes = current_strikes + 1`. If `strikes < max_dead_strikes`, proxy is put into or retained in `cooldown`, with delay calculated as:
 
-`интервал = recheck_dead_sec * (dead_backoff_mult ^ (strikes - 1))`
+`interval = recheck_dead_sec * (dead_backoff_mult ^ (strikes - 1))`
 
-> *Примечание:* Вычисленный `интервал` аппаратно ограничивается диапазоном от 1 секунды до 30 дней: `clamp(1, 2592000)` секунд. Время следующей проверки назначается как `next_check_at = now + интервал`. При `strikes >= max_dead_strikes` прокси переходит в терминальное состояние `dead_permanent` (код `3`).
+> *Note:* Computed `interval` is clamped between 1 second and 30 days: `clamp(1, 2592000)` seconds. Next check is scheduled as `next_check_at = now + interval`. If `strikes >= max_dead_strikes`, proxy moves to terminal state `dead_permanent` (code `3`).
 
-> **Формат идентификатора прокси (`id`):** `ip:port` (для публичных) или `ip:port:user:pass` (для приватных). В путях URL (`/api/v1/proxies/{id}`) спецсимволы (`:`, `@`, `#`, `/`) **обязаны** быть percent-encoded (например, `1.2.3.4%3A8080%3Au%40ser%3Ap%23ass`).
+> **Proxy Identifier Format (`id`):** `ip:port` (for public proxies) or `ip:port:user:pass` (for authenticated proxies). Special characters (`:`, `@`, `#`, `/`) in URL paths (`/api/v1/proxies/{id}`) **must** be percent-encoded (e.g. `1.2.3.4%3A8080%3Au%40ser%3Ap%23ass`).
 
 ---
 
-## 2. Маршруты API
+## 2. API Routes
 
-### Группа 1: Proxies
+### Group 1: Proxies
 
 #### `POST /api/v1/proxies/import`
-Пакетный импорт сырых прокси в очередь `cold_queue` с валидацией, дедупликацией и привязкой к источнику.
+Batch ingestion of raw proxies into `cold_queue` with validation, deduplication, and source binding.
 
 - **Request Body (JSON):**
   ```json
@@ -93,10 +93,10 @@ Base URL: `http://127.0.0.1:3000`
     ]
   }
   ```
-  - `revive_dead` *(bool, def: false)*: Сбросить счетчики и перевести найденные `dead_permanent` прокси в `cold_queue`.
-  - `ignore_protocol` *(bool, def: false)*: Игнорировать переданный протокол и запустить каскадный автодетект (SOCKS5 → SOCKS4 → HTTP).
-  - `policy` *(object, opt)*: Переопределение сетевых тайм-аутов и расписания речека для пула (см. [п. 1.3](#13-политика-сетевых-проверок-и-речека-checkpolicydto)). При отсутствии применяются системные значения по умолчанию.
-  - `proxies` *(array)*: Элементы в формате строк (`proto://user:pass@ip:port`, `ip:port:user:pass`, `ip:port`, `[ipv6]:port`) или объектов.
+  - `revive_dead` *(bool, def: false)*: Reset strike counters and revive existing `dead_permanent` proxies back to `cold_queue`.
+  - `ignore_protocol` *(bool, def: false)*: Ignore provided protocol and initiate cascading auto-detect (SOCKS5 → SOCKS4 → HTTP).
+  - `policy` *(object, opt)*: Override network timeouts and recheck scheduling for this pool (see [Section 1.3](#13-check-policy-and-recheck-scheduling-checkpolicydto)). Defaults applied if omitted.
+  - `proxies` *(array)*: Elements in string format (`proto://user:pass@ip:port`, `ip:port:user:pass`, `ip:port`, `[ipv6]:port`) or JSON objects.
 
 - **Response `200 OK` (JSON):**
   ```json
@@ -109,7 +109,7 @@ Base URL: `http://127.0.0.1:3000`
     "invalid_format": 0
   }
   ```
-- **Ошибки:** `400 Bad Request` (пустой `source`), `401 Unauthorized`, `500 Internal Server Error`.
+- **Errors:** `400 Bad Request` (missing `source`), `401 Unauthorized`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s -X POST http://127.0.0.1:3000/api/v1/proxies/import -H "X-API-Key: $KEY" -H "Content-Type: application/json" -d '{"source":"p1","proxies":["socks5://u:p@1.2.3.4:1080","5.6.7.8:8080"]}'
@@ -118,25 +118,25 @@ Base URL: `http://127.0.0.1:3000`
 ---
 
 #### `GET /api/v1/proxies`
-Фильтрация и постраничная выгрузка прокси по сетевым характеристикам, географии и качеству.
+Filtered and paginated retrieval of proxies based on network health, geography, and performance metrics.
 
-- **Query-параметры:**
-  | Параметр | Тип | Дефолт | Назначение |
+- **Query Parameters:**
+  | Parameter | Type | Default | Description |
   |---|---|---|---|
-  | `state` | string | `alive` | Фильтр статуса: `alive`, `cold_queue`, `cooldown`, `dead_permanent`. |
-  | `country` | string | — | ISO-код страны или список через запятую (`DE` или `DE,NL,FR`). |
-  | `exclude_country` | string | — | Исключение стран через запятую (`RU,CN`). |
-  | `protocol` | string | — | Протокол: `socks5`, `http`, `socks4`. |
-  | `anon` | string | — | Анонимность: `elite`, `anonymous`, `transparent`. |
-  | `supports_https` | bool | — | Поддержка HTTPS CONNECT (`true`/`false`). |
-  | `has_auth` | bool | — | Наличие авторизации (`true` — приватные, `false` — публичные). |
-  | `max_rtt` | u32 | — | Максимальный суммарный RTT (мс). |
-  | `min_uptime` | f32 | — | Минимальный пожизненный аптайм (0.0 — 100.0 %). |
-  | `min_stability` | f32 | — | Минимальная стабильность в окне N минут (0.0 — 100.0 %). |
-  | `stability_window_min` | u32 | — | Размер окна расчета стабильности (минуты). |
-  | `source` | string | — | Имя источника импорта. |
-  | `limit` | u32 | `50` | Лимит записей. Значение `0` снимает ограничение (выгрузка всего пула). |
-  | `offset` | u32 | `0` | Смещение пагинации. |
+  | `state` | string | `alive` | Status filter: `alive`, `cold_queue`, `cooldown`, `dead_permanent`. |
+  | `country` | string | — | ISO 2-letter country code or comma-separated list (`DE` or `DE,NL,FR`). |
+  | `exclude_country` | string | — | Excluded country codes comma-separated (`RU,CN`). |
+  | `protocol` | string | — | Protocol filter: `socks5`, `http`, `socks4`. |
+  | `anon` | string | — | Anonymity level: `elite`, `anonymous`, `transparent`. |
+  | `supports_https` | bool | — | HTTPS CONNECT tunneling support (`true`/`false`). |
+  | `has_auth` | bool | — | Authentication filter (`true` for private, `false` for public). |
+  | `max_rtt` | u32 | — | Maximum acceptable total RTT (ms). |
+  | `min_uptime` | f32 | — | Minimum lifetime uptime percentage (0.0 — 100.0 %). |
+  | `min_stability` | f32 | — | Minimum stability score within sliding window (0.0 — 100.0 %). |
+  | `stability_window_min` | u32 | — | Sliding window size for stability calculation (minutes). |
+  | `source` | string | — | Source name filter. |
+  | `limit` | u32 | `50` | Result limit. `0` disables limit (exports entire pool). |
+  | `offset` | u32 | `0` | Pagination offset. |
 
 - **Response `200 OK` (JSON):**
   ```json
@@ -174,7 +174,7 @@ Base URL: `http://127.0.0.1:3000`
     }
   ]
   ```
-- **Ошибки:** `400 Bad Request`, `401 Unauthorized`, `500 Internal Server Error`.
+- **Errors:** `400 Bad Request`, `401 Unauthorized`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s "http://127.0.0.1:3000/api/v1/proxies?state=alive&protocol=socks5&country=DE&limit=10" -H "X-API-Key: $KEY"
@@ -183,7 +183,7 @@ Base URL: `http://127.0.0.1:3000`
 ---
 
 #### `POST /api/v1/proxies/report-fail`
-Клиентское уведомление о сбое прокси: перевод в `cooldown`, инкремент `dead_strikes` и назначение внеочередного речека.
+Client-side notification of proxy failure: downgrades node to `cooldown`, increments `dead_strikes`, and schedules an immediate recheck.
 
 - **Request Body (JSON):**
   ```json
@@ -195,7 +195,7 @@ Base URL: `http://127.0.0.1:3000`
     "reason": "Connection reset by peer during target handshake"
   }
   ```
-  *(Поддерживается как одиночный `id: "..."`, так и массив `ids: ["..."]`)*.
+  *(Supports both single `id: "..."` and array `ids: ["..."]`)*.
 
 - **Response `200 OK` (JSON):**
   ```json
@@ -209,7 +209,7 @@ Base URL: `http://127.0.0.1:3000`
     "proxy_id": "185.220.101.5:1080:myuser:mypassword"
   }
   ```
-- **Ошибки:** `400 Bad Request` (нет `id`/`ids` или пустой `reason`), `401 Unauthorized`, `404 Not Found` (ни одна прокси не найдена в статусе `alive`), `500 Internal Server Error`.
+- **Errors:** `400 Bad Request` (missing `id`/`ids` or blank `reason`), `401 Unauthorized`, `404 Not Found` (no matching proxies found in `alive` state), `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail -H "X-API-Key: $KEY" -H "Content-Type: application/json" -d '{"ids":["195.154.255.3:8080"],"reason":"target ban"}'
@@ -218,9 +218,9 @@ Base URL: `http://127.0.0.1:3000`
 ---
 
 #### `GET /api/v1/proxies/{id}`
-Получение полной карточки прокси с политикой тайм-аутов (см. [п. 1.3](#13-политика-сетевых-проверок-и-речека-checkpolicydto)), RTT-метриками и деталями источников.
+Retrieve complete proxy details with configured check policies (see [Section 1.3](#13-check-policy-and-recheck-scheduling-checkpolicydto)), latency breakdown, and linked sources.
 
-- **Path-параметры:** `id` *(string, URL-encoded)* — идентификатор прокси (`ip:port` или `ip:port:user:pass`).
+- **Path Parameters:** `id` *(string, URL-encoded)* — proxy identifier (`ip:port` or `ip:port:user:pass`).
 - **Response `200 OK` (JSON):**
   ```json
   {
@@ -275,7 +275,7 @@ Base URL: `http://127.0.0.1:3000`
     }
   }
   ```
-- **Ошибки:** `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`.
+- **Errors:** `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s "http://127.0.0.1:3000/api/v1/proxies/185.220.101.5%3A1080" -H "X-API-Key: $KEY"
@@ -284,9 +284,9 @@ Base URL: `http://127.0.0.1:3000`
 ---
 
 #### `PATCH /api/v1/proxies/{id}`
-Частичное обновление параметров, учетных данных, политики тайм-аутов или принудительный запуск речека.
+Partial update of metadata, credentials, Check Policy timeouts, or triggering an immediate recheck.
 
-- **Path-параметры:** `id` *(string, URL-encoded)*.
+- **Path Parameters:** `id` *(string, URL-encoded)*.
 - **Request Body (JSON):**
   ```json
   {
@@ -307,12 +307,12 @@ Base URL: `http://127.0.0.1:3000`
     }
   }
   ```
-  - `policy` *(object, opt)*: Частичное или полное обновление параметров тайм-аутов и речека (см. [п. 1.3](#13-политика-сетевых-проверок-и-речека-checkpolicydto)).
-  - `force_recheck` *(bool, opt)*: Принудительно запланировать проверку на текущую секунду.
-  - `ignore_protocol` *(bool, opt)*: Сбросить протокол на автоопределение (SOCKS5 → SOCKS4 → HTTP).
+  - `policy` *(object, opt)*: Partial or full update of timeout and recheck parameters (see [Section 1.3](#13-check-policy-and-recheck-scheduling-checkpolicydto)).
+  - `force_recheck` *(bool, opt)*: Force scheduling a re-verification immediately on current second.
+  - `ignore_protocol` *(bool, opt)*: Reset cached protocol and trigger cascading re-negotiation (SOCKS5 → SOCKS4 → HTTP).
 
-- **Response:** `200 OK` (пустое тело).
-- **Ошибки:** `400 Bad Request`, `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`.
+- **Response:** `200 OK` (empty body).
+- **Errors:** `400 Bad Request`, `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s -X PATCH "http://127.0.0.1:3000/api/v1/proxies/185.220.101.5%3A1080" -H "X-API-Key: $KEY" -H "Content-Type: application/json" -d '{"force_recheck":true,"remark":"updated"}'
@@ -321,11 +321,11 @@ Base URL: `http://127.0.0.1:3000`
 ---
 
 #### `DELETE /api/v1/proxies/{id}`
-Безвозвратное удаление прокси и её привязок к источникам из базы данных.
+Permanently remove a proxy and its source associations from the database.
 
-- **Path-параметры:** `id` *(string, URL-encoded)*.
+- **Path Parameters:** `id` *(string, URL-encoded)*.
 - **Response:** `204 No Content`.
-- **Ошибки:** `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`.
+- **Errors:** `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s -i -X DELETE "http://127.0.0.1:3000/api/v1/proxies/185.220.101.5%3A1080" -H "X-API-Key: $KEY"
@@ -333,12 +333,12 @@ Base URL: `http://127.0.0.1:3000`
 
 ---
 
-### Группа 2: Sources
+### Group 2: Sources
 
 #### `GET /api/v1/sources`
-Список всех источников прокси с агрегированными метриками выхода (yield %), статусами и средней задержкой.
+List all registered proxy sources with aggregated yield rates (yield %), state counts, and average latency.
 
-- **Query-параметры:** отсутствуют.
+- **Query Parameters:** None.
 - **Response `200 OK` (JSON):**
   ```json
   [
@@ -360,7 +360,7 @@ Base URL: `http://127.0.0.1:3000`
     }
   ]
   ```
-- **Ошибки:** `401 Unauthorized`, `500 Internal Server Error`.
+- **Errors:** `401 Unauthorized`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s "http://127.0.0.1:3000/api/v1/sources" -H "X-API-Key: $KEY"
@@ -369,11 +369,11 @@ Base URL: `http://127.0.0.1:3000`
 ---
 
 #### `GET /api/v1/sources/{name}`
-Подробная статистика конкретного источника по его системному имени.
+Detailed statistics for a specific source by its unique name.
 
-- **Path-параметры:** `name` *(string)* — имя источника.
-- **Response `200 OK` (JSON):** одиночный объект `SourceStatsItem` (структура идентична элементу массива в `GET /api/v1/sources`).
-- **Ошибки:** `400 Bad Request` (пустое имя), `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`.
+- **Path Parameters:** `name` *(string)* — source name.
+- **Response `200 OK` (JSON):** Single `SourceStatsItem` object (matching structure in `GET /api/v1/sources`).
+- **Errors:** `400 Bad Request` (empty name), `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s "http://127.0.0.1:3000/api/v1/sources/premium_pool_v1" -H "X-API-Key: $KEY"
@@ -382,11 +382,11 @@ Base URL: `http://127.0.0.1:3000`
 ---
 
 #### `DELETE /api/v1/sources/{name}`
-Удаление источника. Прокси, привязанные исключительно к данному источнику, удаляются каскадно.
+Delete a proxy source. Proxies associated solely with this source are cascaded and removed.
 
-- **Path-параметры:** `name` *(string)* — имя источника.
+- **Path Parameters:** `name` *(string)* — source name.
 - **Response:** `204 No Content`.
-- **Ошибки:** `400 Bad Request`, `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`.
+- **Errors:** `400 Bad Request`, `401 Unauthorized`, `404 Not Found`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s -i -X DELETE "http://127.0.0.1:3000/api/v1/sources/premium_pool_v1" -H "X-API-Key: $KEY"
@@ -394,12 +394,12 @@ Base URL: `http://127.0.0.1:3000`
 
 ---
 
-### Группа 3: Judges
+### Group 3: Judges
 
 #### `GET /api/v1/judges`
-Список зарегистрированных judge-серверов (встроенных и внешних fallback) с метриками доступности и приоритетами.
+List of registered judge echo servers (both built-in and external fallbacks) with health metrics and priority tiers.
 
-- **Query-параметры:** отсутствуют.
+- **Query Parameters:** None.
 - **Response `200 OK` (JSON):**
   ```json
   [
@@ -422,9 +422,9 @@ Base URL: `http://127.0.0.1:3000`
   ]
   ```
   - `status`: `healthy`, `degraded`, `unhealthy`, `unknown`.
-  - `priority`: `0` — основной (builtin), `1+` — запасные fallback-серверы.
+  - `priority`: `0` — primary (builtin), `1+` — standby fallback nodes.
 
-- **Ошибки:** `401 Unauthorized`, `500 Internal Server Error`.
+- **Errors:** `401 Unauthorized`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s "http://127.0.0.1:3000/api/v1/judges" -H "X-API-Key: $KEY"
@@ -433,9 +433,9 @@ Base URL: `http://127.0.0.1:3000`
 ---
 
 #### `POST /api/v1/judges/health-check`
-Принудительный параллельный опрос доступности всех судей и перевыбор активного проверяющего узла.
+Force an immediate parallel health check across all configured judges and re-elect the active validation node.
 
-- **Request Body:** отсутствует.
+- **Request Body:** None.
 - **Response `200 OK` (JSON):**
   ```json
   {
@@ -462,7 +462,7 @@ Base URL: `http://127.0.0.1:3000`
     ]
   }
   ```
-- **Ошибки:** `401 Unauthorized`, `500 Internal Server Error`.
+- **Errors:** `401 Unauthorized`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s -X POST "http://127.0.0.1:3000/api/v1/judges/health-check" -H "X-API-Key: $KEY"
@@ -470,12 +470,12 @@ Base URL: `http://127.0.0.1:3000`
 
 ---
 
-### Группа 4: Stats
+### Group 4: Stats
 
 #### `GET /api/v1/stats`
-Глобальная сводка: метрики движка, состояние пула, качество, срезы по протоколам, анонимности, ошибкам, странам и ASN.
+Global system summary: runtime engine metrics, pool status, validation quality, and distribution breakdowns by protocol, anonymity, error reason, country, and ASN.
 
-- **Query-параметры:** отсутствуют.
+- **Query Parameters:** None.
 - **Response `200 OK` (JSON):**
   ```json
   {
@@ -528,7 +528,7 @@ Base URL: `http://127.0.0.1:3000`
     ]
   }
   ```
-- **Ошибки:** `401 Unauthorized`, `500 Internal Server Error`.
+- **Errors:** `401 Unauthorized`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s "http://127.0.0.1:3000/api/v1/stats" -H "X-API-Key: $KEY"
@@ -537,9 +537,9 @@ Base URL: `http://127.0.0.1:3000`
 ---
 
 #### `GET /api/v1/stats/engine`
-Мгновенные оперативные метрики движка из памяти (in-memory, без обращений к базе данных).
+Instantaneous runtime engine metrics from in-memory atomic counters (zero database queries).
 
-- **Query-параметры:** отсутствуют.
+- **Query Parameters:** None.
 - **Response `200 OK` (JSON):**
   ```json
   {
@@ -550,7 +550,7 @@ Base URL: `http://127.0.0.1:3000`
     "judge_healthy": true
   }
   ```
-- **Ошибки:** `401 Unauthorized`, `500 Internal Server Error`.
+- **Errors:** `401 Unauthorized`, `500 Internal Server Error`.
 - **cURL:**
   ```bash
   curl -s "http://127.0.0.1:3000/api/v1/stats/engine" -H "X-API-Key: $KEY"
@@ -558,18 +558,18 @@ Base URL: `http://127.0.0.1:3000`
 
 ---
 
-### Документация OpenAPI / Swagger
+### OpenAPI / Swagger Documentation
 
-- **`GET /swagger-ui`**: Интерактивный UI спецификации Swagger UI в браузере.
-- **`GET /api-docs/openapi.json`**: Машиночитаемая спецификация OpenAPI 3.0.
+- **`GET /swagger-ui`**: Interactive web UI for exploring and testing API endpoints.
+- **`GET /api-docs/openapi.json`**: Machine-readable OpenAPI 3.0 specification.
 
-*Оба маршрута не требуют заголовка `X-API-Key`.*
+*Both endpoints are publicly accessible without `X-API-Key`.*
 
 ---
 
-## 3. Ошибки API (`ApiError`)
+## 3. Error Handling (`ApiError`)
 
-При возникновении ошибки сервис возвращает соответствующий HTTP-статус и унифицированное тело `ApiError`:
+When a request encounters an issue, the service responds with the appropriate HTTP status code and a unified JSON error payload:
 
 ```json
 {
@@ -578,10 +578,10 @@ Base URL: `http://127.0.0.1:3000`
 }
 ```
 
-| HTTP Status | Поле `error` | Описание |
+| HTTP Status | `error` Code | Description |
 |---|---|---|
-| `400 Bad Request` | `bad_request` | Ошибка валидации параметров запроса или некорректный синтаксис JSON. |
-| `401 Unauthorized` | `unauthorized` | Отсутствует либо не совпадает заголовок `X-API-Key`. |
-| `404 Not Found` | `not_found` | Запрашиваемая прокси или источник не найдены в базе данных. |
-| `409 Conflict` | `conflict` | Конфликт уникальности или текущего состояния сущности. |
-| `500 Internal Server Error` | `internal_error` | Сбой транзакции SQLite/libsql или внутренняя ошибка рантайма. |
+| `400 Bad Request` | `bad_request` | Query/body validation failed or invalid JSON payload. |
+| `401 Unauthorized` | `unauthorized` | Missing or invalid `X-API-Key` header. |
+| `404 Not Found` | `not_found` | Requested proxy or source entity does not exist in the database. |
+| `409 Conflict` | `conflict` | Entity conflict (e.g. duplicate key or state violation). |
+| `500 Internal Server Error` | `internal_error` | SQLite/libsql transaction failure or runtime error. |

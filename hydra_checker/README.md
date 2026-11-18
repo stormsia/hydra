@@ -1,110 +1,114 @@
+[← Back to Hydra README](../README.md)
+
+[English](README.md) • [Русский](README.ru.md) • [简体中文](README.zh.md)
+
 # Hydra Checker
 
-Высокопроизводительное асинхронное ядро валидации и классификации прокси-серверов на Rust (Tokio). Обеспечивает превентивную L4-фильтрацию, каскадный автодетект протоколов (SOCKS4/5, HTTP CONNECT, Plain HTTP), сквозную проверку через пул судей (Judge Pool) и классификацию анонимности без утечек файловых дескрипторов.
+High-throughput, asynchronous proxy validation and classification core engine written in pure Rust (Tokio). Features preemptive L4 connection filtering, cascading protocol auto-detection (SOCKS4/5, HTTP CONNECT, Plain HTTP), end-to-end verification via an active Judge Pool, and strict anonymity classification with zero socket/descriptor leaks.
 
-## Структура файлов и директорий
+## File and Directory Structure
 
 ```text
 hydra_checker/
-├── .env.example              # Шаблон конфигурационных переменных окружения
-├── Cargo.toml                # Манифест пакета и зависимости
-├── Cargo.lock                # Зафиксированные версии зависимостей
-├── README.md                 # Техническая документация модуля
+├── .env.example              # Environment configuration template
+├── Cargo.toml                # Package manifest and dependencies
+├── Cargo.lock                # Locked dependency tree
+├── README.md                 # Technical documentation
 ├── examples/
-│   └── stress_bench.rs       # Стресс-тест и бенчмарк пропускной способности
+│   └── stress_bench.rs       # Throughput stress test and benchmark
 ├── src/
 │   ├── judge/
-│   │   ├── anonymity.rs      # Классификация уровня анонимности прокси
-│   │   ├── endpoint.rs       # Структура эндпоинта и метаданные судьи
-│   │   ├── health.rs         # Фоновый мониторинг доступности судей
-│   │   ├── mod.rs            # Экспорт подсистемы взаимодействия с судьями
-│   │   ├── pool.rs           # Пул судей, балансировка и failover
-│   │   └── probe.rs          # L7-опрос судьи и валидация ответа
+│   │   ├── anonymity.rs      # Proxy anonymity level classification
+│   │   ├── endpoint.rs       # Judge endpoint struct and metadata
+│   │   ├── health.rs         # Background judge health checker
+│   │   ├── mod.rs            # Judge interaction subsystem exports
+│   │   ├── pool.rs           # Judge pool, load balancing, and failover
+│   │   └── probe.rs          # L7 judge probe and response validation
 │   ├── pipeline/
-│   │   ├── handshake.rs      # Протокольное рукопожатие и каскадный автодетект
-│   │   ├── l4_probe.rs       # Проверка доступности L4 TCP-порта
-│   │   ├── l7_judge.rs       # Сквозной L7-запрос через туннель
-│   │   └── mod.rs            # Оркестрация фаз конвейера проверки
+│   │   ├── handshake.rs      # Protocol handshake and cascading auto-detection
+│   │   ├── l4_probe.rs       # Preemptive L4 TCP port reachability probe
+│   │   ├── l7_judge.rs       # End-to-end L7 request through proxy tunnel
+│   │   └── mod.rs            # Multi-stage check pipeline orchestration
 │   ├── pool/
-│   │   ├── mod.rs            # Модуль пула параллельных воркеров
-│   │   └── worker_pool.rs    # Ограничение конкурентности через семафор Tokio
+│   │   ├── mod.rs            # Concurrent worker pool module
+│   │   └── worker_pool.rs    # Concurrency control via Tokio Semaphore
 │   ├── protocols/
-│   │   ├── http_connect.rs   # Туннелирование методом HTTP CONNECT
-│   │   ├── http_plain.rs     # Прямой форвардинг Plain HTTP
-│   │   ├── mod.rs            # Трейты и структуры прокси-протоколов
-│   │   ├── socks4.rs         # Протоколы SOCKS4 и SOCKS4a
-│   │   └── socks5.rs         # Протокол SOCKS5 с поддержкой auth
+│   │   ├── http_connect.rs   # HTTP CONNECT tunneling implementation
+│   │   ├── http_plain.rs     # Plain HTTP direct forwarding
+│   │   ├── mod.rs            # Proxy protocol traits and structs
+│   │   ├── socks4.rs         # SOCKS4 and SOCKS4a protocols
+│   │   └── socks5.rs         # SOCKS5 protocol with authentication support
 │   ├── transport/
-│   │   ├── mock.rs           # Мок-диалер для бессетевого тестирования
-│   │   ├── mod.rs            # Абстракция сетевого транспорта (Dialer)
-│   │   ├── tcp.rs            # TCP-диалер с SO_LINGER=0 и TCP_NODELAY
-│   │   └── tls.rs            # TLS-коннектор и буфер PrefixedStream
-│   ├── config.rs             # Конфигурация чекера и парсинг ENV
-│   ├── engine.rs             # Главный фасад выполнения проверок
-│   ├── error.rs              # Типизированные коды ошибок (ErrorReason)
-│   ├── lib.rs                # Корневой модуль и публичный API
-│   ├── models.rs             # Структуры целей, результатов и метрик
-│   ├── net_filter.rs         # Защита от SSRF и Bogon-фильтрация
-│   └── token.rs              # Ротация суточных HMAC-SHA256 токенов
+│   │   ├── mock.rs           # Mock dialer for unit tests without network
+│   │   ├── mod.rs            # Network transport abstraction (Dialer trait)
+│   │   ├── tcp.rs            # Custom TCP dialer with SO_LINGER=0 and TCP_NODELAY
+│   │   └── tls.rs            # TLS connector and PrefixedStream buffer
+│   ├── config.rs             # Checker configuration and ENV parsing
+│   ├── engine.rs             # Main verification execution facade
+│   ├── error.rs              # Strongly typed error codes (ErrorReason)
+│   ├── lib.rs                # Library root and public API
+│   ├── models.rs             # Target, outcome, and telemetry models
+│   ├── net_filter.rs         # SSRF protection and Bogon IP filtering
+│   └── token.rs              # Daily rotating HMAC-SHA256 token verification
 └── tests/
-    ├── anonymity_tests.rs    # Тесты детекции уровня анонимности
-    ├── judge_pool_tests.rs   # Тесты пула судей и failover
-    ├── mock_pipeline_tests.rs# Сквозные тесты конвейера на моках
-    ├── net_filter_tests.rs   # Тесты Bogon-фильтра и DNS-rebind
-    ├── tls_tunnel_tests.rs   # Тесты TLS-туннелей через прокси
-    └── token_rotation_tests.rs # Тесты ротации HMAC-токенов
+    ├── anonymity_tests.rs    # Anonymity level detection tests
+    ├── judge_pool_tests.rs   # Judge pool failover and balancing tests
+    ├── mock_pipeline_tests.rs# End-to-end pipeline tests on mock dialers
+    ├── net_filter_tests.rs   # Bogon filter and DNS-rebind security tests
+    ├── tls_tunnel_tests.rs   # TLS tunnel tests through proxy connections
+    └── token_rotation_tests.rs # HMAC token rotation tests
 ```
 
-## Конвейер сетевой проверки
+## Network Verification Pipeline
 
-1. **L4 (TCP Connect)**: SYN-подключение с `SO_LINGER=0`, отсечение Bogon/SSRF и замер TCP RTT.
-2. **Handshake**: Согласование протокола (SOCKS5, SOCKS4, HTTP CONNECT) или каскадный автодетект.
-3. **TLS / Judge**: Установка TLS-сессии через туннель, отправка HTTP-запроса судье и валидация токена.
-4. **Анонимность**: Анализ сетевых заголовков и сопоставление IP для определения уровня (Elite, Anonymous, Transparent).
+1. **L4 (TCP Connect)**: SYN handshake with `SO_LINGER=0`, instantaneous Bogon/SSRF rejection, and microsecond TCP RTT measurement.
+2. **Handshake**: Protocol negotiation (SOCKS5, SOCKS4, HTTP CONNECT) or sequential cascading auto-detection.
+3. **TLS / Judge**: Establish TLS session through the tunnel, execute L7 HTTP request to judge, and validate authenticity token.
+4. **Anonymity**: Inspect forwarded headers and reflect client IP to classify level (Elite, Anonymous, Transparent).
 
-## Конфигурация ENV
+## ENV Configuration
 
-| Переменная | Тип | Дефолт | Назначение |
+| Variable | Type | Default | Description |
 |---|---|---|---|
-| `JUDGE_HTTP_URL` | String (URL) | `http://127.0.0.1:8080` | URL судьи для Plain HTTP |
-| `JUDGE_HTTPS_URL` | String (URL) | `http://127.0.0.1:8080` | URL судьи для туннелей |
-| `JUDGE_SECRET_TOKEN` | String | `hydra_secret_token` | Статический проверочный токен ответа |
-| `JUDGE_SECRET_KEY` | Hex String | — | Ключ динамической HMAC-ротации токена |
-| `CHECKER_CONCURRENCY` | usize | `5000` | Лимит параллельно выполняемых проверок |
-| `CHECKER_CONNECT_TIMEOUT_MS` | u64 | `3000` | Таймаут установки TCP-соединения |
-| `CHECKER_HANDSHAKE_TIMEOUT_MS` | u64 | `4000` | Таймаут протокольного рукопожатия туннеля |
-| `CHECKER_READ_WRITE_TIMEOUT_MS` | u64 | `5000` | Таймаут обмена данными судьи |
-| `CHECKER_MAX_READ_BYTES` | usize | `8192` | Максимальный размер тела ответа |
-| `CHECKER_LOCAL_BIND_IP` | IpAddr | — | Привязка сокетов к интерфейсу |
-| `CHECKER_REAL_IP` | IpAddr | — | Собственный публичный IP адрес |
-| `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | Использование пула сторонних судей |
-| `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | Стратегия балансировки пула судей |
-| `ADDITIONAL_JUDGES` | String | — | Список дополнительных эхо-серверов судей |
-| `RUST_LOG` | String | `info` | Уровень детализации системного логирования |
+| `JUDGE_HTTP_URL` | String (URL) | `http://127.0.0.1:8080` | Judge URL for Plain HTTP checks |
+| `JUDGE_HTTPS_URL` | String (URL) | `http://127.0.0.1:8080` | Judge URL for HTTPS tunnels |
+| `JUDGE_SECRET_TOKEN` | String | `hydra_secret_token` | Static verification response token |
+| `JUDGE_SECRET_KEY` | Hex String | — | HMAC key for daily rolling token validation |
+| `CHECKER_CONCURRENCY` | usize | `5000` | Maximum concurrent validation tasks |
+| `CHECKER_CONNECT_TIMEOUT_MS` | u64 | `3000` | TCP connection establishment timeout |
+| `CHECKER_HANDSHAKE_TIMEOUT_MS` | u64 | `4000` | Tunnel protocol handshake timeout |
+| `CHECKER_READ_WRITE_TIMEOUT_MS` | u64 | `5000` | Judge data transmission timeout |
+| `CHECKER_MAX_READ_BYTES` | usize | `8192` | Maximum response body buffer size |
+| `CHECKER_LOCAL_BIND_IP` | IpAddr | — | Outbound socket binding IP interface |
+| `CHECKER_REAL_IP` | IpAddr | — | Host public IP for anonymity comparison |
+| `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | Enable built-in third-party judge pool |
+| `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | Judge selection strategy |
+| `ADDITIONAL_JUDGES` | String | — | Additional comma-separated judge URLs |
+| `RUST_LOG` | String | `info` | Logging verbosity filter directive |
 
-## Команды CLI
+## CLI Commands
 
-### Сборка
+### Build
 ```bash
 cargo build -p hydra_checker --release
 ```
 
-### Тестирование
+### Testing
 ```bash
-# Все тесты модуля
+# Run all package tests
 cargo test -p hydra_checker
 
-# Запуск конкретного набора тестов
+# Run specific integration test suite
 cargo test -p hydra_checker --test mock_pipeline_tests
 ```
 
-### Линтинг и форматирование
+### Linting & Formatting
 ```bash
 cargo fmt --check
 cargo clippy -p hydra_checker --all-targets -- -D warnings
 ```
 
-### Бенчмарк
+### Benchmarks
 ```bash
 cargo run -p hydra_checker --example stress_bench --release
 ```

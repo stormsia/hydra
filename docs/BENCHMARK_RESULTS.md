@@ -1,51 +1,51 @@
-[← Назад к Hydra README](../README.md)
+[← Back to Hydra README](../README.md) | [English](BENCHMARK_RESULTS.md) • [Русский](BENCHMARK_RESULTS.ru.md) • [简体中文](BENCHMARK_RESULTS.zh.md)
 
-# Hydra Proxy Checker — Результаты бенчмарков и метрики производительности
+# Hydra Proxy Checker — Benchmark Results & Performance Metrics
 
-## 1. Пропускная способность и задержки (Throughput & Latency)
+## 1. Throughput & Latency
 
-> **Условия замера задержек API:** Все HTTP-запросы к REST API выполнялись **параллельно под 100% нагрузкой чекера** (5 000 активных воркеров непрерывно проверяли пул из 10 млн записей, непрерывно выполняя фоновую транзакционную запись). Сервер отвечал штатно, без троттлинга и задержек.
+> **API Latency Measurement Conditions:** All HTTP requests to the REST API were executed **in parallel under 100% checker load** (5,000 active workers continuously verifying a pool of 10 million entries with non-stop background transactional writes). The API responded normally without throttling or degradation.
 
-| Параметр | Значение | Примечание |
+| Metric | Value | Notes & Context |
 |---|:---:|---|
-| **Импорт прокси через REST API** | **14 096 прокси/с** | Пакетный прием JSON с отсевом Bogon IP |
-| **Непрерывная проверка (пул 10M, 5 000 воркеров)** | **2 111.5 проверок/с** | ~7.6 млн проверок/час (380 725 проверок за 3 мин) |
-| **Пиковая скорость проверки** | **8 340.0 проверок/с** | В моменты массового завершения TCP-сессий |
-| **Выборка быстрых прокси (`GET /api/v1/proxies?limit=50`)** | **~25.6 мс** | Под полной нагрузкой чекера (топ по общему RTT) |
-| **Выборка по стране (`GET /api/v1/proxies?country=US&limit=50`)** | **~67.2 мс** | Под полной нагрузкой чекера (фильтр гео + сортировка) |
-| **Детализация прокси (`GET /api/v1/proxies/{id}`)** | **~33.7 мс** | Под полной нагрузкой чекера (точечный поиск) |
-| **Телеметрия движка (`GET /api/v1/stats/engine`)** | **< 1.0 мс** | In-memory атомарные счетчики рантайма |
+| **Proxy Import via REST API** | **14,096 proxies/sec** | Batch JSON ingestion with bogon IP filtering |
+| **Continuous Verification (10M pool, 5,000 workers)** | **2,111.5 checks/sec** | ~7.6M checks/hour (380,725 checks in 3 minutes) |
+| **Peak Check Speed** | **8,340.0 checks/sec** | During massive parallel TCP session termination |
+| **Fast Query Retrieval (`GET /api/v1/proxies?limit=50`)** | **~25.6 ms** | Under full checker load (top nodes by total RTT) |
+| **Geo Filtering (`GET /api/v1/proxies?country=US&limit=50`)** | **~67.2 ms** | Under full checker load (geo filter + RTT sorting) |
+| **Proxy Details Lookup (`GET /api/v1/proxies/{id}`)** | **~33.7 ms** | Under full checker load (point lookup by primary key) |
+| **Engine Telemetry (`GET /api/v1/stats/engine`)** | **< 1.0 ms** | In-memory atomic counters without disk access |
 
 ---
 
-## 2. Потребление ресурсов (при 5 000 параллельных воркерах)
+## 2. Resource Consumption (5,000 Concurrent Workers)
 
-| Ресурс / Показатель | Среднее | Пиковое | Стабильность |
+| Resource / Indicator | Average | Peak | Stability |
 |---|:---:|:---:|---|
-| **RAM** | **92.4 MB** | **136.4 MB** | Утечки памяти отсутствуют |
-| **CPU** | **25.8 %** | **47.6 %** | Ровная утилизация Tokio runtime |
-| **Блокировки БД (`database locked`)** | **0** | **0** | Батчинг записи с интервалом 100 мс |
+| **RAM** | **92.4 MB** | **136.4 MB** | Zero memory leaks observed |
+| **CPU** | **25.8 %** | **47.6 %** | Smooth Tokio runtime load distribution |
+| **Database Locks (`database locked`)** | **0** | **0** | 100 ms micro-batching write buffer |
 
 ---
 
-## 3. Пул судей (Judge Pool)
+## 3. Judge Pool
 
-Выбор судьи осуществляется по стратегии `lowest_latency`: замер RTT каждые 30 секунд с автоматическим переключением на лидера (failover).
+Judge selection follows the `lowest_latency` strategy: RTT is probed every 30 seconds with automatic failover to the healthy leader.
 
-| Судья | URL | RTT | HTTPS | Эхо заголовков (`Via`, `XFF`) | Статус |
+| Judge | URL | RTT | HTTPS | Header Echo (`Via`, `XFF`) | Status |
 |---|---|:---:|:---:|:---:|:---:|
-| **httpbingo_org** | `https://httpbingo.org/get` | **300 – 340 мс** | Да | Да | **Active Leader** |
-| **httpbun_com** | `https://httpbun.com/get` | 420 – 510 мс | Да | Да | Standby |
-| **httpbin_org** | `https://httpbin.org/get` | 510 – 575 мс | Да | Да | Standby |
-| **httpbin_rs** | `https://httpbin.rs/get` | 595 – 690 мс | Да | Да | Standby |
-| **httpbin_dev** | `https://httpbin.dev/get` | 660 – 770 мс | Да | Да | Standby |
+| **httpbingo_org** | `https://httpbingo.org/get` | **300 – 340 ms** | Yes | Yes | **Active Leader** |
+| **httpbun_com** | `https://httpbun.com/get` | 420 – 510 ms | Yes | Yes | Standby |
+| **httpbin_org** | `https://httpbin.org/get` | 510 – 575 ms | Yes | Yes | Standby |
+| **httpbin_rs** | `https://httpbin.rs/get` | 595 – 690 ms | Yes | Yes | Standby |
+| **httpbin_dev** | `https://httpbin.dev/get` | 660 – 770 ms | Yes | Yes | Standby |
 
 ---
 
-## 4. Инженерные выводы (Key Takeaways)
+## 4. Engineering Takeaways
 
-1. **Производительность в проде**: Движок валидирует более **7.6 млн адресов в час** на пуле из 10 млн прокси, удерживая постоянную скорость свыше 2 100 проверок/с на одном узле.
-2. **Низкий футпринт**: Потребление памяти не превышает **137 MB RAM** при 5 000 одновременных соединениях. Система может эксплуатироваться на минимальных инстансах (1 vCPU, 1 GB RAM).
-3. **Сетевое узкое место**: Производительность ограничена пропускной способностью сети и лимитами сетевого стека ОС (ephemeral ports, conntrack, `nofile`), а не вычислительными ресурсами или базой данных.
-4. **Конкурентность без деградации**: Асинхронный батчинг результатов проверки (100 мс) гарантирует 0 ошибок `database locked`. Одновременные клиентские запросы к REST API выполняются за миллисекунды даже при 100% утилизации сетевого ядра чекером на 10M базе.
-5. **Рекомендуемая конфигурация**: Для стабильного продакшена оптимальны параметры `CHECKER_CONCURRENCY=5000`, `BATCH_FLUSH_INTERVAL_MS=100`, лимит дескрипторов ОС `nofile >= 65535`.
+1. **Production Throughput**: The engine validates over **7.6 million addresses per hour** on a 10-million proxy dataset, sustaining over 2,100 checks/sec on a single host.
+2. **Minimal Footprint**: Memory usage stays under **137 MB RAM** even with 5,000 active concurrent connections. The system runs comfortably on budget VMs (1 vCPU, 1 GB RAM).
+3. **Network Bound**: Performance is limited by network bandwidth and OS networking stack limits (ephemeral ports, conntrack table size, `nofile`), rather than CPU computation or database I/O.
+4. **Concurrency without Contention**: Asynchronous result micro-batching (100 ms) guarantees zero `database locked` errors. Concurrent REST API requests execute in milliseconds even under 100% network validation load on a 10M record database.
+5. **Recommended Tuning**: For stable production deployments, configure `CHECKER_CONCURRENCY=5000`, `BATCH_FLUSH_INTERVAL_MS=100`, and set OS open descriptor limits to `nofile >= 65535`.
