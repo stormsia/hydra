@@ -1,0 +1,534 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <defs>
+    <!-- Background Radial Gradient -->
+    <radialGradient id="bgRadial" cx="50%" cy="26%" r="85%" fx="50%" fy="20%">
+      <stop offset="0%" stop-color="#0f1b35" />
+      <stop offset="35%" stop-color="#091021" />
+      <stop offset="70%" stop-color="#050812" />
+      <stop offset="100%" stop-color="#020408" />
+    </radialGradient>
+
+    <!-- Ambient Glow Orbs -->
+    <radialGradient id="ambientCyan" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.30" />
+      <stop offset="40%" stop-color="#0ea5e9" stop-opacity="0.12" />
+      <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0" />
+    </radialGradient>
+
+    <radialGradient id="ambientEmerald" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.25" />
+      <stop offset="45%" stop-color="#059669" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Hydra Neon Core Gradient -->
+    <linearGradient id="hydraNeon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+
+    <!-- Title Vertical Gradient (Gives every letter a metallic diamond-to-ice sheen) -->
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="52%" stop-color="#f0f9ff" />
+      <stop offset="100%" stop-color="#7dd3fc" />
+    </linearGradient>
+
+    <!-- Card Background Gradient -->
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0d182e" stop-opacity="0.90" />
+      <stop offset="100%" stop-color="#060b16" stop-opacity="0.96" />
+    </linearGradient>
+
+    <!-- Card Border Gradients -->
+    <linearGradient id="borderGradCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.75" />
+      <stop offset="35%" stop-color="#0ea5e9" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#1e293b" stop-opacity="0.30" />
+    </linearGradient>
+
+    <linearGradient id="borderGradEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.75" />
+      <stop offset="35%" stop-color="#059669" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#1e293b" stop-opacity="0.30" />
+    </linearGradient>
+
+    <linearGradient id="borderGradTeal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" stop-opacity="0.75" />
+      <stop offset="35%" stop-color="#0284c7" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#1e293b" stop-opacity="0.30" />
+    </linearGradient>
+
+    <linearGradient id="borderGradDual" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" stop-opacity="0.75" />
+      <stop offset="40%" stop-color="#10b981" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#1e293b" stop-opacity="0.30" />
+    </linearGradient>
+
+    <!-- Divider Line Gradient -->
+    <linearGradient id="dividerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0" />
+      <stop offset="25%" stop-color="#38bdf8" stop-opacity="0.3" />
+      <stop offset="50%" stop-color="#00f2fe" stop-opacity="0.8" />
+      <stop offset="75%" stop-color="#10b981" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- Frame Border Gradient -->
+    <linearGradient id="frameGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.4" />
+      <stop offset="50%" stop-color="#1e293b" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0.4" />
+    </linearGradient>
+
+    <!-- Glow & Shadow Filters -->
+    <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#01040a" flood-opacity="0.85" />
+    </filter>
+
+    <filter id="titleShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#0ea5e9" flood-opacity="0.40" />
+    </filter>
+
+    <!-- Grid Fade Mask -->
+    <radialGradient id="gridMaskGrad" cx="50%" cy="38%" r="68%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+    <mask id="gridMask">
+      <rect width="1280" height="640" fill="url(#gridMaskGrad)" />
+    </mask>
+
+    <!-- Grid Pattern -->
+    <pattern id="techGrid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#38bdf8" stroke-width="0.8" stroke-opacity="0.08" />
+      <circle cx="0" cy="0" r="1.2" fill="#38bdf8" fill-opacity="0.25" />
+    </pattern>
+  </defs>
+
+  <style>
+    .font-sans {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, Cantarell, sans-serif;
+    }
+    .font-mono {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+    .hydra-title {
+      font-size: 64px;
+      font-weight: 900;
+      letter-spacing: 0.28em;
+      fill: url(#titleGrad);
+    }
+    .hydra-subtitle {
+      font-size: 21px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      fill: #ffffff;
+    }
+    .card-title {
+      font-size: 19px;
+      font-weight: 700;
+      fill: #ffffff;
+      letter-spacing: 0.01em;
+    }
+    .card-label-cyan {
+      font-size: 14.5px;
+      font-weight: 600;
+      fill: #38bdf8;
+      letter-spacing: 0.02em;
+    }
+    .card-label-emerald {
+      font-size: 14.5px;
+      font-weight: 600;
+      fill: #10b981;
+      letter-spacing: 0.02em;
+    }
+    .card-label-teal {
+      font-size: 14.5px;
+      font-weight: 600;
+      fill: #00f2fe;
+      letter-spacing: 0.02em;
+    }
+    .card-desc {
+      font-size: 12px;
+      font-weight: 500;
+      fill: #94a3b8;
+      letter-spacing: 0.02em;
+    }
+    .pill-tag {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .info-text {
+      font-size: 16.5px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      fill: #f1f5f9;
+    }
+    .footer-text {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      fill: #475569;
+    }
+  </style>
+
+  <!-- ==================== BACKGROUND LAYER ==================== -->
+  <!-- Base Dark Canvas -->
+  <rect width="1280" height="640" fill="url(#bgRadial)" />
+
+  <!-- Ambient Light Orbs -->
+  <circle cx="640" cy="130" r="340" fill="url(#ambientCyan)" />
+  <circle cx="270" cy="390" r="300" fill="url(#ambientCyan)" opacity="0.65" />
+  <circle cx="1010" cy="390" r="300" fill="url(#ambientEmerald)" opacity="0.75" />
+
+  <!-- Tech Grid Background with Radial Mask -->
+  <rect width="1280" height="640" fill="url(#techGrid)" mask="url(#gridMask)" />
+
+  <!-- Subtle Cybernetic Constellation / Circuit Lines in Background -->
+  <g opacity="0.18" stroke="#38bdf8" stroke-width="1" fill="none">
+    <!-- Top Left Circuit Trace -->
+    <path d="M 60 110 L 140 110 L 190 160 L 260 160" />
+    <circle cx="60" cy="110" r="2.5" fill="#38bdf8" />
+    <circle cx="260" cy="160" r="2.5" fill="#38bdf8" />
+
+    <!-- Top Right Circuit Trace -->
+    <path d="M 1220 110 L 1140 110 L 1090 160 L 1020 160" />
+    <circle cx="1220" cy="110" r="2.5" fill="#38bdf8" />
+    <circle cx="1020" cy="160" r="2.5" fill="#38bdf8" />
+
+    <!-- Bottom Left Circuit Trace -->
+    <path d="M 60 510 L 110 510 L 140 480" />
+    <circle cx="60" cy="510" r="2.5" fill="#10b981" />
+
+    <!-- Bottom Right Circuit Trace -->
+    <path d="M 1220 510 L 1170 510 L 1140 480" />
+    <circle cx="1220" cy="510" r="2.5" fill="#10b981" />
+  </g>
+
+  <!-- Canvas Outer Sleek Border Frame -->
+  <rect x="12" y="12" width="1256" height="616" rx="20" fill="none" stroke="url(#frameGrad)" stroke-width="1.2" />
+
+  <!-- HUD Corner Accents -->
+  <g stroke="#38bdf8" stroke-width="2" fill="none" opacity="0.7">
+    <!-- Top-Left -->
+    <path d="M 28 44 L 28 28 L 44 28" />
+    <!-- Top-Right -->
+    <path d="M 1236 28 L 1252 28 L 1252 44" />
+    <!-- Bottom-Left -->
+    <path d="M 28 596 L 28 612 L 44 612" />
+    <!-- Bottom-Right -->
+    <path d="M 1236 612 L 1252 612 L 1252 596" />
+  </g>
+
+  <!-- Corner Crosshairs -->
+  <g stroke="#38bdf8" stroke-width="1.2" opacity="0.30">
+    <path d="M 50 54 L 62 54 M 56 48 L 56 60" />
+    <path d="M 1218 54 L 1230 54 M 1224 48 L 1224 60" />
+  </g>
+
+
+  <!-- ==================== TOP SYSTEM HEADER ==================== -->
+  <g transform="translate(640, 30)">
+    <!-- Header Pill Background -->
+    <rect x="-145" y="-12" width="290" height="24" rx="12" fill="#0b1324" fill-opacity="0.85" stroke="#1e293b" stroke-width="1" />
+    <!-- Live Ping Indicator -->
+    <circle cx="-124" cy="0" r="3.5" fill="#10b981" filter="url(#neonGlow)" />
+    <!-- System Header Text -->
+    <text x="-110" y="3.5" class="font-mono pill-tag" fill="#38bdf8">DISTRIBUTED PROXY INFRASTRUCTURE</text>
+  </g>
+
+
+  <!-- ==================== HYDRA HERO CREST & BRAND ==================== -->
+  <!-- Centered Hydra Emblem (Center at X: 640, Y: 106) -->
+  <g transform="translate(640, 106)">
+    <!-- Ambient Inner Glow Aura -->
+    <circle cx="0" cy="0" r="56" fill="#00f2fe" opacity="0.08" />
+
+    <!-- Outer Regular Hexagon (Center: 0, 0; Radius: 54) -->
+    <!-- Points: (0, -54), (46.77, -27), (46.77, 27), (0, 54), (-46.77, 27), (-46.77, -27) -->
+    <polygon points="0,-54 46.77,-27 46.77,27 0,54 -46.77,27 -46.77,-27" 
+             fill="#080e1b" 
+             fill-opacity="0.65"
+             stroke="#1e293b" 
+             stroke-width="1.8" 
+             stroke-dasharray="5,4" />
+
+    <!-- Concentric Hex Tech Reticle (Radius: 42) -->
+    <polygon points="0,-42 36.37,-21 36.37,21 0,42 -36.37,21 -36.37,-21" 
+             fill="none" 
+             stroke="#38bdf8" 
+             stroke-width="1" 
+             stroke-opacity="0.16" />
+
+    <!-- Central Origin Node (The Root / Router) at (0, 28) -->
+    <circle cx="0" cy="28" r="4.5" fill="#38bdf8" />
+    <circle cx="0" cy="28" r="8.5" fill="none" stroke="#38bdf8" stroke-width="1.5" opacity="0.4" />
+
+    <!-- Hydra Heads (Neural / Proxy Flow Lines) -->
+    <!-- Middle Head (Direct Pipeline) -->
+    <path d="M 0,24 L 0,-30" 
+          fill="none" 
+          stroke="url(#hydraNeon)" 
+          stroke-width="3.2" 
+          stroke-linecap="round" 
+          filter="url(#neonGlow)" />
+
+    <!-- Left Head (Tunnel Routing) -->
+    <path d="M -4,22 C -15,11 -28,2 -28,-20" 
+          fill="none" 
+          stroke="url(#hydraNeon)" 
+          stroke-width="3.2" 
+          stroke-linecap="round" 
+          filter="url(#neonGlow)" />
+
+    <!-- Right Head (Validation Streams) -->
+    <path d="M 4,22 C 15,11 28,2 28,-20" 
+          fill="none" 
+          stroke="url(#hydraNeon)" 
+          stroke-width="3.2" 
+          stroke-linecap="round" 
+          filter="url(#neonGlow)" />
+
+    <!-- Cross-Mesh Synchronization Line -->
+    <path d="M -28,-20 L 0,-30 L 28,-20" 
+          fill="none" 
+          stroke="#38bdf8" 
+          stroke-width="1.2" 
+          stroke-dasharray="3,3" 
+          opacity="0.75" />
+
+    <!-- Active Head Vertices -->
+    <!-- Center Vertex (0, -30) -->
+    <circle cx="0" cy="-30" r="4.5" fill="#ffffff" filter="url(#neonGlow)" />
+    <circle cx="0" cy="-30" r="8" fill="none" stroke="#38bdf8" stroke-width="2" />
+
+    <!-- Left Vertex (-28, -20) -->
+    <circle cx="-28" cy="-20" r="4" fill="#ffffff" filter="url(#neonGlow)" />
+    <circle cx="-28" cy="-20" r="7" fill="none" stroke="#00f2fe" stroke-width="2" />
+
+    <!-- Right Vertex (28, -20) -->
+    <circle cx="28" cy="-20" r="4" fill="#ffffff" filter="url(#neonGlow)" />
+    <circle cx="28" cy="-20" r="7" fill="none" stroke="#10b981" stroke-width="2" />
+  </g>
+
+  <!-- ==================== TYPOGRAPHY: TITLE & SUBTITLE ==================== -->
+  <g class="font-sans" text-anchor="middle">
+    <!-- H1 Title: HYDRA -->
+    <text x="640" y="210" class="hydra-title" filter="url(#titleShadow)">HYDRA</text>
+
+    <!-- Subtitle: High-Performance Rust Proxy Checker & Pool Engine -->
+    <text x="640" y="247" class="hydra-subtitle">
+      <tspan fill="#ffffff">High-Performance </tspan>
+      <tspan fill="#38bdf8">Rust Proxy Checker</tspan>
+      <tspan fill="#64748b"> &amp; </tspan>
+      <tspan fill="#10b981">Pool Engine</tspan>
+    </text>
+  </g>
+
+  <!-- Technical Stack Micro-Badges -->
+  <g class="font-mono" transform="translate(640, 275)">
+    <!-- Badge 1: Rust 2024 -->
+    <g transform="translate(-142, 0)">
+      <rect x="-56" y="-11" width="112" height="22" rx="11" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+      <circle cx="-42" cy="0" r="2.5" fill="#f97316" />
+      <text x="-32" y="3.5" class="pill-tag" fill="#94a3b8">RUST 2024</text>
+    </g>
+
+    <!-- Badge 2: Tokio Async -->
+    <g transform="translate(0, 0)">
+      <rect x="-62" y="-11" width="124" height="22" rx="11" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+      <circle cx="-48" cy="0" r="2.5" fill="#38bdf8" />
+      <text x="-38" y="3.5" class="pill-tag" fill="#94a3b8">TOKIO ASYNC</text>
+    </g>
+
+    <!-- Badge 3: Zero-Lock WAL -->
+    <g transform="translate(142, 0)">
+      <rect x="-60" y="-11" width="120" height="22" rx="11" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+      <circle cx="-46" cy="0" r="2.5" fill="#10b981" />
+      <text x="-36" y="3.5" class="pill-tag" fill="#94a3b8">ZERO-LOCK WAL</text>
+    </g>
+  </g>
+
+
+  <!-- ==================== KEY METRIC CARDS (4 COLUMNS) ==================== -->
+  <!-- 
+       Card dimensions: width 268px, height 150px, rx 16px
+       Positions:
+         Card 1: X = 76
+         Card 2: X = 368
+         Card 3: X = 660
+         Card 4: X = 952
+       Total span = 76 to 1220 (Margins = 76px symmetrical)
+       Y = 320 to 470
+  -->
+
+  <!-- CARD 1: ⚡ 8,300+ checks/sec -->
+  <g transform="translate(76, 320)" filter="url(#cardShadow)">
+    <!-- Card Frame -->
+    <rect width="268" height="150" rx="16" fill="url(#cardBg)" stroke="url(#borderGradCyan)" stroke-width="1.4" />
+    <path d="M 16 1 L 252 1" stroke="#38bdf8" stroke-width="1.2" stroke-opacity="0.45" />
+
+    <!-- Top Badge -->
+    <rect x="18" y="18" width="94" height="20" rx="6" fill="#0284c7" fill-opacity="0.18" stroke="#38bdf8" stroke-width="0.8" stroke-opacity="0.4" />
+    <text x="65" y="32" class="font-mono pill-tag" fill="#38bdf8" text-anchor="middle">THROUGHPUT</text>
+
+    <!-- Metric Content -->
+    <g class="font-sans">
+      <!-- Main Metric Line 1 -->
+      <text x="18" y="70" class="card-title">
+        <tspan fill="#f59e0b">⚡</tspan> <tspan fill="#ffffff">8,300+ checks/sec</tspan>
+      </text>
+      <!-- Sub-Metric Line 2 -->
+      <text x="18" y="93" class="card-label-cyan">Micro-Batched Engine</text>
+      <!-- Description Line 3 -->
+      <text x="18" y="121" class="card-desc">Ultra-high concurrency Tokio core</text>
+    </g>
+
+    <!-- Mini Visual Sparkline / Bar -->
+    <g transform="translate(18, 134)" opacity="0.7">
+      <rect x="0" y="0" width="232" height="3" rx="1.5" fill="#1e293b" />
+      <rect x="0" y="0" width="198" height="3" rx="1.5" fill="url(#hydraNeon)" filter="url(#neonGlow)" />
+    </g>
+  </g>
+
+  <!-- CARD 2: 🛡️ Zero DB Locks (libSQL WAL) -->
+  <g transform="translate(368, 320)" filter="url(#cardShadow)">
+    <!-- Card Frame -->
+    <rect width="268" height="150" rx="16" fill="url(#cardBg)" stroke="url(#borderGradEmerald)" stroke-width="1.4" />
+    <path d="M 16 1 L 252 1" stroke="#10b981" stroke-width="1.2" stroke-opacity="0.45" />
+
+    <!-- Top Badge -->
+    <rect x="18" y="18" width="102" height="20" rx="6" fill="#059669" fill-opacity="0.18" stroke="#10b981" stroke-width="0.8" stroke-opacity="0.4" />
+    <text x="69" y="32" class="font-mono pill-tag" fill="#10b981" text-anchor="middle">CONCURRENCY</text>
+
+    <!-- Metric Content -->
+    <g class="font-sans">
+      <!-- Main Metric Line 1 -->
+      <text x="18" y="70" class="card-title">
+        <tspan fill="#10b981">🛡️</tspan> <tspan fill="#ffffff">Zero DB Locks</tspan>
+      </text>
+      <!-- Sub-Metric Line 2 -->
+      <text x="18" y="93" class="card-label-emerald">(libSQL WAL Mode)</text>
+      <!-- Description Line 3 -->
+      <text x="18" y="121" class="card-desc">Non-blocking lock-free MVCC writes</text>
+    </g>
+
+    <!-- Mini Visual Indicator -->
+    <g transform="translate(18, 134)" opacity="0.7">
+      <rect x="0" y="0" width="232" height="3" rx="1.5" fill="#1e293b" />
+      <rect x="0" y="0" width="215" height="3" rx="1.5" fill="#10b981" filter="url(#neonGlow)" />
+    </g>
+  </g>
+
+  <!-- CARD 3: 🌐 SOCKS5 • SOCKS4 • HTTP -->
+  <g transform="translate(660, 320)" filter="url(#cardShadow)">
+    <!-- Card Frame -->
+    <rect width="268" height="150" rx="16" fill="url(#cardBg)" stroke="url(#borderGradTeal)" stroke-width="1.4" />
+    <path d="M 16 1 L 252 1" stroke="#00f2fe" stroke-width="1.2" stroke-opacity="0.45" />
+
+    <!-- Top Badge -->
+    <rect x="18" y="18" width="108" height="20" rx="6" fill="#0284c7" fill-opacity="0.18" stroke="#00f2fe" stroke-width="0.8" stroke-opacity="0.4" />
+    <text x="72" y="32" class="font-mono pill-tag" fill="#00f2fe" text-anchor="middle">PROTOCOLS</text>
+
+    <!-- Metric Content -->
+    <g class="font-sans">
+      <!-- Main Metric Line 1 -->
+      <text x="18" y="70" class="card-title">
+        <tspan fill="#38bdf8">🌐</tspan> <tspan fill="#ffffff">SOCKS5 • SOCKS4</tspan>
+      </text>
+      <!-- Sub-Metric Line 2 -->
+      <text x="18" y="93" class="card-label-teal">• HTTP &amp; HTTPS Pools</text>
+      <!-- Description Line 3 -->
+      <text x="18" y="121" class="card-desc">L4 TCP handshakes &amp; L7 judges</text>
+    </g>
+
+    <!-- Protocol Badges Mini Row -->
+    <g class="font-mono" transform="translate(18, 130)" font-size="9" font-weight="700" fill="#38bdf8">
+      <text x="0" y="6">● SOCKS5</text>
+      <text x="76" y="6" fill="#00f2fe">● SOCKS4</text>
+      <text x="150" y="6" fill="#10b981">● HTTP/S</text>
+    </g>
+  </g>
+
+  <!-- CARD 4: 📈 Tested at 10M Scale -->
+  <g transform="translate(952, 320)" filter="url(#cardShadow)">
+    <!-- Card Frame -->
+    <rect width="268" height="150" rx="16" fill="url(#cardBg)" stroke="url(#borderGradDual)" stroke-width="1.4" />
+    <path d="M 16 1 L 252 1" stroke="#34d399" stroke-width="1.2" stroke-opacity="0.45" />
+
+    <!-- Top Badge -->
+    <rect x="18" y="18" width="100" height="20" rx="6" fill="#059669" fill-opacity="0.18" stroke="#34d399" stroke-width="0.8" stroke-opacity="0.4" />
+    <text x="68" y="32" class="font-mono pill-tag" fill="#34d399" text-anchor="middle">SCALABILITY</text>
+
+    <!-- Metric Content -->
+    <g class="font-sans">
+      <!-- Main Metric Line 1 -->
+      <text x="18" y="70" class="card-title">
+        <tspan fill="#10b981">📈</tspan> <tspan fill="#ffffff">Tested at 10M Scale</tspan>
+      </text>
+      <!-- Sub-Metric Line 2 -->
+      <text x="18" y="93" class="card-label-emerald">Production Benchmarked</text>
+      <!-- Description Line 3 -->
+      <text x="18" y="121" class="card-desc">Zero memory leaks under stress</text>
+    </g>
+
+    <!-- Mini Visual Indicator -->
+    <g transform="translate(18, 134)" opacity="0.7">
+      <rect x="0" y="0" width="232" height="3" rx="1.5" fill="#1e293b" />
+      <rect x="0" y="0" width="232" height="3" rx="1.5" fill="url(#hydraNeon)" filter="url(#neonGlow)" />
+    </g>
+  </g>
+
+
+  <!-- ==================== DIVIDER RULE WITH CENTER GLYPH ==================== -->
+  <g transform="translate(0, 510)">
+    <!-- Glowing Rule Line -->
+    <line x1="90" y1="0" x2="1190" y2="0" stroke="url(#dividerGrad)" stroke-width="1.2" />
+
+    <!-- Central Tech Diamond Node -->
+    <polygon points="640,-5 645,0 640,5 635,0" fill="#00f2fe" filter="url(#neonGlow)" />
+    <circle cx="640" cy="0" r="1.5" fill="#ffffff" />
+
+    <!-- Left & Right Accent Nodes -->
+    <circle cx="280" cy="0" r="2" fill="#38bdf8" opacity="0.6" />
+    <circle cx="1000" cy="0" r="2" fill="#10b981" opacity="0.6" />
+  </g>
+
+
+  <!-- ==================== BOTTOM FEATURE INFO LINE ==================== -->
+  <g class="font-sans" transform="translate(640, 548)" text-anchor="middle">
+    <text x="0" y="0" class="info-text">
+      <tspan fill="#f8fafc">OpenAPI 3.0 / Swagger</tspan>
+      <tspan fill="#38bdf8" font-size="18">  •  </tspan>
+      <tspan fill="#f8fafc">GeoIP &amp; ASN</tspan>
+      <tspan fill="#10b981" font-size="18">  •  </tspan>
+      <tspan fill="#f8fafc">Strict SLA Lifecycle</tspan>
+    </text>
+  </g>
+
+
+  <!-- ==================== FOOTER TECH METADATA ==================== -->
+  <g class="font-mono footer-text" transform="translate(0, 588)">
+    <!-- Left: Repository Identity -->
+    <text x="76" y="0">https://github.com/stormsia/hydra</text>
+
+    <!-- Center: Architecture Class -->
+    <text x="640" y="0" text-anchor="middle" fill="#64748b">ENTERPRISE-GRADE PROXY POOL INFRASTRUCTURE</text>
+
+    <!-- Right: Licensing -->
+    <text x="1204" y="0" text-anchor="end">MIT</text>
+  </g>
+</svg>
