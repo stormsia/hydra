@@ -10,6 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   check:
     name: Cargo Check & Test
@@ -29,3 +33,50 @@ jobs:
 
       - name: Run cargo clippy
         run: cargo clippy --workspace --all-targets
+
+      - name: Run cargo test
+        run: cargo test --workspace
+
+      - name: Comment on PR failure
+        if: failure() && github.event_name == 'pull_request'
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" --body "❌ **CI Checks & Tests failed!**
+
+          One or more steps (check, clippy, or test) failed:
+          - **Commit**: \`${{ github.event.pull_request.head.sha }}\`
+          - **Run logs**: [View GitHub Actions Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          Auto-merge is blocked until errors are resolved."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependabot-automerge:
+    name: Dependabot Auto-Merge
+    needs: check
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Auto-approve & Merge safe Dependabot PR
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --squash --delete-branch "$PR_URL"
+          gh pr comment "$PR_NUMBER" --body "✅ **All CI checks & tests passed!** Dependabot PR has been approved and automatically merged."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on major version update
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: |
+          gh pr comment "$PR_NUMBER" --body "ℹ️ **All CI checks & tests passed!** However, this is a **major version update** (\`${{ steps.metadata.outputs.update-type }}\`), so auto-merge is disabled. Please review and merge manually."
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
