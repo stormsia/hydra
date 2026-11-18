@@ -1,0 +1,72 @@
+name: Bug Report
+description: Report a reproducible bug, defect, or unexpected behavior in Hydra
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please ensure you have searched existing issues before submitting.
+        If you found a security vulnerability, please refer to our [Security Policy](https://github.com/stormsia/hydra/security/policy) instead.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which crate or subsystem is affected?
+      options:
+        - "hydra_checker (Proxy checking core & protocols)"
+        - "hydra_judge (Echo server & anti-abuse guard)"
+        - "hydra_api (REST API, storage & scheduler)"
+        - "CI / Tooling / Documentation"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the defect or unexpected behavior in detail...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps or code snippet to reproduce the behavior.
+      placeholder: |
+        1. Start server with config '...'
+        2. Send request / check target '...'
+        3. Observe error '...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Describe the expected outcome...
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment & Version Information
+      description: OS, Rust compiler version, and Hydra commit / version.
+      value: |
+        - OS: [e.g. Ubuntu 24.04 / Windows 11 / macOS 15]
+        - Rust version (`rustc --version`):
+        - Hydra version or Git commit SHA:
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output or Backtrace
+      description: Please copy and paste any relevant logs, terminal output, or backtraces with `RUST_BACKTRACE=1`.
+      render: shell

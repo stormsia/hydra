@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability Reporting
+    url: https://github.com/stormsia/hydra/security/advisories
+    about: Please report security vulnerabilities privately via GitHub Security Advisories.
+  - name: Questions & Community Discussions
+    url: https://github.com/stormsia/hydra/discussions
+    about: Ask questions, discuss architectures, or share ideas with the community.

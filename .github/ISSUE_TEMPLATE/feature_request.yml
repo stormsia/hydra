@@ -1,0 +1,53 @@
+name: Feature Request
+description: Suggest an idea, enhancement, or performance optimization for Hydra
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an idea! Before submitting, please check that a similar proposal doesn't already exist in open issues or discussions.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Target Component
+      description: Which part of Hydra does this feature relate to?
+      options:
+        - "hydra_checker (New protocol, cascade stage, or network optimization)"
+        - "hydra_judge (Reflected format, auth rotation, or anti-abuse capability)"
+        - "hydra_api (REST route, database query, scheduler, or metrics)"
+        - "General architecture / Tooling / Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your feature request related to a problem?
+      description: A clear and concise description of the problem or limitation you are facing.
+      placeholder: I am always frustrated when [...]
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution or Implementation Idea
+      description: A clear and concise description of what you want to happen and how you envision it working.
+      placeholder: Describe the proposed enhancement, API design, or protocol support...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you have considered.
+      placeholder: Describe any alternative approaches or trade-offs...
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context or Benchmarks
+      description: Add any other context, benchmarks, or references (RFCs, specs, related crates).
