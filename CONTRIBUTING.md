@@ -1,68 +1,75 @@
-# Contributing to Hydra
+# Руководство контрибьютора (Contributing to Hydra)
 
-Thank you for your interest in contributing to **Hydra**! We welcome bug reports, feature suggestions, documentation improvements, and pull requests.
+Спасибо за интерес к проекту **Hydra**! Мы приветствуем сообщения об ошибках, предложения по оптимизации, улучшение документации и Pull Request'ы.
 
 ---
 
-## 🛠️ Development Setup
+## 🛠️ Окружение разработки (Development Setup)
 
-Hydra is written in Rust (2024 edition) and structured as a Cargo workspace with three primary crates:
-- `hydra_api`: REST API server, scheduler, and SQLite/libSQL WAL persistence.
-- `hydra_checker`: Asynchronous multi-stage proxy checking engine.
-- `hydra_judge`: Authorized high-throughput echo server for proxy anonymity evaluation.
+Hydra написана на языке Rust (редакция 2024) и представляет собой Cargo-воркспейс из трех модулей:
+- `hydra_api` — REST API сервер, планировщик и хранилище libSQL (SQLite WAL).
+- `hydra_checker` — асинхронное ядро сетевой проверки и классификации прокси.
+- `hydra_judge` — легковесный авторизованный эхо-сервер для оценки анонимности.
 
-### Prerequisites
-- **Rust >= 1.85** (Rust 2024 edition support)
-- **Cargo** package manager
-- **SQLite / libSQL**
+### Требования
+- **Rust >= 1.85** (с поддержкой редакции Rust 2024)
+- **Cargo** (стандартный пакетный менеджер)
+- **SQLite / libSQL** (собирается встроенно, внешняя СУБД не требуется)
 
-### Building and Testing
+### Сборка и тестирование
 
-1. Clone the repository:
+1. Клонируйте репозиторий:
    ```bash
-   git clone https://github.com/your-org/hydra.git
+   git clone https://github.com/stormsia/hydra.git
    cd hydra
    ```
 
-2. Copy the sample environment:
+2. Создайте файл конфигурации окружения:
    ```bash
    cp .env.example .env
    ```
 
-3. Build the entire workspace:
+3. Соберите весь воркспейс:
    ```bash
    cargo build --workspace
    ```
 
-4. Run all unit and integration tests:
+4. Запустите тесты всего проекта:
    ```bash
    cargo test --workspace
    ```
 
-5. Run linter and formatting checks:
+5. Или тесты конкретного модуля при изолированной разработке:
    ```bash
-   cargo clippy --workspace --all-targets -- -D warnings
+   cargo test -p hydra_checker
+   cargo test -p hydra_judge
+   cargo test -p hydra_api
+   ```
+
+6. Проверьте форматирование и линтер перед отправкой:
+   ```bash
    cargo fmt --all -- --check
+   cargo clippy --workspace --all-targets -- -D warnings
    ```
 
 ---
 
-## 📋 Pull Request Guidelines
+## 📋 Правила оформления Pull Request
 
-1. **Branch Naming**: Use descriptive branch names:
-   - `feat/feature-name`
-   - `fix/bug-description`
-   - `docs/readme-improvements`
-   - `perf/optimization-description`
-2. **Commit Messages**: Follow [Conventional Commits](https://www.conventionalcommits.org/):
+1. **Именование веток**: используйте префиксы назначения:
+   - `feat/feature-name` — новая функциональность
+   - `fix/bug-description` — исправление ошибки
+   - `perf/optimization` — оптимизация производительности
+   - `docs/doc-update` — изменения в документации
+2. **Сообщения коммитов**: придерживайтесь формата [Conventional Commits](https://www.conventionalcommits.org/):
    - `feat(checker): add support for protocol X`
    - `fix(api): correct pagination offset handling`
-   - `docs: update root README architecture diagram`
-3. **Tests**: Ensure any new logic or bug fix includes corresponding unit or integration tests in `tests/`.
-4. **Documentation**: Update code docstrings and relevant crate `README.md` files when introducing new configuration parameters or endpoints.
+   - `docs(readme): update architecture diagram`
+3. **Покрытие тестами**: любая новая функциональность или исправление бага должны сопровождаться модульными или интеграционными тестами в директории `tests/`.
+4. **Документация**: при добавлении параметров ENV или роутов API обязательно обновляйте `.env.example`, `API.md` и соответствующие файлы `README.md`.
 
 ---
 
-## 🔒 Security Vulnerabilities
+## 🔒 Безопасность (Security Vulnerabilities)
 
-If you discover a security vulnerability within Hydra, please do **not** open a public issue. Instead, report it privately by sending an email to `security@hydra-proxy.internal` or via GitHub Security Advisories.
+Если вы обнаружили уязвимость безопасности в Hydra, пожалуйста, **не создавайте публичные issues**. Сообщайте о них через функцию приватных отчетов безопасности на GitHub (Security Advisories).

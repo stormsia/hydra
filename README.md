@@ -151,7 +151,7 @@ stateDiagram-v2
 
 ### 1. Клонирование и настройка окружения
 ```bash
-git clone https://github.com/your-org/hydra.git
+git clone https://github.com/stormsia/hydra.git
 cd hydra
 cp .env.example .env
 ```
