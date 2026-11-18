@@ -14,8 +14,8 @@
 [![Tested Scale: 10M](https://img.shields.io/badge/tested%20scale-10M%20proxies-0ea5e9.svg?style=flat-square)](docs/BENCHMARK_RESULTS.md)
 
 <p align="center">
-  <b>High-throughput, asynchronous proxy validation engine and streaming pool manager written in pure Rust.</b><br>
-  Industrial-grade asynchronous engine built in Rust for validation, scoring, anonymity classification, and real-time streaming routing across tens of millions of proxies.
+  <b>Ultra-fast proxy checker & pool orchestrator in Rust.</b><br>
+  Ingests raw proxy lists (14k/s), cascades SOCKS5/SOCKS4/HTTP validation, handles GeoIP & SLA policies. Zero-lock libSQL storage, 8.3k checks/s, OpenAPI/Swagger REST API. Built for high-concurrency data scraping pipelines.
 </p>
 
 [English](README.md) • [Русский](README.ru.md) • [简体中文](README.zh.md)
