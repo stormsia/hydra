@@ -2,11 +2,7 @@ use std::fmt::Write;
 use std::net::IpAddr;
 
 /// Format AZenv plain-text response (Key-Value) with zero-allocation header transformations
-pub fn format_azenv(
-    peer_ip: IpAddr,
-    headers: &[(&str, &str)],
-    secret_token: &str,
-) -> String {
+pub fn format_azenv(peer_ip: IpAddr, headers: &[(&str, &str)], secret_token: &str) -> String {
     let mut out = String::with_capacity(1024);
 
     // 1. Peer IP as seen on TCP layer (in-place display write, no peer_ip.to_string())

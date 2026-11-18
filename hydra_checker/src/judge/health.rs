@@ -5,6 +5,7 @@ use url::Url;
 /// Availability health status of a Judge server
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum JudgeHealthStatus {
     /// Responding quickly and returning valid payload
     Healthy,
@@ -13,13 +14,8 @@ pub enum JudgeHealthStatus {
     /// Consecutively failing probes or unreachable
     Unhealthy,
     /// Not yet probed
+    #[default]
     Unknown,
-}
-
-impl Default for JudgeHealthStatus {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 /// Dynamic health state for a Judge endpoint

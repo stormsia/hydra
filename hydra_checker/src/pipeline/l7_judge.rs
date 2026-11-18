@@ -24,21 +24,27 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     // Retrieve cached pre-rendered request (C4: eliminates URL parse & template allocations)
-    let (_effective_url, server_name_str, req_bytes) = config.get_judge_tls_request_for(judge_url, is_builtin, expected_token);
-    let server_name = ServerName::try_from(server_name_str)
-        .map_err(|_| ErrorReason::TlsHandshakeFailed)?;
+    let (_effective_url, server_name_str, req_bytes) =
+        config.get_judge_tls_request_for(judge_url, is_builtin, expected_token);
+    let server_name =
+        ServerName::try_from(server_name_str).map_err(|_| ErrorReason::TlsHandshakeFailed)?;
 
     // Step 1: Perform TLS handshake over established tunnel
-    let tls_stream = tokio::time::timeout(
-        timeout,
-        tls_connector.connect(server_name, stream),
-    )
-    .await
-    .map_err(|_| ErrorReason::TimeoutHandshake)?
-    .map_err(|_| ErrorReason::TlsHandshakeFailed)?;
+    let tls_stream = tokio::time::timeout(timeout, tls_connector.connect(server_name, stream))
+        .await
+        .map_err(|_| ErrorReason::TimeoutHandshake)?
+        .map_err(|_| ErrorReason::TlsHandshakeFailed)?;
 
     // Step 2: Write request and read bounded response (C1, C7: Content-Length bounded, stack-allocated)
-    send_and_verify_judge(tls_stream, &req_bytes, expected_token, is_builtin, config, timeout).await
+    send_and_verify_judge(
+        tls_stream,
+        &req_bytes,
+        expected_token,
+        is_builtin,
+        config,
+        timeout,
+    )
+    .await
 }
 
 /// Phase 3: L7 End-to-End Validation for Plain HTTP forward proxies
@@ -65,7 +71,15 @@ where
         auth,
         token_to_send.as_ref().map(|s| s.as_str()),
     );
-    send_and_verify_judge(stream, &req_bytes, expected_token, is_builtin, config, timeout).await
+    send_and_verify_judge(
+        stream,
+        &req_bytes,
+        expected_token,
+        is_builtin,
+        config,
+        timeout,
+    )
+    .await
 }
 
 /// Common HTTP response reader with strict `max_read_bytes` limit, stack buffer (C7),
@@ -89,7 +103,10 @@ where
             .write_all(req_bytes)
             .await
             .map_err(|_| ErrorReason::TimeoutReadWrite)?;
-        stream.flush().await.map_err(|_| ErrorReason::TimeoutReadWrite)?;
+        stream
+            .flush()
+            .await
+            .map_err(|_| ErrorReason::TimeoutReadWrite)?;
 
         // C7: Use stack buffer for normal responses (<= 4096 bytes) with zero heap churn
         let mut stack_buf = [0u8; 4096];
@@ -155,13 +172,12 @@ where
                 let mut resp = httparse::Response::new(&mut headers);
                 if let Ok(httparse::Status::Complete(header_len)) = resp.parse(current_bytes) {
                     for h in resp.headers.iter() {
-                        if h.name.eq_ignore_ascii_case("content-length") {
-                            if let Ok(val_str) = std::str::from_utf8(h.value) {
-                                if let Ok(content_len) = val_str.trim().parse::<usize>() {
-                                    expected_total = Some(header_len + content_len);
-                                    break;
-                                }
-                            }
+                        if h.name.eq_ignore_ascii_case("content-length")
+                            && let Ok(val_str) = std::str::from_utf8(h.value)
+                            && let Ok(content_len) = val_str.trim().parse::<usize>()
+                        {
+                            expected_total = Some(header_len + content_len);
+                            break;
                         }
                     }
                 }
@@ -209,10 +225,10 @@ where
             if !config.is_token_matched(body_str) {
                 return Err(ErrorReason::JudgeMismatch);
             }
-        } else if let Some(token) = expected_token {
-            if !body_str.contains(token) {
-                return Err(ErrorReason::JudgeMismatch);
-            }
+        } else if let Some(token) = expected_token
+            && !body_str.contains(token)
+        {
+            return Err(ErrorReason::JudgeMismatch);
         }
 
         // Parse exit IP and headers for anonymity
@@ -224,10 +240,10 @@ where
         }
 
         // Reject if exit IP matches our real IP (transparent loop or proxy bypassed)
-        if let Some(real_ip) = config.real_ip {
-            if payload.exit_ip == Some(real_ip) {
-                return Err(ErrorReason::JudgeMismatch);
-            }
+        if let Some(real_ip) = config.real_ip
+            && payload.exit_ip == Some(real_ip)
+        {
+            return Err(ErrorReason::JudgeMismatch);
         }
 
         Ok(payload)

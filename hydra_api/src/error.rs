@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -16,7 +16,11 @@ pub struct ApiError {
     pub error: String,
 
     /// Human-readable error description
-    #[schema(example = "Proxy '185.22.14.9:1080' not found", min_length = 1, max_length = 2048)]
+    #[schema(
+        example = "Proxy '185.22.14.9:1080' not found",
+        min_length = 1,
+        max_length = 2048
+    )]
     pub message: String,
 }
 

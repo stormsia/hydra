@@ -1,6 +1,6 @@
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::IpAddr;
-use serde::Deserialize;
 
 use crate::error::ErrorReason;
 use crate::models::AnonymityLevel;
@@ -49,61 +49,61 @@ pub fn parse_judge_response(
     }
 
     // Try parsing as JSON (httpbin, httpbingo, httpbin.dev, and compatible echo endpoints)
-    if body.starts_with('{') {
-        if let Ok(json) = serde_json::from_str::<HttpbinPayload>(body) {
-            let exit_ip = json.origin.as_deref().and_then(|orig| {
-                // If comma-separated e.g. "client_ip, proxy_ip", the proxy exit IP is the rightmost
-                orig.rsplit(',')
-                    .next()
-                    .and_then(|s| s.trim().parse::<IpAddr>().ok())
-            });
+    if body.starts_with('{')
+        && let Ok(json) = serde_json::from_str::<HttpbinPayload>(body)
+    {
+        let exit_ip = json.origin.as_deref().and_then(|orig| {
+            // If comma-separated e.g. "client_ip, proxy_ip", the proxy exit IP is the rightmost
+            orig.rsplit(',')
+                .next()
+                .and_then(|s| s.trim().parse::<IpAddr>().ok())
+        });
 
-            let mut header_pairs: Vec<(&str, &str)> = Vec::new();
-            if let Some(ref hdrs) = json.headers {
-                for (name, val) in hdrs {
-                    match val {
-                        HeaderValue::Single(s) => header_pairs.push((name.as_str(), s.as_str())),
-                        HeaderValue::Multiple(vec) => {
-                            for s in vec {
-                                header_pairs.push((name.as_str(), s.as_str()));
-                            }
+        let mut header_pairs: Vec<(&str, &str)> = Vec::new();
+        if let Some(ref hdrs) = json.headers {
+            for (name, val) in hdrs {
+                match val {
+                    HeaderValue::Single(s) => header_pairs.push((name.as_str(), s.as_str())),
+                    HeaderValue::Multiple(vec) => {
+                        for s in vec {
+                            header_pairs.push((name.as_str(), s.as_str()));
                         }
                     }
                 }
             }
-
-            // Also check `origin`: in standard httpbin.org, `X-Forwarded-For` is extracted into `origin`!
-            // e.g. "origin": "client_ip, proxy_ip"
-            let mut leaked_ip_in_origin = false;
-            let mut proxy_forwarded_origin = false;
-            if let Some(orig) = json.origin.as_deref() {
-                if let Some((client_parts, _last_ip)) = orig.rsplit_once(',') {
-                    proxy_forwarded_origin = true;
-                    if let Some(real_ip) = real_ip {
-                        let real_str = real_ip.to_string();
-                        if client_parts.contains(&real_str) {
-                            leaked_ip_in_origin = true;
-                        }
-                    }
-                }
-            }
-
-            let mut anonymity = if !header_pairs.is_empty() || json.origin.is_some() {
-                Some(classify_anonymity(header_pairs.into_iter(), real_ip))
-            } else {
-                None
-            };
-
-            // If `origin` leaked our real IP, it's definitely Transparent!
-            if leaked_ip_in_origin {
-                anonymity = Some(AnonymityLevel::Transparent);
-            } else if proxy_forwarded_origin && anonymity == Some(AnonymityLevel::Elite) {
-                // If `origin` contains forwarded IP chain, proxy revealed upstream client IP
-                anonymity = Some(AnonymityLevel::Anonymous);
-            }
-
-            return Ok(JudgePayload { exit_ip, anonymity });
         }
+
+        // Also check `origin`: in standard httpbin.org, `X-Forwarded-For` is extracted into `origin`!
+        // e.g. "origin": "client_ip, proxy_ip"
+        let mut leaked_ip_in_origin = false;
+        let mut proxy_forwarded_origin = false;
+        if let Some(orig) = json.origin.as_deref()
+            && let Some((client_parts, _last_ip)) = orig.rsplit_once(',')
+        {
+            proxy_forwarded_origin = true;
+            if let Some(real_ip) = real_ip {
+                let real_str = real_ip.to_string();
+                if client_parts.contains(&real_str) {
+                    leaked_ip_in_origin = true;
+                }
+            }
+        }
+
+        let mut anonymity = if !header_pairs.is_empty() || json.origin.is_some() {
+            Some(classify_anonymity(header_pairs, real_ip))
+        } else {
+            None
+        };
+
+        // If `origin` leaked our real IP, it's definitely Transparent!
+        if leaked_ip_in_origin {
+            anonymity = Some(AnonymityLevel::Transparent);
+        } else if proxy_forwarded_origin && anonymity == Some(AnonymityLevel::Elite) {
+            // If `origin` contains forwarded IP chain, proxy revealed upstream client IP
+            anonymity = Some(AnonymityLevel::Anonymous);
+        }
+
+        return Ok(JudgePayload { exit_ip, anonymity });
     }
 
     // Try parsing as AZenv format (KEY = VALUE)
@@ -129,7 +129,7 @@ pub fn parse_judge_response(
     }
 
     if exit_ip.is_some() && !azenv_headers.is_empty() {
-        let anonymity = Some(classify_anonymity(azenv_headers.into_iter(), real_ip));
+        let anonymity = Some(classify_anonymity(azenv_headers, real_ip));
         return Ok(JudgePayload { exit_ip, anonymity });
     }
 

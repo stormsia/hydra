@@ -1,8 +1,8 @@
+use compact_str::CompactString;
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use compact_str::CompactString;
-use serde::{Deserialize, Serialize};
 use tokio_rustls::TlsConnector;
 use tokio_util::sync::CancellationToken;
 
@@ -76,10 +76,7 @@ impl JudgePool {
     }
 
     /// Create from arbitrary list of endpoints
-    pub fn from_endpoints(
-        endpoints: Vec<JudgeEndpoint>,
-        strategy: JudgeSelectionStrategy,
-    ) -> Self {
+    pub fn from_endpoints(endpoints: Vec<JudgeEndpoint>, strategy: JudgeSelectionStrategy) -> Self {
         let entries = endpoints
             .into_iter()
             .map(|ep| Arc::new(JudgeEntry::new(ep)))
@@ -107,7 +104,8 @@ impl JudgePool {
     /// Select the primary judge for a check based on the active strategy
     pub fn select_judge(&self) -> Option<JudgeEndpoint> {
         let entries = self.entries.read().unwrap();
-        let enabled: Vec<&Arc<JudgeEntry>> = entries.iter().filter(|e| e.endpoint.enabled).collect();
+        let enabled: Vec<&Arc<JudgeEntry>> =
+            entries.iter().filter(|e| e.endpoint.enabled).collect();
         if enabled.is_empty() {
             return None;
         }
@@ -128,12 +126,18 @@ impl JudgePool {
                 }
 
                 if !healthy.is_empty() {
-                    healthy.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.endpoint.priority.cmp(&b.0.endpoint.priority)));
+                    healthy.sort_by(|a, b| {
+                        a.1.cmp(&b.1)
+                            .then_with(|| a.0.endpoint.priority.cmp(&b.0.endpoint.priority))
+                    });
                     return Some(healthy[0].0.endpoint.clone());
                 }
 
                 if !non_unhealthy.is_empty() {
-                    non_unhealthy.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.endpoint.priority.cmp(&b.0.endpoint.priority)));
+                    non_unhealthy.sort_by(|a, b| {
+                        a.1.cmp(&b.1)
+                            .then_with(|| a.0.endpoint.priority.cmp(&b.0.endpoint.priority))
+                    });
                     return Some(non_unhealthy[0].0.endpoint.clone());
                 }
 
@@ -172,7 +176,11 @@ impl JudgePool {
                     .filter(|e| e.health.read().unwrap().status != JudgeHealthStatus::Unhealthy)
                     .collect();
 
-                let pool = if !healthy.is_empty() { healthy } else { enabled };
+                let pool = if !healthy.is_empty() {
+                    healthy
+                } else {
+                    enabled
+                };
                 let idx = self.round_robin_counter.fetch_add(1, Ordering::Relaxed) % pool.len();
                 Some(pool[idx].endpoint.clone())
             }
@@ -201,8 +209,10 @@ impl JudgePool {
                 }
             }
 
-            healthy_with_lat.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.priority.cmp(&b.0.priority)));
-            let mut result: Vec<JudgeEndpoint> = healthy_with_lat.into_iter().map(|(ep, _)| ep).collect();
+            healthy_with_lat
+                .sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.priority.cmp(&b.0.priority)));
+            let mut result: Vec<JudgeEndpoint> =
+                healthy_with_lat.into_iter().map(|(ep, _)| ep).collect();
             result.extend(degraded_or_unhealthy);
             return result;
         }

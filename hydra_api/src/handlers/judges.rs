@@ -1,7 +1,7 @@
+use axum::Json;
+use axum::extract::State;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
-use axum::extract::State;
-use axum::Json;
 
 use crate::app_state::AppState;
 use crate::error::ApiError;
@@ -47,9 +47,7 @@ fn map_report(r: hydra_checker::JudgeHealthReport) -> JudgeReportDto {
     ),
     security(("api_key" = []))
 )]
-pub async fn list(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<JudgeReportDto>>, ApiError> {
+pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<JudgeReportDto>>, ApiError> {
     let pool = state.engine.judge_pool();
     let reports = pool.get_health_reports();
     let dtos = reports.into_iter().map(map_report).collect();
@@ -76,14 +74,19 @@ pub async fn trigger_health_check(
     let pool = state.engine.judge_pool();
     let tls = state.engine.tls_connector();
 
-    let reports = pool.check_availability_all(Duration::from_secs(5), tls).await;
+    let reports = pool
+        .check_availability_all(Duration::from_secs(5), tls)
+        .await;
 
     let healthy_count = reports
         .iter()
         .filter(|r| r.status == hydra_checker::JudgeHealthStatus::Healthy)
         .count();
 
-    state.scheduler_stats.judge_healthy.store(healthy_count > 0, Ordering::Relaxed);
+    state
+        .scheduler_stats
+        .judge_healthy
+        .store(healthy_count > 0, Ordering::Relaxed);
 
     let active_judge = pool.select_judge().map(|j| j.id.to_string());
     let dtos = reports.into_iter().map(map_report).collect::<Vec<_>>();

@@ -2,16 +2,16 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use hydra_checker::{CheckerConfig, CheckerEngine};
 use hydra_api::app_state::{AppState, SchedulerStats};
 use hydra_api::config::ApiConfig;
 use hydra_api::db::init_db;
 use hydra_api::router::build_router;
 use hydra_api::services::batch_writer::batch_writer_loop;
-use hydra_api::services::geoip::{geoip_reload_loop, GeoIpResolver};
+use hydra_api::services::geoip::{GeoIpResolver, geoip_reload_loop};
 use hydra_api::services::geoip_updater::geoip_auto_update_loop;
 use hydra_api::services::maintenance::db_maintenance_loop;
 use hydra_api::services::scheduler::scheduler_loop;
+use hydra_checker::{CheckerConfig, CheckerEngine};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -34,8 +34,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Optionally spawn embedded Judge server for all-in-one local development
     if config.embed_judge {
-        let judge_bind: std::net::SocketAddr = format!("0.0.0.0:{}", config.embed_judge_port).parse()?;
-        let mut judge_builder = hydra_judge::JudgeConfig::builder(judge_bind, &config.judge_secret_token);
+        let judge_bind: std::net::SocketAddr =
+            format!("0.0.0.0:{}", config.embed_judge_port).parse()?;
+        let mut judge_builder =
+            hydra_judge::JudgeConfig::builder(judge_bind, &config.judge_secret_token);
         if let Some(ref key) = config.judge_secret_key {
             judge_builder = judge_builder.secret_key(key);
         }
@@ -59,43 +61,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     builder = builder.concurrency_limit(config.checker_concurrency);
     builder = builder.enable_third_party_judges(config.enable_third_party_judges);
-    if config.judge_selection_strategy.eq_ignore_ascii_case("round_robin") || config.judge_selection_strategy.eq_ignore_ascii_case("roundrobin") {
-        builder = builder.judge_selection_strategy(hydra_checker::JudgeSelectionStrategy::RoundRobin);
-    } else if config.judge_selection_strategy.eq_ignore_ascii_case("priority") {
+    if config
+        .judge_selection_strategy
+        .eq_ignore_ascii_case("round_robin")
+        || config
+            .judge_selection_strategy
+            .eq_ignore_ascii_case("roundrobin")
+    {
+        builder =
+            builder.judge_selection_strategy(hydra_checker::JudgeSelectionStrategy::RoundRobin);
+    } else if config
+        .judge_selection_strategy
+        .eq_ignore_ascii_case("priority")
+    {
         builder = builder.judge_selection_strategy(hydra_checker::JudgeSelectionStrategy::Priority);
     } else {
-        builder = builder.judge_selection_strategy(hydra_checker::JudgeSelectionStrategy::LowestLatency);
+        builder =
+            builder.judge_selection_strategy(hydra_checker::JudgeSelectionStrategy::LowestLatency);
     }
     if let Some(ref add_judges_str) = config.additional_judges {
         for (idx, entry) in add_judges_str.split(',').enumerate() {
             let parts: Vec<&str> = entry.trim().split('|').collect();
-            if !parts.is_empty() {
-                if let Ok(http_url) = parts[0].trim().parse::<url::Url>() {
-                    let https_url = if parts.len() > 1 {
-                        parts[1].trim().parse::<url::Url>().unwrap_or_else(|_| http_url.clone())
-                    } else {
-                        http_url.clone()
-                    };
-                    let custom_ep = hydra_checker::JudgeEndpoint::third_party(
-                        format!("custom_{}", idx + 1),
-                        format!("Custom Judge {}", idx + 1),
-                        http_url,
-                        https_url,
-                        10 + idx as u32,
-                        true,
-                    );
-                    builder = builder.add_judge(custom_ep);
-                }
+            if !parts.is_empty()
+                && let Ok(http_url) = parts[0].trim().parse::<url::Url>()
+            {
+                let https_url = if parts.len() > 1 {
+                    parts[1]
+                        .trim()
+                        .parse::<url::Url>()
+                        .unwrap_or_else(|_| http_url.clone())
+                } else {
+                    http_url.clone()
+                };
+                let custom_ep = hydra_checker::JudgeEndpoint::third_party(
+                    format!("custom_{}", idx + 1),
+                    format!("Custom Judge {}", idx + 1),
+                    http_url,
+                    https_url,
+                    10 + idx as u32,
+                    true,
+                );
+                builder = builder.add_judge(custom_ep);
             }
         }
     }
     if let Some(ref key) = config.judge_secret_key {
         builder = builder.judge_secret_key(key);
     }
-    if let Ok(ip_str) = std::env::var("CHECKER_REAL_IP") {
-        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
-            builder = builder.real_ip(ip);
-        }
+    if let Ok(ip_str) = std::env::var("CHECKER_REAL_IP")
+        && let Ok(ip) = ip_str.parse::<std::net::IpAddr>()
+    {
+        builder = builder.real_ip(ip);
     }
     let checker_config = builder.build().await?;
     let engine = Arc::new(CheckerEngine::new(checker_config)?);
@@ -107,14 +123,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let health_cancel = cancel.clone();
     tokio::spawn(async move {
         tracing::info!("Running initial judge availability probe...");
-        let reports = judge_pool.check_availability_all(Duration::from_secs(5), &tls_connector).await;
+        let reports = judge_pool
+            .check_availability_all(Duration::from_secs(5), &tls_connector)
+            .await;
         for r in &reports {
             tracing::info!(
                 "Judge '{}' ({}) -> Status: {:?}, Latency: {:?}ms",
-                r.name, r.id, r.status, r.latency_ms
+                r.name,
+                r.id,
+                r.status,
+                r.latency_ms
             );
         }
-        judge_pool.start_health_check_loop(health_interval, tls_connector, health_cancel).await;
+        judge_pool
+            .start_health_check_loop(health_interval, tls_connector, health_cancel)
+            .await;
     });
 
     let geoip = GeoIpResolver::try_load(
@@ -141,10 +164,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         scheduler_stats.clone(),
     ));
 
-    tokio::spawn(scheduler_loop(
-        state.clone(),
-        cancel.clone(),
-    ));
+    tokio::spawn(scheduler_loop(state.clone(), cancel.clone()));
 
     tokio::spawn(db_maintenance_loop(
         db.clone(),
@@ -164,7 +184,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if config.geoip_auto_update {
         tokio::spawn(geoip_auto_update_loop(
             config.geoip_country_url.clone(),
-            config.geoip_country_path.clone().map(std::path::PathBuf::from),
+            config
+                .geoip_country_path
+                .clone()
+                .map(std::path::PathBuf::from),
             config.geoip_asn_url.clone(),
             config.geoip_asn_path.clone().map(std::path::PathBuf::from),
             Duration::from_secs(config.geoip_update_interval_secs),
@@ -175,8 +198,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = build_router(state);
     let listener = tokio::net::TcpListener::bind(&config.listen_addr).await?;
-    tracing::info!("Hydra API server listening on http://{}", config.listen_addr);
-    tracing::info!("Swagger UI available at http://{}/swagger-ui", config.listen_addr);
+    tracing::info!(
+        "Hydra API server listening on http://{}",
+        config.listen_addr
+    );
+    tracing::info!(
+        "Swagger UI available at http://{}/swagger-ui",
+        config.listen_addr
+    );
 
     let shutdown_cancel = cancel.clone();
     axum::serve(listener, app)

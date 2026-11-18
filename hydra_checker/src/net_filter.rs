@@ -154,30 +154,30 @@ pub fn validate_target_ip(ip: IpAddr, config: &CheckerConfig) -> Result<(), Erro
     }
 
     // 2. Reject self-scan against caller's real public IP
-    if let Some(real_ip) = config.real_ip {
-        if ip == real_ip {
-            return Err(ErrorReason::BogonOrReservedIp);
-        }
+    if let Some(real_ip) = config.real_ip
+        && ip == real_ip
+    {
+        return Err(ErrorReason::BogonOrReservedIp);
     }
 
     // 3. Reject target pointing to our own local bind IP
-    if let Some(bind_ip) = config.local_bind_ip {
-        if ip == bind_ip {
-            return Err(ErrorReason::BogonOrReservedIp);
-        }
+    if let Some(bind_ip) = config.local_bind_ip
+        && ip == bind_ip
+    {
+        return Err(ErrorReason::BogonOrReservedIp);
     }
 
     // 4. Reject target pointing directly to Judge server IP
-    if let Some(judge_http) = config.judge_http_addr {
-        if ip == judge_http.ip() {
-            return Err(ErrorReason::BogonOrReservedIp);
-        }
+    if let Some(judge_http) = config.judge_http_addr
+        && ip == judge_http.ip()
+    {
+        return Err(ErrorReason::BogonOrReservedIp);
     }
 
-    if let Some(judge_https) = config.judge_https_addr {
-        if ip == judge_https.ip() {
-            return Err(ErrorReason::BogonOrReservedIp);
-        }
+    if let Some(judge_https) = config.judge_https_addr
+        && ip == judge_https.ip()
+    {
+        return Err(ErrorReason::BogonOrReservedIp);
     }
 
     Ok(())

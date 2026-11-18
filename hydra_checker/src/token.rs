@@ -121,7 +121,8 @@ impl DailyTokenProvider {
         {
             let guard = self.cached.read().unwrap();
             if guard.day == current_day {
-                return body.contains(guard.today.as_str()) || body.contains(guard.yesterday.as_str());
+                return body.contains(guard.today.as_str())
+                    || body.contains(guard.yesterday.as_str());
             }
         }
 

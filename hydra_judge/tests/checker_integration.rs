@@ -4,9 +4,7 @@ use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
-use hydra_checker::{
-    CheckTarget, CheckerConfig, CheckerEngine, MockDialer, ProxyProtocol,
-};
+use hydra_checker::{CheckTarget, CheckerConfig, CheckerEngine, MockDialer, ProxyProtocol};
 use hydra_judge::{JudgeConfig, JudgeServer};
 
 #[tokio::test]
@@ -28,8 +26,16 @@ async fn test_checker_against_live_judge_server() {
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     // 2. Build hydra_checker configuration pointing to the live Judge
-    let http_url = Url::parse(&format!("http://127.0.0.1:{}/judge?token=HYDRA_PASS_TOKEN", judge_addr.port())).unwrap();
-    let https_url = Url::parse(&format!("https://127.0.0.1:{}/judge?token=HYDRA_PASS_TOKEN", judge_addr.port())).unwrap();
+    let http_url = Url::parse(&format!(
+        "http://127.0.0.1:{}/judge?token=HYDRA_PASS_TOKEN",
+        judge_addr.port()
+    ))
+    .unwrap();
+    let https_url = Url::parse(&format!(
+        "https://127.0.0.1:{}/judge?token=HYDRA_PASS_TOKEN",
+        judge_addr.port()
+    ))
+    .unwrap();
 
     let checker_cfg = CheckerConfig::builder(http_url, https_url, "HYDRA_PASS_TOKEN")
         .real_ip("198.51.100.99".parse().unwrap()) // Different IP to test anonymity
@@ -57,7 +63,10 @@ async fn test_checker_against_live_judge_server() {
             // Read response from real Judge and echo back to client
             let mut judge_buf = [0u8; 2048];
             let resp_len = judge_stream.read(&mut judge_buf).await.unwrap();
-            proxy_server.write_all(&judge_buf[..resp_len]).await.unwrap();
+            proxy_server
+                .write_all(&judge_buf[..resp_len])
+                .await
+                .unwrap();
             proxy_server.flush().await.unwrap();
         });
 
@@ -69,10 +78,17 @@ async fn test_checker_against_live_judge_server() {
 
     let result = engine.check_single(target).await;
 
-    assert!(result.is_alive, "Expected alive result from live Judge, got error: {:?}", result.error_reason);
+    assert!(
+        result.is_alive,
+        "Expected alive result from live Judge, got error: {:?}",
+        result.error_reason
+    );
     assert_eq!(result.detected_protocol, Some(ProxyProtocol::Http));
     assert_eq!(result.external_ip, Some("127.0.0.1".parse().unwrap()));
-    assert_eq!(result.anonymity_level, Some(hydra_checker::AnonymityLevel::Anonymous));
+    assert_eq!(
+        result.anonymity_level,
+        Some(hydra_checker::AnonymityLevel::Anonymous)
+    );
     assert_eq!(result.error_reason, None);
 
     cancel.cancel();

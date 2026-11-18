@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use libsql::Connection;
+use std::collections::HashMap;
 
 use crate::models::{
     AsnStatsDto, CountryStatsDto, PatchProxyRequest, PoolCountsDto, PoolQualityDto,
@@ -106,11 +106,7 @@ pub async fn insert_proxy_if_not_exists(
     Ok(inserted)
 }
 
-pub async fn revive_if_dead(
-    conn: &Connection,
-    id: &str,
-    now: i64,
-) -> Result<bool, libsql::Error> {
+pub async fn revive_if_dead(conn: &Connection, id: &str, now: i64) -> Result<bool, libsql::Error> {
     let affected = conn
         .execute(
             "UPDATE proxies
@@ -223,7 +219,11 @@ pub async fn query_proxies(
     let mut params: Vec<libsql::Value> = vec![target_state.into()];
 
     if let Some(ref countries) = filter.country {
-        let country_list: Vec<&str> = countries.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+        let country_list: Vec<&str> = countries
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
         if !country_list.is_empty() {
             query.push_str("AND p.country IN (");
             for (idx, c) in country_list.iter().enumerate() {
@@ -238,7 +238,11 @@ pub async fn query_proxies(
     }
 
     if let Some(ref countries) = filter.exclude_country {
-        let country_list: Vec<&str> = countries.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+        let country_list: Vec<&str> = countries
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
         if !country_list.is_empty() {
             query.push_str("AND (p.country IS NULL OR p.country NOT IN (");
             for (idx, c) in country_list.iter().enumerate() {
@@ -504,16 +508,17 @@ pub async fn patch_proxy(
     params.push(id.to_string().into());
     let id_param_idx = params.len();
 
-    let sql = format!("UPDATE proxies SET {} WHERE id = ?{}", sets.join(", "), id_param_idx);
+    let sql = format!(
+        "UPDATE proxies SET {} WHERE id = ?{}",
+        sets.join(", "),
+        id_param_idx
+    );
     let affected = conn.execute(&sql, params).await?;
 
     Ok(affected > 0)
 }
 
-pub async fn delete_proxy(
-    conn: &Connection,
-    id: &str,
-) -> Result<bool, libsql::Error> {
+pub async fn delete_proxy(conn: &Connection, id: &str) -> Result<bool, libsql::Error> {
     let affected = conn
         .execute("DELETE FROM proxies WHERE id = ?1;", libsql::params![id])
         .await?;
@@ -678,9 +683,7 @@ pub async fn fetch_due_proxies(
         LIMIT ?2;
     ";
 
-    let mut rows = conn
-        .query(sql, libsql::params![now, limit as i64])
-        .await?;
+    let mut rows = conn.query(sql, libsql::params![now, limit as i64]).await?;
 
     let mut results = Vec::new();
     while let Some(row) = rows.next().await? {

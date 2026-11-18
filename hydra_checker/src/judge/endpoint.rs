@@ -26,11 +26,7 @@ pub struct JudgeEndpoint {
 }
 
 impl JudgeEndpoint {
-    pub fn builtin(
-        http_url: Url,
-        https_url: Url,
-        token: Option<impl AsRef<str>>,
-    ) -> Self {
+    pub fn builtin(http_url: Url, https_url: Url, token: Option<impl AsRef<str>>) -> Self {
         Self {
             id: CompactString::new("builtin"),
             name: CompactString::new("Hydra Built-in Judge"),

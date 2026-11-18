@@ -20,7 +20,6 @@ socket2 = "0.6"
 futures = "0.3"
 base64 = "0.23"
 url = { version = "2.5", features = ["serde"] }
-tracing = { version = "0.1", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1.43", features = ["full", "test-util"] }

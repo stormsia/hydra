@@ -11,7 +11,7 @@ pub mod services;
 pub use app_state::{AppState, SchedulerStats};
 pub use config::ApiConfig;
 pub use error::ApiError;
-pub use router::{build_router, ApiDoc};
+pub use router::{ApiDoc, build_router};
 
 /// Installs the ring-based rustls `CryptoProvider` as the process-wide default.
 ///

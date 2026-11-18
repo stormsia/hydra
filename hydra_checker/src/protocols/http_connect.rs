@@ -44,7 +44,10 @@ where
         .write_all(req.as_bytes())
         .await
         .map_err(|_| ErrorReason::HandshakeFailed)?;
-    stream.flush().await.map_err(|_| ErrorReason::HandshakeFailed)?;
+    stream
+        .flush()
+        .await
+        .map_err(|_| ErrorReason::HandshakeFailed)?;
 
     // Iterative read into stack buffer until `\r\n\r\n`
     let mut buf = [0u8; MAX_CONNECT_HEADER_BYTES];

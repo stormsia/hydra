@@ -23,10 +23,7 @@ const PROXY_HEADER_NAMES: &[&str] = &[
 ];
 
 /// Classify anonymity level based on extracted headers and our real public IP
-pub fn classify_anonymity<'a, I>(
-    headers: I,
-    real_ip: Option<IpAddr>,
-) -> AnonymityLevel
+pub fn classify_anonymity<'a, I>(headers: I, real_ip: Option<IpAddr>) -> AnonymityLevel
 where
     I: IntoIterator<Item = (&'a str, &'a str)>,
 {
@@ -35,10 +32,10 @@ where
 
     for (name, value) in headers {
         // 1. If our real IP is leaked anywhere in headers, it's Transparent
-        if let Some(real_str) = &real_ip_str {
-            if value.contains(real_str.as_str()) {
-                return AnonymityLevel::Transparent;
-            }
+        if let Some(real_str) = &real_ip_str
+            && value.contains(real_str.as_str())
+        {
+            return AnonymityLevel::Transparent;
         }
 
         // 2. Check if this header matches known proxy signatures (zero heap allocation)

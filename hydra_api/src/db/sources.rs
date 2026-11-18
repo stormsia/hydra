@@ -1,5 +1,5 @@
-use libsql::Connection;
 use crate::models::{SourceRow, SourceStatsItem};
+use libsql::Connection;
 
 pub async fn upsert_source(
     conn: &Connection,
@@ -52,9 +52,7 @@ pub async fn get_source_by_name(
     }
 }
 
-pub async fn list_source_stats(
-    conn: &Connection,
-) -> Result<Vec<SourceStatsItem>, libsql::Error> {
+pub async fn list_source_stats(conn: &Connection) -> Result<Vec<SourceStatsItem>, libsql::Error> {
     let sql = "
         SELECT s.id, s.name, s.url, s.remark,
             COUNT(ps.proxy_id) AS total_proxies,
@@ -183,14 +181,14 @@ pub async fn get_source_stats_by_name(
     }
 }
 
-pub async fn delete_source(
-    conn: &Connection,
-    name: &str,
-) -> Result<bool, libsql::Error> {
+pub async fn delete_source(conn: &Connection, name: &str) -> Result<bool, libsql::Error> {
     let affected = conn
-        .execute("DELETE FROM sources WHERE name = ?1;", libsql::params![name])
+        .execute(
+            "DELETE FROM sources WHERE name = ?1;",
+            libsql::params![name],
+        )
         .await?;
-    
+
     if affected > 0 {
         // Clean up orphan proxies if no sources reference them
         let _ = conn.execute(

@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 
 /// Real-time lock-free metrics for the Judge instance
 #[derive(Debug, Default)]

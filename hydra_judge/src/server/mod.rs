@@ -31,7 +31,9 @@ impl JudgeServer {
             None
         };
 
-        let connection_semaphore = Arc::new(tokio::sync::Semaphore::new(config.max_concurrent_connections));
+        let connection_semaphore = Arc::new(tokio::sync::Semaphore::new(
+            config.max_concurrent_connections,
+        ));
 
         Ok(Self {
             config: Arc::new(config),
@@ -111,7 +113,9 @@ impl JudgeServer {
         tasks.push(http_task);
 
         // 2. Spawn HTTPS listener if configured
-        if let (Some(https_addr), Some(tls_acceptor)) = (self.config.https_bind_addr, self.tls_acceptor.clone()) {
+        if let (Some(https_addr), Some(tls_acceptor)) =
+            (self.config.https_bind_addr, self.tls_acceptor.clone())
+        {
             let https_listener = TcpListener::bind(https_addr).await?;
             let config_https = Arc::clone(&self.config);
             let metrics_https = Arc::clone(&self.metrics);
@@ -162,7 +166,7 @@ impl JudgeServer {
                                 let accept_fut = acceptor.accept(socket);
                                 match tokio::time::timeout(cfg.request_timeout, accept_fut).await {
                                     Ok(Ok(tls_stream)) => {
-                                        handle_connection(ConnectionStream::Tls(tls_stream), peer_addr, cfg, m).await;
+                                        handle_connection(ConnectionStream::Tls(Box::new(tls_stream)), peer_addr, cfg, m).await;
                                     }
                                     _ => {
                                         m.inc_blocked();

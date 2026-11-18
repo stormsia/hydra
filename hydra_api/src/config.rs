@@ -56,17 +56,16 @@ impl ApiConfig {
         let api_key = env::var("API_KEY")
             .map_err(|_| "API_KEY environment variable is required".to_string())?;
 
-        let db_path = env::var("DB_PATH")
-            .unwrap_or_else(|_| "./data/hydra.db".to_string());
+        let db_path = env::var("DB_PATH").unwrap_or_else(|_| "./data/hydra.db".to_string());
 
-        let judge_http_url = env::var("JUDGE_HTTP_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
+        let judge_http_url =
+            env::var("JUDGE_HTTP_URL").unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
 
-        let judge_https_url = env::var("JUDGE_HTTPS_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
+        let judge_https_url =
+            env::var("JUDGE_HTTPS_URL").unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
 
-        let judge_secret_token = env::var("JUDGE_SECRET_TOKEN")
-            .unwrap_or_else(|_| "hydra_secret_token".to_string());
+        let judge_secret_token =
+            env::var("JUDGE_SECRET_TOKEN").unwrap_or_else(|_| "hydra_secret_token".to_string());
 
         let judge_secret_key = env::var("JUDGE_SECRET_KEY").ok();
 
@@ -84,8 +83,8 @@ impl ApiConfig {
             .parse()
             .map_err(|e| format!("Invalid JUDGE_HEALTH_CHECK_INTERVAL_SECS: {e}"))?;
 
-        let judge_selection_strategy = env::var("JUDGE_SELECTION_STRATEGY")
-            .unwrap_or_else(|_| "lowest_latency".to_string());
+        let judge_selection_strategy =
+            env::var("JUDGE_SELECTION_STRATEGY").unwrap_or_else(|_| "lowest_latency".to_string());
 
         let additional_judges = env::var("ADDITIONAL_JUDGES").ok();
 
@@ -124,11 +123,13 @@ impl ApiConfig {
             .parse()
             .map_err(|e| format!("Invalid GEOIP_UPDATE_INTERVAL_SECS: {e}"))?;
 
-        let geoip_country_url = env::var("GEOIP_COUNTRY_URL")
-            .unwrap_or_else(|_| "https://cdn.jsdelivr.net/npm/geolite2-country/GeoLite2-Country.mmdb.gz".to_string());
+        let geoip_country_url = env::var("GEOIP_COUNTRY_URL").unwrap_or_else(|_| {
+            "https://cdn.jsdelivr.net/npm/geolite2-country/GeoLite2-Country.mmdb.gz".to_string()
+        });
 
-        let geoip_asn_url = env::var("GEOIP_ASN_URL")
-            .unwrap_or_else(|_| "https://cdn.jsdelivr.net/npm/geolite2-asn/GeoLite2-ASN.mmdb.gz".to_string());
+        let geoip_asn_url = env::var("GEOIP_ASN_URL").unwrap_or_else(|_| {
+            "https://cdn.jsdelivr.net/npm/geolite2-asn/GeoLite2-ASN.mmdb.gz".to_string()
+        });
 
         let scheduler_batch_size: usize = env::var("SCHEDULER_BATCH_SIZE")
             .unwrap_or_else(|_| "10000".to_string())
@@ -280,11 +281,19 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let temp_dir = std::env::temp_dir().join(format!("hydra_test_dirs_{}_{}", std::process::id(), unique_id));
+        let temp_dir = std::env::temp_dir().join(format!(
+            "hydra_test_dirs_{}_{}",
+            std::process::id(),
+            unique_id
+        ));
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
 
-        let config = dummy_config("./data/hydra.db", Some("./geo/GeoLite2-Country.mmdb"), Some("./geo/GeoLite2-ASN.mmdb"));
+        let config = dummy_config(
+            "./data/hydra.db",
+            Some("./geo/GeoLite2-Country.mmdb"),
+            Some("./geo/GeoLite2-ASN.mmdb"),
+        );
 
         let data_dir = temp_dir.join("data");
         let geo_dir = temp_dir.join("geo");
@@ -308,11 +317,19 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let temp_dir = std::env::temp_dir().join(format!("hydra_test_custom_dirs_{}_{}", std::process::id(), unique_id));
+        let temp_dir = std::env::temp_dir().join(format!(
+            "hydra_test_custom_dirs_{}_{}",
+            std::process::id(),
+            unique_id
+        ));
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
 
-        let config = dummy_config("custom_storage/sqlite/db.sqlite", Some("custom_geo/dbs/country.mmdb"), None);
+        let config = dummy_config(
+            "custom_storage/sqlite/db.sqlite",
+            Some("custom_geo/dbs/country.mmdb"),
+            None,
+        );
 
         let data_dir = temp_dir.join("data");
         let geo_dir = temp_dir.join("geo");
@@ -335,7 +352,11 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let temp_dir = std::env::temp_dir().join(format!("hydra_test_mem_dirs_{}_{}", std::process::id(), unique_id));
+        let temp_dir = std::env::temp_dir().join(format!(
+            "hydra_test_mem_dirs_{}_{}",
+            std::process::id(),
+            unique_id
+        ));
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
 

@@ -1,17 +1,33 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use utoipa::{IntoParams, ToSchema};
 
 use super::db::ProxyState;
 
-fn default_connect_timeout() -> u32 { 3000 }
-fn default_handshake_timeout() -> u32 { 4000 }
-fn default_rw_timeout() -> u32 { 5000 }
-fn default_recheck_alive() -> u32 { 60 }
-fn default_recheck_dead() -> u32 { 1800 }
-fn default_max_strikes() -> u32 { 3 }
-fn default_stability_window_min() -> u32 { 5 }
-fn default_dead_backoff_mult() -> f32 { 1.5 }
+fn default_connect_timeout() -> u32 {
+    3000
+}
+fn default_handshake_timeout() -> u32 {
+    4000
+}
+fn default_rw_timeout() -> u32 {
+    5000
+}
+fn default_recheck_alive() -> u32 {
+    60
+}
+fn default_recheck_dead() -> u32 {
+    1800
+}
+fn default_max_strikes() -> u32 {
+    3
+}
+fn default_stability_window_min() -> u32 {
+    5
+}
+fn default_dead_backoff_mult() -> f32 {
+    1.5
+}
 
 /// Timeout policy and verification schedule for proxy servers
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
@@ -57,12 +73,24 @@ pub struct CheckPolicyDto {
     pub max_dead_strikes: u32,
 
     /// Time window for calculating stability percentage (in minutes, default: 5)
-    #[serde(default = "default_stability_window_min", alias = "stability_window", alias = "window_min", alias = "window_minutes")]
+    #[serde(
+        default = "default_stability_window_min",
+        alias = "stability_window",
+        alias = "window_min",
+        alias = "window_minutes"
+    )]
     #[schema(example = 5, minimum = 1, maximum = 1440, default = 5)]
     pub stability_window_min: u32,
 
     /// Exponential backoff multiplier for rechecking failed proxies in quarantine (cooldown)
-    #[serde(default = "default_dead_backoff_mult", alias = "backoff_multiplier", alias = "recheck_dead_multiplier", alias = "dead_multiplier", alias = "recheck_dead_mult", alias = "multiplier")]
+    #[serde(
+        default = "default_dead_backoff_mult",
+        alias = "backoff_multiplier",
+        alias = "recheck_dead_multiplier",
+        alias = "dead_multiplier",
+        alias = "recheck_dead_mult",
+        alias = "multiplier"
+    )]
     #[schema(example = 1.5, minimum = 1.0, maximum = 10.0, default = 1.5)]
     pub dead_backoff_mult: f32,
 }
@@ -187,7 +215,10 @@ pub struct ImportBatchRequest {
     pub source: String,
 
     /// URL of external feed or source API (if applicable)
-    #[schema(example = "https://provider.example.com/api/feed.txt", max_length = 2048)]
+    #[schema(
+        example = "https://provider.example.com/api/feed.txt",
+        max_length = 2048
+    )]
     pub source_url: Option<String>,
 
     /// User note or comment for the source
@@ -298,7 +329,11 @@ pub struct ReportFailRequest {
     pub ids: Option<Vec<String>>,
 
     /// Reason or error message recorded by client
-    #[schema(example = "Connection reset by peer during target handshake", min_length = 1, max_length = 1024)]
+    #[schema(
+        example = "Connection reset by peer during target handshake",
+        min_length = 1,
+        max_length = 1024
+    )]
     pub reason: String,
 }
 
@@ -443,7 +478,11 @@ pub struct ImportBatchResponse {
 }))]
 pub struct ProxyShortItem {
     /// Full unique proxy identifier (`ip:port` or `ip:port:login:pwd`)
-    #[schema(example = "185.220.101.5:1080:user:secret123", min_length = 3, max_length = 256)]
+    #[schema(
+        example = "185.220.101.5:1080:user:secret123",
+        min_length = 3,
+        max_length = 256
+    )]
     pub id: String,
 
     /// Proxy host IP address
@@ -455,7 +494,11 @@ pub struct ProxyShortItem {
     pub port: u16,
 
     /// Formatted connection URL (includes credentials when present)
-    #[schema(example = "socks5://user:secret123@185.220.101.5:1080", min_length = 7, max_length = 512)]
+    #[schema(
+        example = "socks5://user:secret123@185.220.101.5:1080",
+        min_length = 7,
+        max_length = 512
+    )]
     pub url: String,
 
     /// Detected network protocol (socks5, socks4, http) or null if pending in cold_queue
@@ -609,7 +652,11 @@ pub struct ProxyShortItem {
 }))]
 pub struct ProxyFullDetails {
     /// Full unique identifier in `ip:port` or `ip:port:login:pwd` format
-    #[schema(example = "185.220.101.5:1080:user:secret123", min_length = 3, max_length = 256)]
+    #[schema(
+        example = "185.220.101.5:1080:user:secret123",
+        min_length = 3,
+        max_length = 256
+    )]
     pub id: String,
 
     /// Inbound host IP address
@@ -621,7 +668,11 @@ pub struct ProxyFullDetails {
     pub port: u16,
 
     /// Formatted connection URL
-    #[schema(example = "socks5://user:secret123@185.220.101.5:1080", min_length = 7, max_length = 512)]
+    #[schema(
+        example = "socks5://user:secret123@185.220.101.5:1080",
+        min_length = 7,
+        max_length = 512
+    )]
     pub url: String,
 
     /// Whether credentials (username/password) are present
@@ -819,7 +870,10 @@ pub struct SourceStatsItem {
     pub name: String,
 
     /// Source feed/API URL (if configured)
-    #[schema(example = "https://provider.example.com/api/feed.txt", max_length = 2048)]
+    #[schema(
+        example = "https://provider.example.com/api/feed.txt",
+        max_length = 2048
+    )]
     pub url: Option<String>,
 
     /// Source note/remark
@@ -1207,4 +1261,3 @@ pub struct JudgeHealthCheckResponse {
     /// Detailed status list for all judge servers
     pub judges: Vec<JudgeReportDto>,
 }
-

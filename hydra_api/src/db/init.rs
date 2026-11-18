@@ -1,7 +1,7 @@
+use libsql::{Builder, Connection, Database};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
-use libsql::{Builder, Connection, Database};
 
 static DB_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -38,9 +38,10 @@ pub async fn init_db(db_path: &str) -> Result<Database, libsql::Error> {
     };
 
     if let Some(parent) = Path::new(&resolved_path).parent()
-        && !parent.as_os_str().is_empty() {
-            let _ = std::fs::create_dir_all(parent);
-        }
+        && !parent.as_os_str().is_empty()
+    {
+        let _ = std::fs::create_dir_all(parent);
+    }
 
     let db = Builder::new_local(&resolved_path).build().await?;
     run_migrations(&db).await?;
@@ -52,7 +53,8 @@ pub async fn run_migrations(db: &Database) -> Result<(), libsql::Error> {
     configure_conn(&conn).await?;
 
     // auto_vacuum MUST be set before tables are created and before WAL mode transition
-    conn.execute("PRAGMA auto_vacuum = INCREMENTAL;", ()).await?;
+    conn.execute("PRAGMA auto_vacuum = INCREMENTAL;", ())
+        .await?;
     let _ = conn.query("PRAGMA journal_mode = WAL;", ()).await;
 
     // Safe incremental migration for existing databases created with older schema:

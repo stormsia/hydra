@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_rustls::TlsAcceptor;
-use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use tokio_rustls::rustls::ServerConfig;
+use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use url::Url;
 
 use hydra_checker::{
@@ -92,11 +92,18 @@ async fn test_socks5_tls_tunnel_end_to_end() {
     let target = CheckTarget::new("8.8.8.8", 1080).with_protocol(ProxyProtocol::Socks5);
     let result = engine.check_single(target).await;
 
-    assert!(result.is_alive, "Expected alive result: {:?}", result.error_reason);
+    assert!(
+        result.is_alive,
+        "Expected alive result: {:?}",
+        result.error_reason
+    );
     assert_eq!(result.detected_protocol, Some(ProxyProtocol::Socks5));
     assert!(result.supports_https);
     assert_eq!(result.external_ip, Some("185.220.101.5".parse().unwrap()));
-    assert_eq!(result.anonymity_level, Some(hydra_checker::AnonymityLevel::Elite));
+    assert_eq!(
+        result.anonymity_level,
+        Some(hydra_checker::AnonymityLevel::Elite)
+    );
     assert_eq!(result.error_reason, None);
 }
 
@@ -140,7 +147,9 @@ async fn test_socks5_mitm_untrusted_cert_rejected() {
 
             let mut conn_buf = [0u8; 64];
             let _ = server.read(&mut conn_buf).await;
-            let _ = server.write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await;
+            let _ = server
+                .write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                .await;
             let _ = server.flush().await;
 
             // Attempt TLS accept with untrusted certificate

@@ -1,9 +1,7 @@
 use std::sync::Arc;
 use url::Url;
 
-use hydra_checker::judge::{
-    JudgeEndpoint, JudgeHealthStatus, JudgePool, JudgeSelectionStrategy,
-};
+use hydra_checker::judge::{JudgeEndpoint, JudgeHealthStatus, JudgePool, JudgeSelectionStrategy};
 
 #[test]
 fn test_judge_pool_priority_selection_and_failover() {

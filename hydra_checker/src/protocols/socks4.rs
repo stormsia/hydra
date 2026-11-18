@@ -14,9 +14,7 @@ pub async fn handshake_socks4<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let userid = auth
-        .map(|a| a.username.as_bytes())
-        .unwrap_or(b"hydra");
+    let userid = auth.map(|a| a.username.as_bytes()).unwrap_or(b"hydra");
 
     // Zero-allocation stack buffer for SOCKS4/SOCKS4a handshake request
     let mut stack_buf = [0u8; 128];
@@ -78,15 +76,18 @@ where
     send_and_read_socks4_reply(stream, packet_bytes).await
 }
 
-async fn send_and_read_socks4_reply<S>(
-    stream: &mut S,
-    packet: &[u8],
-) -> Result<(), ErrorReason>
+async fn send_and_read_socks4_reply<S>(stream: &mut S, packet: &[u8]) -> Result<(), ErrorReason>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    stream.write_all(packet).await.map_err(|_| ErrorReason::HandshakeFailed)?;
-    stream.flush().await.map_err(|_| ErrorReason::HandshakeFailed)?;
+    stream
+        .write_all(packet)
+        .await
+        .map_err(|_| ErrorReason::HandshakeFailed)?;
+    stream
+        .flush()
+        .await
+        .map_err(|_| ErrorReason::HandshakeFailed)?;
 
     // SOCKS4 reply is exactly 8 bytes:
     // [VN (0 or 4), CD (result code), DSTPORT (2 bytes), DSTIP (4 bytes)]

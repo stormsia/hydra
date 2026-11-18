@@ -9,9 +9,8 @@ use crate::models::TargetHost;
 use crate::net_filter::validate_target_ip;
 use crate::transport::Dialer;
 
-pub type MockHandler = Box<
-    dyn Fn(&TargetHost, u16, usize) -> Result<DuplexStream, ErrorReason> + Send + Sync,
->;
+pub type MockHandler =
+    Box<dyn Fn(&TargetHost, u16, usize) -> Result<DuplexStream, ErrorReason> + Send + Sync>;
 
 /// In-memory mock dialer for fully deterministic, offline testing of pipelines,
 /// protocol handshakes, timeouts, and error handling.
@@ -25,9 +24,9 @@ impl MockDialer {
     /// Create a mock dialer with a custom routing handler
     pub fn new(
         handler: impl Fn(&TargetHost, u16, usize) -> Result<DuplexStream, ErrorReason>
-            + Send
-            + Sync
-            + 'static,
+        + Send
+        + Sync
+        + 'static,
     ) -> Self {
         Self {
             attempts: Arc::new(Mutex::new(HashMap::new())),

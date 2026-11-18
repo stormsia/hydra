@@ -1,8 +1,8 @@
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use libsql::Database;
-use tokio::sync::mpsc;
 use hydra_checker::CheckerEngine;
+use libsql::Database;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use tokio::sync::mpsc;
 
 use crate::config::ApiConfig;
 use crate::services::batch_writer::CheckResultWithMeta;
@@ -34,7 +34,8 @@ impl SchedulerStats {
     }
 
     pub fn set_checks_per_sec(&self, cps: f32) {
-        self.checks_per_sec_x100.store((cps * 100.0) as u32, Ordering::Relaxed);
+        self.checks_per_sec_x100
+            .store((cps * 100.0) as u32, Ordering::Relaxed);
     }
 }
 

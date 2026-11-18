@@ -3,16 +3,16 @@ use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use hydra_checker::{CheckerConfig, CheckerEngine};
 use hydra_api::app_state::{AppState, SchedulerStats};
 use hydra_api::config::ApiConfig;
 use hydra_api::db::init_db;
 use hydra_api::models::{
     CheckPolicyDto, GlobalStatsResponse, ImportBatchRequest, ImportBatchResponse,
-    PatchProxyRequest, ProxyFullDetails, ProxyInputItem, ProxyInputObject,
-    ProxyShortItem, ReportFailRequest, SourceStatsItem,
+    PatchProxyRequest, ProxyFullDetails, ProxyInputItem, ProxyInputObject, ProxyShortItem,
+    ReportFailRequest, SourceStatsItem,
 };
 use hydra_api::router::build_router;
+use hydra_checker::{CheckerConfig, CheckerEngine};
 
 async fn spawn_test_server() -> (String, String) {
     let api_key = "test_secret_key_12345".to_string();
@@ -118,7 +118,10 @@ async fn test_full_api_workflow() {
                                 "Found unexpected unmapped tag: {tag_str}"
                             );
                             assert!(
-                                tag_str == "Proxies" || tag_str == "Sources" || tag_str == "Stats" || tag_str == "Judges",
+                                tag_str == "Proxies"
+                                    || tag_str == "Sources"
+                                    || tag_str == "Stats"
+                                    || tag_str == "Judges",
                                 "Tag '{tag_str}' is not one of expected groups"
                             );
                         }
@@ -198,7 +201,10 @@ async fn test_full_api_workflow() {
     let list_data: Vec<ProxyShortItem> = list_res.json().await.unwrap();
     assert_eq!(list_data.len(), 3);
 
-    let auth_item = list_data.iter().find(|p| p.id == "185.22.14.12:3128:user:pass").unwrap();
+    let auth_item = list_data
+        .iter()
+        .find(|p| p.id == "185.22.14.12:3128:user:pass")
+        .unwrap();
     assert!(auth_item.has_auth);
     assert_eq!(auth_item.auth_user, Some("user".to_string()));
     assert_eq!(auth_item.auth_pass, Some("pass".to_string()));
@@ -215,7 +221,10 @@ async fn test_full_api_workflow() {
     assert!(auth_item.first_seen_at > 0);
     assert!(auth_item.next_check_at > 0);
 
-    let non_auth = list_data.iter().find(|p| p.id == "185.22.14.10:8080").unwrap();
+    let non_auth = list_data
+        .iter()
+        .find(|p| p.id == "185.22.14.10:8080")
+        .unwrap();
     assert!(!non_auth.has_auth);
     assert_eq!(non_auth.auth_user, None);
     assert_eq!(non_auth.auth_pass, None);
@@ -227,7 +236,9 @@ async fn test_full_api_workflow() {
 
     // 7. Get details by ID
     let details_res = client
-        .get(format!("{base_url}/api/v1/proxies/185.22.14.12:3128:user:pass"))
+        .get(format!(
+            "{base_url}/api/v1/proxies/185.22.14.12:3128:user:pass"
+        ))
         .header("X-API-Key", &api_key)
         .send()
         .await
@@ -258,7 +269,9 @@ async fn test_full_api_workflow() {
         force_recheck: Some(true),
     };
     let patch_res = client
-        .patch(format!("{base_url}/api/v1/proxies/185.22.14.12:3128:user:pass"))
+        .patch(format!(
+            "{base_url}/api/v1/proxies/185.22.14.12:3128:user:pass"
+        ))
         .header("X-API-Key", &api_key)
         .json(&patch_req)
         .send()
@@ -267,7 +280,9 @@ async fn test_full_api_workflow() {
     assert_eq!(patch_res.status(), 200);
 
     let details_after_patch: ProxyFullDetails = client
-        .get(format!("{base_url}/api/v1/proxies/185.22.14.12:3128:user:pass"))
+        .get(format!(
+            "{base_url}/api/v1/proxies/185.22.14.12:3128:user:pass"
+        ))
         .header("X-API-Key", &api_key)
         .send()
         .await
@@ -275,7 +290,10 @@ async fn test_full_api_workflow() {
         .json()
         .await
         .unwrap();
-    assert_eq!(details_after_patch.meta.remark, Some("Custom customer note".to_string()));
+    assert_eq!(
+        details_after_patch.meta.remark,
+        Some("Custom customer note".to_string())
+    );
 
     // 8b. Report fail on non-alive -> 404
     let report_fail_req = ReportFailRequest {
@@ -394,7 +412,10 @@ async fn test_special_chars_encoded_url_and_batch_report_fail() {
     // 2. Batch report fail with multiple non-alive -> 404
     let batch_fail = ReportFailRequest {
         id: None,
-        ids: Some(vec!["185.22.14.10:8080".to_string(), "185.22.14.11:8080".to_string()]),
+        ids: Some(vec![
+            "185.22.14.10:8080".to_string(),
+            "185.22.14.11:8080".to_string(),
+        ]),
         reason: "gateway_timeout".to_string(),
     };
     let batch_fail_res = client
@@ -414,16 +435,14 @@ async fn test_special_chars_encoded_url_and_batch_report_fail() {
         revive_dead: false,
         ignore_protocol: false,
         policy: CheckPolicyDto::default(),
-        proxies: vec![
-            ProxyInputItem::Object(ProxyInputObject {
-                ip: "185.22.14.20".to_string(),
-                port: 8080,
-                protocol: Some("socks5".to_string()),
-                auth_user: Some("my_user".to_string()),
-                auth_pass: Some("p@ss#word".to_string()),
-                ignore_protocol: Some(false),
-            }),
-        ],
+        proxies: vec![ProxyInputItem::Object(ProxyInputObject {
+            ip: "185.22.14.20".to_string(),
+            port: 8080,
+            protocol: Some("socks5".to_string()),
+            auth_user: Some("my_user".to_string()),
+            auth_pass: Some("p@ss#word".to_string()),
+            ignore_protocol: Some(false),
+        })],
     };
     let imp_res = client
         .post(format!("{base_url}/api/v1/proxies/import"))
@@ -435,7 +454,8 @@ async fn test_special_chars_encoded_url_and_batch_report_fail() {
     assert_eq!(imp_res.status(), 200);
 
     // 4. Request with URL-encoded characters: '@' -> %40, '#' -> %23, ':' -> %3A
-    let encoded_url = format!("{base_url}/api/v1/proxies/185.22.14.20%3A8080%3Amy_user%3Ap%40ss%23word");
+    let encoded_url =
+        format!("{base_url}/api/v1/proxies/185.22.14.20%3A8080%3Amy_user%3Ap%40ss%23word");
     let get_special_res = client
         .get(&encoded_url)
         .header("X-API-Key", &api_key)
@@ -502,7 +522,9 @@ async fn test_import_with_stability_policy_and_api_responses() {
 
     // 2. Query list by source and cold_queue state
     let list_res = client
-        .get(format!("{base_url}/api/v1/proxies?source=fast_recheck_pool&state=cold_queue"))
+        .get(format!(
+            "{base_url}/api/v1/proxies?source=fast_recheck_pool&state=cold_queue"
+        ))
         .header("X-API-Key", &api_key)
         .send()
         .await

@@ -1,6 +1,6 @@
+use axum::Router;
 use axum::middleware;
 use axum::routing::{delete, get, patch, post};
-use axum::Router;
 use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 use utoipa_swagger_ui::SwaggerUi;
@@ -101,17 +101,26 @@ pub fn build_router(state: AppState) -> Router {
         // Proxies
         .route("/api/v1/proxies/import", post(handlers::proxies::import))
         .route("/api/v1/proxies", get(handlers::proxies::list))
-        .route("/api/v1/proxies/report-fail", post(handlers::proxies::report_fail))
+        .route(
+            "/api/v1/proxies/report-fail",
+            post(handlers::proxies::report_fail),
+        )
         .route("/api/v1/proxies/{id}", get(handlers::proxies::get_by_id))
         .route("/api/v1/proxies/{id}", patch(handlers::proxies::patch))
         .route("/api/v1/proxies/{id}", delete(handlers::proxies::delete))
         // Sources
         .route("/api/v1/sources", get(handlers::sources::list))
-        .route("/api/v1/sources/{name}", get(handlers::sources::get_by_name))
+        .route(
+            "/api/v1/sources/{name}",
+            get(handlers::sources::get_by_name),
+        )
         .route("/api/v1/sources/{name}", delete(handlers::sources::delete))
         // Judges
         .route("/api/v1/judges", get(handlers::judges::list))
-        .route("/api/v1/judges/health-check", post(handlers::judges::trigger_health_check))
+        .route(
+            "/api/v1/judges/health-check",
+            post(handlers::judges::trigger_health_check),
+        )
         // System
         .route("/api/v1/stats", get(handlers::stats::global_stats))
         .route("/api/v1/stats/engine", get(handlers::stats::engine_stats))
@@ -121,8 +130,7 @@ pub fn build_router(state: AppState) -> Router {
             require_api_key,
         ));
 
-    let swagger = SwaggerUi::new("/swagger-ui")
-        .url("/api-docs/openapi.json", ApiDoc::openapi());
+    let swagger = SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi());
 
     Router::new()
         .merge(api_routes)

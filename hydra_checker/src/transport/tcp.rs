@@ -41,13 +41,11 @@ impl Dialer for TcpDialer {
             TargetHost::Domain(domain) => {
                 // Resolve hostname with timeout
                 let host_port = format!("{domain}:{port}");
-                let mut resolved = tokio::time::timeout(
-                    timeout,
-                    tokio::net::lookup_host(host_port),
-                )
-                .await
-                .map_err(|_| ErrorReason::TimeoutTcp)?
-                .map_err(|e| map_io_error(&e))?;
+                let mut resolved =
+                    tokio::time::timeout(timeout, tokio::net::lookup_host(host_port))
+                        .await
+                        .map_err(|_| ErrorReason::TimeoutTcp)?
+                        .map_err(|e| map_io_error(&e))?;
 
                 let first_addr = resolved.next().ok_or(ErrorReason::NetworkUnreachable)?;
 
@@ -63,8 +61,8 @@ impl Dialer for TcpDialer {
             SocketAddr::V6(_) => Domain::IPV6,
         };
 
-        let socket = Socket::new(domain, Type::STREAM, Some(Protocol::TCP))
-            .map_err(|e| map_io_error(&e))?;
+        let socket =
+            Socket::new(domain, Type::STREAM, Some(Protocol::TCP)).map_err(|e| map_io_error(&e))?;
 
         socket.set_nonblocking(true).map_err(|e| map_io_error(&e))?;
 

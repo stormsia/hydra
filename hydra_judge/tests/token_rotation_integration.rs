@@ -4,9 +4,7 @@ use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
-use hydra_checker::{
-    CheckTarget, CheckerConfig, CheckerEngine, MockDialer, ProxyProtocol,
-};
+use hydra_checker::{CheckTarget, CheckerConfig, CheckerEngine, MockDialer, ProxyProtocol};
 use hydra_judge::token::{current_epoch_day, derive_token};
 use hydra_judge::{JudgeConfig, JudgeServer};
 
@@ -39,8 +37,16 @@ async fn test_synchronized_daily_token_rotation() {
     assert_eq!(server.config().active_token(), expected_today);
 
     // 2. Configure hydra_checker using the SAME shared_secret and {TOKEN} template
-    let http_url = Url::parse(&format!("http://127.0.0.1:{}/judge?token={{TOKEN}}", judge_addr.port())).unwrap();
-    let https_url = Url::parse(&format!("https://127.0.0.1:{}/judge?token={{TOKEN}}", judge_addr.port())).unwrap();
+    let http_url = Url::parse(&format!(
+        "http://127.0.0.1:{}/judge?token={{TOKEN}}",
+        judge_addr.port()
+    ))
+    .unwrap();
+    let https_url = Url::parse(&format!(
+        "https://127.0.0.1:{}/judge?token={{TOKEN}}",
+        judge_addr.port()
+    ))
+    .unwrap();
 
     let checker_cfg = CheckerConfig::builder(http_url, https_url, "fallback_expected")
         .judge_secret_key(shared_secret)
@@ -67,7 +73,10 @@ async fn test_synchronized_daily_token_rotation() {
 
             let mut judge_buf = [0u8; 2048];
             let resp_len = judge_stream.read(&mut judge_buf).await.unwrap();
-            proxy_server.write_all(&judge_buf[..resp_len]).await.unwrap();
+            proxy_server
+                .write_all(&judge_buf[..resp_len])
+                .await
+                .unwrap();
             proxy_server.flush().await.unwrap();
         });
 
@@ -80,7 +89,11 @@ async fn test_synchronized_daily_token_rotation() {
     let result = engine.check_single(target).await;
 
     // Must be alive and successfully validated
-    assert!(result.is_alive, "Expected alive result: {:?}", result.error_reason);
+    assert!(
+        result.is_alive,
+        "Expected alive result: {:?}",
+        result.error_reason
+    );
     assert_eq!(result.detected_protocol, Some(ProxyProtocol::Http));
     assert_eq!(result.external_ip, Some("127.0.0.1".parse().unwrap()));
     assert_eq!(result.error_reason, None);
@@ -94,7 +107,10 @@ async fn test_synchronized_daily_token_rotation() {
     let mut buf = [0u8; 1024];
     let n = stream_yesterday.read(&mut buf).await.unwrap();
     let resp = String::from_utf8_lossy(&buf[..n]);
-    assert!(resp.starts_with("HTTP/1.1 200 OK"), "Yesterday's token must be accepted during grace window");
+    assert!(
+        resp.starts_with("HTTP/1.1 200 OK"),
+        "Yesterday's token must be accepted during grace window"
+    );
 
     // 5. Test expired / bogus token -> must be dropped via TCP RST
     let mut stream_bad = TcpStream::connect(judge_addr).await.unwrap();
@@ -106,7 +122,10 @@ async fn test_synchronized_daily_token_rotation() {
     match bad_res {
         Ok(0) => {}
         Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {}
-        other => panic!("Expected connection reset or EOF for bogus token, got: {:?}", other),
+        other => panic!(
+            "Expected connection reset or EOF for bogus token, got: {:?}",
+            other
+        ),
     }
 
     cancel.cancel();

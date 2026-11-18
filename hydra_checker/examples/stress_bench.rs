@@ -1,13 +1,11 @@
 use futures::stream::{self, StreamExt};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use url::Url;
 
-use hydra_checker::{
-    CheckTarget, CheckerConfig, CheckerEngine, MockDialer, ProxyProtocol,
-};
+use hydra_checker::{CheckTarget, CheckerConfig, CheckerEngine, MockDialer, ProxyProtocol};
 
 #[tokio::main]
 async fn main() {
@@ -59,7 +57,9 @@ async fn main() {
         })
         .collect::<Vec<_>>();
 
-    println!("Starting validation of {total_targets} proxies with concurrency={concurrency_limit}...");
+    println!(
+        "Starting validation of {total_targets} proxies with concurrency={concurrency_limit}..."
+    );
     let start = Instant::now();
 
     let target_stream = stream::iter(targets);

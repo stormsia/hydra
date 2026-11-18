@@ -1,6 +1,6 @@
+use libsql::Database;
 use std::sync::Arc;
 use std::time::Duration;
-use libsql::Database;
 use tokio_util::sync::CancellationToken;
 
 use crate::db::run_db_maintenance;

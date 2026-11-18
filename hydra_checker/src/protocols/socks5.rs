@@ -28,7 +28,10 @@ where
             .await
             .map_err(|_| ErrorReason::HandshakeFailed)?;
     }
-    stream.flush().await.map_err(|_| ErrorReason::HandshakeFailed)?;
+    stream
+        .flush()
+        .await
+        .map_err(|_| ErrorReason::HandshakeFailed)?;
 
     // Step 2: Read method selection
     let mut method_resp = [0u8; 2];
@@ -62,8 +65,14 @@ where
             req.push(p_bytes.len() as u8);
             req.extend_from_slice(p_bytes);
 
-            stream.write_all(&req).await.map_err(|_| ErrorReason::HandshakeFailed)?;
-            stream.flush().await.map_err(|_| ErrorReason::HandshakeFailed)?;
+            stream
+                .write_all(&req)
+                .await
+                .map_err(|_| ErrorReason::HandshakeFailed)?;
+            stream
+                .flush()
+                .await
+                .map_err(|_| ErrorReason::HandshakeFailed)?;
 
             let mut auth_resp = [0u8; 2];
             stream
@@ -118,7 +127,10 @@ where
         .write_all(&connect_req[..len])
         .await
         .map_err(|_| ErrorReason::HandshakeFailed)?;
-    stream.flush().await.map_err(|_| ErrorReason::HandshakeFailed)?;
+    stream
+        .flush()
+        .await
+        .map_err(|_| ErrorReason::HandshakeFailed)?;
 
     // Step 4: Read CONNECT response header
     let mut header = [0u8; 4];

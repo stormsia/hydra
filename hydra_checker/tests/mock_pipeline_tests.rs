@@ -74,7 +74,10 @@ async fn test_anti_tarpit_fast_fail() {
     assert!(!result.is_alive);
     assert_eq!(result.error_reason, Some(ErrorReason::TimeoutHandshake));
     // Verify anti-tarpit did NOT attempt reconnecting for SOCKS4 or HTTP CONNECT!
-    assert_eq!(dialer_clone.attempt_count(&TargetHost::parse("8.8.8.8"), 1080), 1);
+    assert_eq!(
+        dialer_clone.attempt_count(&TargetHost::parse("8.8.8.8"), 1080),
+        1
+    );
 }
 
 #[tokio::test]
@@ -113,7 +116,10 @@ async fn test_plain_http_proxy_success() {
     assert!(result.is_alive);
     assert_eq!(result.detected_protocol, Some(ProxyProtocol::Http));
     assert_eq!(result.external_ip, Some("185.220.101.5".parse().unwrap()));
-    assert_eq!(result.anonymity_level, Some(hydra_checker::AnonymityLevel::Elite));
+    assert_eq!(
+        result.anonymity_level,
+        Some(hydra_checker::AnonymityLevel::Elite)
+    );
     assert!(!result.supports_https);
     assert_eq!(result.error_reason, None);
 }
@@ -202,13 +208,19 @@ async fn test_auto_detect_cascade_fallback_to_plain() {
                     // Attempt 1: SOCKS4 request -> reject
                     let mut buf = [0u8; 32];
                     let _ = server.read(&mut buf).await;
-                    server.write_all(&[0x00, 91, 0, 0, 0, 0, 0, 0]).await.unwrap();
+                    server
+                        .write_all(&[0x00, 91, 0, 0, 0, 0, 0, 0])
+                        .await
+                        .unwrap();
                 }
                 2 => {
                     // Attempt 2: HTTP CONNECT -> 403 Forbidden
                     let mut buf = [0u8; 256];
                     let _ = server.read(&mut buf).await;
-                    server.write_all(b"HTTP/1.1 403 Forbidden\r\n\r\n").await.unwrap();
+                    server
+                        .write_all(b"HTTP/1.1 403 Forbidden\r\n\r\n")
+                        .await
+                        .unwrap();
                 }
                 3 => {
                     // Attempt 3: Plain HTTP -> 200 OK with Judge body!
@@ -240,12 +252,19 @@ async fn test_auto_detect_cascade_fallback_to_plain() {
     assert!(!result.supports_https);
     assert_eq!(result.external_ip, Some("185.220.101.5".parse().unwrap()));
     // Assert exactly 4 attempts were made (SOCKS5 -> SOCKS4 -> CONNECT -> Plain)
-    assert_eq!(dialer_clone.attempt_count(&TargetHost::parse("8.8.8.8"), 8080), 4);
+    assert_eq!(
+        dialer_clone.attempt_count(&TargetHost::parse("8.8.8.8"), 8080),
+        4
+    );
 }
 
 #[tokio::test]
 async fn test_streaming_and_cancellation() {
-    let config = test_config_builder().concurrency_limit(5).build().await.unwrap();
+    let config = test_config_builder()
+        .concurrency_limit(5)
+        .build()
+        .await
+        .unwrap();
 
     let held_servers = Arc::new(Mutex::new(Vec::new()));
     let held_clone = held_servers.clone();
@@ -271,9 +290,7 @@ async fn test_streaming_and_cancellation() {
         cancel_token_clone.cancel();
     });
 
-    let results = engine
-        .check_batch_with_cancel(targets, cancel_token)
-        .await;
+    let results = engine.check_batch_with_cancel(targets, cancel_token).await;
 
     assert_eq!(results.len(), 20);
     let cancelled_count = results
@@ -281,7 +298,10 @@ async fn test_streaming_and_cancellation() {
         .filter(|r| r.error_reason == Some(ErrorReason::Cancelled))
         .count();
 
-    assert!(cancelled_count > 0, "Expected cancelled tasks, found {cancelled_count}");
+    assert!(
+        cancelled_count > 0,
+        "Expected cancelled tasks, found {cancelled_count}"
+    );
 }
 
 #[tokio::test]
@@ -320,7 +340,10 @@ async fn test_fallback_judge_saves_proxy() {
     let target = CheckTarget::new("8.8.8.8", 8080).with_protocol(ProxyProtocol::Http);
     let result = engine.check_single(target).await;
 
-    assert!(result.is_alive, "Expected proxy to be rescued by fallback judge!");
+    assert!(
+        result.is_alive,
+        "Expected proxy to be rescued by fallback judge!"
+    );
     assert_eq!(result.detected_protocol, Some(ProxyProtocol::Http));
     assert_eq!(result.external_ip, Some("185.220.101.5".parse().unwrap()));
     assert_eq!(result.error_reason, None);

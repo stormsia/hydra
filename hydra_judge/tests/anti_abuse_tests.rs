@@ -35,7 +35,7 @@ async fn test_unauthorized_scanner_dropped_with_rst() {
     // Scanner must receive 0 bytes / connection reset
     let read_res = stream.read(&mut buf).await;
     match read_res {
-        Ok(0) => {} // Clean drop
+        Ok(0) => {}                                                     // Clean drop
         Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {} // TCP RST
         other => panic!("Expected connection reset or EOF, got: {:?}", other),
     }
@@ -123,7 +123,9 @@ async fn test_token_in_path_and_header() {
     // 2. Token in X-Hydra-Token header
     let mut stream2 = TcpStream::connect(actual_addr).await.unwrap();
     stream2
-        .write_all(b"GET /judge HTTP/1.1\r\nHost: target\r\nX-Hydra-Token: SECRET_TOKEN_XYZ\r\n\r\n")
+        .write_all(
+            b"GET /judge HTTP/1.1\r\nHost: target\r\nX-Hydra-Token: SECRET_TOKEN_XYZ\r\n\r\n",
+        )
         .await
         .unwrap();
     let n = stream2.read(&mut buf).await.unwrap();
@@ -168,9 +170,12 @@ async fn test_concurrency_backpressure_rejection() {
     let mut buf = [0u8; 128];
     let res = stream2.read(&mut buf).await;
     match res {
-        Ok(0) => {} // Dropped (EOF)
+        Ok(0) => {}                                                     // Dropped (EOF)
         Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {} // TCP RST
-        other => panic!("Expected connection reset or EOF due to backpressure, got: {:?}", other),
+        other => panic!(
+            "Expected connection reset or EOF due to backpressure, got: {:?}",
+            other
+        ),
     }
 
     // Now complete Connection 1

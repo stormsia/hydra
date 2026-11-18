@@ -30,10 +30,7 @@ pub struct GeoIpResolver {
 
 impl GeoIpResolver {
     /// Tries to load MaxMind GeoLite2 databases. Returns None if neither path is configured.
-    pub fn try_load(
-        country_path: Option<&str>,
-        asn_path: Option<&str>,
-    ) -> Option<Arc<Self>> {
+    pub fn try_load(country_path: Option<&str>, asn_path: Option<&str>) -> Option<Arc<Self>> {
         if country_path.is_none() && asn_path.is_none() {
             return None;
         }

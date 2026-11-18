@@ -14,7 +14,7 @@ use crate::server::security::is_authorized;
 /// Concrete transport stream: Plain TCP or TLS-wrapped TCP
 pub enum ConnectionStream {
     Plain(TcpStream),
-    Tls(TlsStream<TcpStream>),
+    Tls(Box<TlsStream<TcpStream>>),
 }
 
 impl ConnectionStream {
@@ -41,7 +41,7 @@ impl AsyncRead for ConnectionStream {
     ) -> Poll<std::io::Result<()>> {
         match self.get_mut() {
             Self::Plain(s) => Pin::new(s).poll_read(cx, buf),
-            Self::Tls(s) => Pin::new(s).poll_read(cx, buf),
+            Self::Tls(s) => Pin::new(s.as_mut()).poll_read(cx, buf),
         }
     }
 }
@@ -54,21 +54,21 @@ impl AsyncWrite for ConnectionStream {
     ) -> Poll<std::io::Result<usize>> {
         match self.get_mut() {
             Self::Plain(s) => Pin::new(s).poll_write(cx, buf),
-            Self::Tls(s) => Pin::new(s).poll_write(cx, buf),
+            Self::Tls(s) => Pin::new(s.as_mut()).poll_write(cx, buf),
         }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.get_mut() {
             Self::Plain(s) => Pin::new(s).poll_flush(cx),
-            Self::Tls(s) => Pin::new(s).poll_flush(cx),
+            Self::Tls(s) => Pin::new(s.as_mut()).poll_flush(cx),
         }
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.get_mut() {
             Self::Plain(s) => Pin::new(s).poll_shutdown(cx),
-            Self::Tls(s) => Pin::new(s).poll_shutdown(cx),
+            Self::Tls(s) => Pin::new(s.as_mut()).poll_shutdown(cx),
         }
     }
 }
@@ -209,12 +209,8 @@ async fn process_request(
 
     // 6. Build reflected echo response body with today's active token
     let active_token = config.active_token();
-    let (body, content_type) = build_echo_response(
-        peer_ip,
-        &parsed_headers,
-        active_token.as_str(),
-        format,
-    );
+    let (body, content_type) =
+        build_echo_response(peer_ip, &parsed_headers, active_token.as_str(), format);
 
     let body_bytes = body.as_bytes();
     let resp_header = format!(

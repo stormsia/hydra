@@ -1,6 +1,6 @@
-use std::sync::atomic::Ordering;
-use axum::extract::State;
 use axum::Json;
+use axum::extract::State;
+use std::sync::atomic::Ordering;
 
 use crate::app_state::AppState;
 use crate::db::get_global_stats as db_get_global_stats;
@@ -31,8 +31,14 @@ pub async fn global_stats(
     let engine = EngineStatsDto {
         active_workers: state.scheduler_stats.active_workers.load(Ordering::Relaxed),
         checks_per_sec: state.scheduler_stats.get_checks_per_sec(),
-        checks_completed: state.scheduler_stats.checks_completed.load(Ordering::Relaxed),
-        batch_buffer_size: state.scheduler_stats.batch_buffer_size.load(Ordering::Relaxed),
+        checks_completed: state
+            .scheduler_stats
+            .checks_completed
+            .load(Ordering::Relaxed),
+        batch_buffer_size: state
+            .scheduler_stats
+            .batch_buffer_size
+            .load(Ordering::Relaxed),
         judge_healthy: state.scheduler_stats.judge_healthy.load(Ordering::Relaxed),
     };
 
@@ -62,14 +68,18 @@ pub async fn global_stats(
     ),
     security(("api_key" = []))
 )]
-pub async fn engine_stats(
-    State(state): State<AppState>,
-) -> Json<EngineStatsDto> {
+pub async fn engine_stats(State(state): State<AppState>) -> Json<EngineStatsDto> {
     Json(EngineStatsDto {
         active_workers: state.scheduler_stats.active_workers.load(Ordering::Relaxed),
         checks_per_sec: state.scheduler_stats.get_checks_per_sec(),
-        checks_completed: state.scheduler_stats.checks_completed.load(Ordering::Relaxed),
-        batch_buffer_size: state.scheduler_stats.batch_buffer_size.load(Ordering::Relaxed),
+        checks_completed: state
+            .scheduler_stats
+            .checks_completed
+            .load(Ordering::Relaxed),
+        batch_buffer_size: state
+            .scheduler_stats
+            .batch_buffer_size
+            .load(Ordering::Relaxed),
         judge_healthy: state.scheduler_stats.judge_healthy.load(Ordering::Relaxed),
     })
 }

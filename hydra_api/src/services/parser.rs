@@ -1,7 +1,7 @@
+use crate::models::api::ProxyInputItem;
+use hydra_checker::net_filter::{is_bogon_or_reserved_v4, is_bogon_or_reserved_v6};
 use std::net::IpAddr;
 use std::str::FromStr;
-use hydra_checker::net_filter::{is_bogon_or_reserved_v4, is_bogon_or_reserved_v6};
-use crate::models::api::ProxyInputItem;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedProxy {
@@ -146,10 +146,10 @@ pub fn parse_proxy_string(raw: &str) -> Option<ParsedProxy> {
 pub fn parse_proxy_string_opt(raw: &str, allow_private: bool) -> Option<ParsedProxy> {
     let mut s = raw.trim();
     // Strip optional surrounding quotes ("..." or '...')
-    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
-        if s.len() >= 2 {
-            s = s[1..s.len() - 1].trim();
-        }
+    if ((s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')))
+        && s.len() >= 2
+    {
+        s = s[1..s.len() - 1].trim();
     }
     if s.is_empty() {
         return None;
@@ -164,11 +164,11 @@ pub fn parse_proxy_string_opt(raw: &str, allow_private: bool) -> Option<ParsedPr
             protocol_hint = Some(proto.to_string());
             s = &s[idx + 3..];
         }
-    } else if let Some((first, rest)) = s.split_once(':') {
-        if let Some(proto) = match_protocol(first) {
-            protocol_hint = Some(proto.to_string());
-            s = rest;
-        }
+    } else if let Some((first, rest)) = s.split_once(':')
+        && let Some(proto) = match_protocol(first)
+    {
+        protocol_hint = Some(proto.to_string());
+        s = rest;
     }
 
     let mut auth_user = None;
@@ -204,7 +204,7 @@ pub fn parse_proxy_string_opt(raw: &str, allow_private: bool) -> Option<ParsedPr
     // 3. Alternative compound separators: ';' or '|'
     if host_port.is_none() && (s.contains(';') || s.contains('|')) {
         let chunks: Vec<&str> = s
-            .split(|c| c == ';' || c == '|')
+            .split([';', '|'])
             .map(str::trim)
             .filter(|c| !c.is_empty())
             .collect();
@@ -232,7 +232,7 @@ pub fn parse_proxy_string_opt(raw: &str, allow_private: bool) -> Option<ParsedPr
     // 4. Whitespace, tab or comma separated tokens
     if host_port.is_none() && (s.chars().any(|c| c == ' ' || c == '\t' || c == ',')) {
         let tokens: Vec<&str> = s
-            .split(|c| c == ' ' || c == '\t' || c == ',')
+            .split([' ', '\t', ','])
             .map(str::trim)
             .filter(|c| !c.is_empty())
             .collect();
@@ -280,10 +280,10 @@ pub fn parse_proxy_string_opt(raw: &str, allow_private: bool) -> Option<ParsedPr
                     let hp = format!("{}:{}", tokens[0], tokens[1]);
                     if let Some((ip, port)) = try_parse_host_port(&hp) {
                         host_port = Some((ip, port));
-                        if let Some(proto) = match_protocol(tokens[2]) {
-                            if protocol_hint.is_none() {
-                                protocol_hint = Some(proto.to_string());
-                            }
+                        if let Some(proto) = match_protocol(tokens[2])
+                            && protocol_hint.is_none()
+                        {
+                            protocol_hint = Some(proto.to_string());
                         }
                     }
                 }
@@ -338,30 +338,30 @@ pub fn parse_proxy_string_opt(raw: &str, allow_private: bool) -> Option<ParsedPr
             let suffix = &s[end + 1..];
             if let Some(after_colon) = suffix.strip_prefix(':') {
                 let parts: Vec<&str> = after_colon.split(':').collect();
-                if let Ok(port) = parts[0].parse::<u16>() {
-                    if port > 0 {
-                        host_port = Some((ip, port));
-                        if parts.len() >= 3 {
+                if let Ok(port) = parts[0].parse::<u16>()
+                    && port > 0
+                {
+                    host_port = Some((ip, port));
+                    if parts.len() >= 3 {
+                        auth_user = Some(parts[1].to_string());
+                        auth_pass = Some(parts[2..].join(":"));
+                    } else if parts.len() == 2 {
+                        if let Some(proto) = match_protocol(parts[1]) {
+                            if protocol_hint.is_none() {
+                                protocol_hint = Some(proto.to_string());
+                            }
+                        } else {
                             auth_user = Some(parts[1].to_string());
-                            auth_pass = Some(parts[2..].join(":"));
-                        } else if parts.len() == 2 {
-                            if let Some(proto) = match_protocol(parts[1]) {
-                                if protocol_hint.is_none() {
-                                    protocol_hint = Some(proto.to_string());
-                                }
-                            } else {
-                                auth_user = Some(parts[1].to_string());
-                            }
                         }
+                    }
 
-                        if auth_user.is_none() && !prefix.is_empty() {
-                            let pre = prefix.trim_end_matches(':');
-                            if let Some((u, p)) = pre.split_once(':') {
-                                auth_user = Some(u.to_string());
-                                auth_pass = Some(p.to_string());
-                            } else {
-                                auth_user = Some(pre.to_string());
-                            }
+                    if auth_user.is_none() && !prefix.is_empty() {
+                        let pre = prefix.trim_end_matches(':');
+                        if let Some((u, p)) = pre.split_once(':') {
+                            auth_user = Some(u.to_string());
+                            auth_pass = Some(p.to_string());
+                        } else {
+                            auth_user = Some(pre.to_string());
                         }
                     }
                 }
@@ -434,34 +434,40 @@ pub fn parse_proxy_string_opt(raw: &str, allow_private: bool) -> Option<ParsedPr
             }
             n if n >= 5 => {
                 // Check if last token is a protocol
-                let (working_parts, last_proto) = if let Some(proto) = match_protocol(parts[parts.len() - 1]) {
-                    (&parts[..parts.len() - 1], Some(proto))
-                } else {
-                    (&parts[..], None)
-                };
+                let (working_parts, last_proto) =
+                    if let Some(proto) = match_protocol(parts[parts.len() - 1]) {
+                        (&parts[..parts.len() - 1], Some(proto))
+                    } else {
+                        (&parts[..], None)
+                    };
 
-                if let Some(proto) = last_proto {
-                    if protocol_hint.is_none() {
-                        protocol_hint = Some(proto.to_string());
-                    }
+                if let Some(proto) = last_proto
+                    && protocol_hint.is_none()
+                {
+                    protocol_hint = Some(proto.to_string());
                 }
 
                 // Check if first token is a protocol
-                let (working_parts, first_proto) = if let Some(proto) = match_protocol(working_parts[0]) {
-                    (&working_parts[1..], Some(proto))
-                } else {
-                    (working_parts, None)
-                };
+                let (working_parts, first_proto) =
+                    if let Some(proto) = match_protocol(working_parts[0]) {
+                        (&working_parts[1..], Some(proto))
+                    } else {
+                        (working_parts, None)
+                    };
 
-                if let Some(proto) = first_proto {
-                    if protocol_hint.is_none() {
-                        protocol_hint = Some(proto.to_string());
-                    }
+                if let Some(proto) = first_proto
+                    && protocol_hint.is_none()
+                {
+                    protocol_hint = Some(proto.to_string());
                 }
 
                 if working_parts.len() >= 4 {
                     let p0_hp = format!("{}:{}", working_parts[0], working_parts[1]);
-                    let p_last_hp = format!("{}:{}", working_parts[working_parts.len() - 2], working_parts[working_parts.len() - 1]);
+                    let p_last_hp = format!(
+                        "{}:{}",
+                        working_parts[working_parts.len() - 2],
+                        working_parts[working_parts.len() - 1]
+                    );
 
                     if let Some((ip, port)) = try_parse_host_port(&p0_hp) {
                         host_port = Some((ip, port));

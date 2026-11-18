@@ -108,7 +108,11 @@ impl JudgeConfigBuilder {
     }
 
     #[inline]
-    pub fn tls_cert_path(mut self, cert_path: impl Into<PathBuf>, key_path: impl Into<PathBuf>) -> Self {
+    pub fn tls_cert_path(
+        mut self,
+        cert_path: impl Into<PathBuf>,
+        key_path: impl Into<PathBuf>,
+    ) -> Self {
         self.tls_cert_path = Some(cert_path.into());
         self.tls_key_path = Some(key_path.into());
         self

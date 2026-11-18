@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use flate2::read::GzDecoder;
-use reqwest::header::{ETAG, IF_NONE_MATCH, USER_AGENT};
 use reqwest::StatusCode;
+use reqwest::header::{ETAG, IF_NONE_MATCH, USER_AGENT};
 use tokio_util::sync::CancellationToken;
 
 use crate::services::geoip::GeoIpResolver;
@@ -33,7 +33,9 @@ pub async fn download_and_extract_db(
 
     // Read stored ETag if destination database and .etag file both exist
     let existing_etag = if dest_path.exists() && etag_file.exists() {
-        fs::read_to_string(&etag_file).ok().map(|s| s.trim().to_string())
+        fs::read_to_string(&etag_file)
+            .ok()
+            .map(|s| s.trim().to_string())
     } else {
         None
     };
@@ -212,9 +214,7 @@ pub async fn geoip_auto_update_loop(
     )
     .await;
 
-    if updated
-        && let Some(ref res) = resolver
-    {
+    if updated && let Some(ref res) = resolver {
         res.hot_reload();
     }
 
@@ -250,8 +250,8 @@ pub async fn geoip_auto_update_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use flate2::write::GzEncoder;
     use flate2::Compression;
+    use flate2::write::GzEncoder;
     use std::io::Write;
 
     #[test]

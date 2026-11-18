@@ -1,14 +1,14 @@
-use std::sync::Arc;
 use chrono::Utc;
-use hydra_checker::{
-    AnonymityLevel, CheckMetrics, CheckResult, ErrorReason, ProxyProtocol, TargetHost,
-};
 use hydra_api::app_state::SchedulerStats;
 use hydra_api::db::*;
 use hydra_api::models::{ProxyRow, ProxyState};
-use hydra_api::services::batch_writer::{flush_batch, update_recent_checks, CheckResultWithMeta};
+use hydra_api::services::batch_writer::{CheckResultWithMeta, flush_batch, update_recent_checks};
 use hydra_api::services::geoip::GeoIpResult;
 use hydra_api::services::scheduler::row_to_target;
+use hydra_checker::{
+    AnonymityLevel, CheckMetrics, CheckResult, ErrorReason, ProxyProtocol, TargetHost,
+};
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_row_to_target_mapping() {
@@ -106,7 +106,9 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         last_checked_at: None,
         next_check_at: now,
     };
-    insert_proxy_if_not_exists(&conn, &proxy, false).await.unwrap();
+    insert_proxy_if_not_exists(&conn, &proxy, false)
+        .await
+        .unwrap();
 
     // 2. Simulate successful check result
     let cr_alive = CheckResult {
@@ -255,7 +257,9 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
         last_checked_at: None,
         next_check_at: now,
     };
-    insert_proxy_if_not_exists(&conn, &proxy, false).await.unwrap();
+    insert_proxy_if_not_exists(&conn, &proxy, false)
+        .await
+        .unwrap();
 
     let meta = CheckResultWithMeta {
         proxy_id: proxy.id.clone(),
@@ -291,18 +295,39 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
     // Flush batch should fail due to trigger, rollback, and KEEP items in buffer
     flush_batch(&mut buf, &db, &stats).await;
 
-    assert_eq!(buf.len(), 1, "Buffer must retain items when transaction rolls back");
-    assert_eq!(stats.batch_buffer_size.load(std::sync::atomic::Ordering::Relaxed), 1);
+    assert_eq!(
+        buf.len(),
+        1,
+        "Buffer must retain items when transaction rolls back"
+    );
+    assert_eq!(
+        stats
+            .batch_buffer_size
+            .load(std::sync::atomic::Ordering::Relaxed),
+        1
+    );
 
     // Drop trigger so subsequent flush can succeed
-    conn.execute("DROP TRIGGER test_fail_update;", ()).await.unwrap();
+    conn.execute("DROP TRIGGER test_fail_update;", ())
+        .await
+        .unwrap();
 
     // Now flush should succeed and clear buffer
     flush_batch(&mut buf, &db, &stats).await;
 
     assert_eq!(buf.len(), 0, "Buffer should be cleared on success");
-    assert_eq!(stats.batch_buffer_size.load(std::sync::atomic::Ordering::Relaxed), 0);
-    assert_eq!(stats.checks_completed.load(std::sync::atomic::Ordering::Relaxed), 1);
+    assert_eq!(
+        stats
+            .batch_buffer_size
+            .load(std::sync::atomic::Ordering::Relaxed),
+        0
+    );
+    assert_eq!(
+        stats
+            .checks_completed
+            .load(std::sync::atomic::Ordering::Relaxed),
+        1
+    );
 }
 
 #[test]
@@ -378,5 +403,8 @@ fn test_exponential_dead_backoff_calculation() {
     assert_eq!(calculate_dead_next_check(now, 0, 2.0, 1), now + 365 * 86400);
 
     // 5. Huge strikes capped at 30 days
-    assert_eq!(calculate_dead_next_check(now, base_sec, 2.0, 50), now + 30 * 86400);
+    assert_eq!(
+        calculate_dead_next_check(now, base_sec, 2.0, 50),
+        now + 30 * 86400
+    );
 }

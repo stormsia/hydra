@@ -1,8 +1,8 @@
-use std::collections::HashSet;
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use chrono::Utc;
+use std::collections::HashSet;
 
 use crate::app_state::AppState;
 use crate::db::{
@@ -11,9 +11,9 @@ use crate::db::{
 };
 use crate::error::ApiError;
 use crate::models::{
-    ImportBatchRequest, ImportBatchResponse, PatchProxyRequest, ProxyFilterQuery,
-    ProxyFullDetails, ProxyMetaDto, ProxyMetricsDto, ProxyShortItem,
-    ProxyStatsDto, ReportFailRequest, ReportFailResponse,
+    ImportBatchRequest, ImportBatchResponse, PatchProxyRequest, ProxyFilterQuery, ProxyFullDetails,
+    ProxyMetaDto, ProxyMetricsDto, ProxyShortItem, ProxyStatsDto, ReportFailRequest,
+    ReportFailResponse,
 };
 use crate::services::parser::parse_input_item;
 
@@ -573,7 +573,9 @@ pub async fn report_fail(
     }
 
     if target_ids.is_empty() {
-        return Err(ApiError::bad_request("Missing proxy 'id' or 'ids' in request payload"));
+        return Err(ApiError::bad_request(
+            "Missing proxy 'id' or 'ids' in request payload",
+        ));
     }
 
     let affected_ids = report_fails_batch(&conn, &target_ids, &req.reason, now).await?;

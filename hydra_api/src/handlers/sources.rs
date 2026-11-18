@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::Json;
 
 use crate::app_state::AppState;
 use crate::db::{delete_source, get_source_stats_by_name, list_source_stats};
@@ -21,9 +21,7 @@ use crate::models::SourceStatsItem;
     ),
     security(("api_key" = []))
 )]
-pub async fn list(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<SourceStatsItem>>, ApiError> {
+pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<SourceStatsItem>>, ApiError> {
     let conn = state.connect_db().await?;
     let stats = list_source_stats(&conn).await?;
     Ok(Json(stats))

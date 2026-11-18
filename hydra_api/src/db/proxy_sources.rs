@@ -1,5 +1,5 @@
-use libsql::Connection;
 use crate::models::ProxySourceMetaDto;
+use libsql::Connection;
 
 pub async fn link_proxy_to_source(
     conn: &Connection,

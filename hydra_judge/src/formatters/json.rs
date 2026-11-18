@@ -10,11 +10,7 @@ struct JsonEchoResponse<'a> {
 }
 
 /// Format JSON httpbin-compatible response
-pub fn format_json(
-    peer_ip: IpAddr,
-    headers: &[(&str, &str)],
-    secret_token: &str,
-) -> String {
+pub fn format_json(peer_ip: IpAddr, headers: &[(&str, &str)], secret_token: &str) -> String {
     let mut header_map = HashMap::with_capacity(headers.len());
     for (k, v) in headers {
         header_map.insert(*k, *v);

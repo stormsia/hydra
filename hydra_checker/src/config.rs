@@ -67,15 +67,15 @@ impl CheckerConfig {
 
     /// Load CheckerConfig from environment variables with sensible defaults
     pub async fn from_env() -> Result<Self, CheckerError> {
-        let http_url_str = std::env::var("JUDGE_HTTP_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
+        let http_url_str =
+            std::env::var("JUDGE_HTTP_URL").unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
         let https_url_str = std::env::var("JUDGE_HTTPS_URL")
             .unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
         let expected_token = std::env::var("JUDGE_SECRET_TOKEN")
             .unwrap_or_else(|_| "hydra_secret_token".to_string());
 
-        let http_url = Url::parse(&http_url_str)
-            .map_err(|_| CheckerError::new(ErrorReason::InternalError))?;
+        let http_url =
+            Url::parse(&http_url_str).map_err(|_| CheckerError::new(ErrorReason::InternalError))?;
         let https_url = Url::parse(&https_url_str)
             .map_err(|_| CheckerError::new(ErrorReason::InternalError))?;
 
@@ -85,36 +85,48 @@ impl CheckerConfig {
             builder = builder.judge_secret_key(key);
         }
 
-        if let Ok(conc) = std::env::var("CHECKER_CONCURRENCY").and_then(|v| v.parse::<usize>().map_err(|_| std::env::VarError::NotPresent)) {
+        if let Ok(conc) = std::env::var("CHECKER_CONCURRENCY").and_then(|v| {
+            v.parse::<usize>()
+                .map_err(|_| std::env::VarError::NotPresent)
+        }) {
             builder = builder.concurrency_limit(conc);
         }
 
-        if let Ok(timeout) = std::env::var("CHECKER_CONNECT_TIMEOUT_MS").and_then(|v| v.parse::<u64>().map_err(|_| std::env::VarError::NotPresent)) {
+        if let Ok(timeout) = std::env::var("CHECKER_CONNECT_TIMEOUT_MS")
+            .and_then(|v| v.parse::<u64>().map_err(|_| std::env::VarError::NotPresent))
+        {
             builder = builder.connect_timeout(Duration::from_millis(timeout));
         }
 
-        if let Ok(timeout) = std::env::var("CHECKER_HANDSHAKE_TIMEOUT_MS").and_then(|v| v.parse::<u64>().map_err(|_| std::env::VarError::NotPresent)) {
+        if let Ok(timeout) = std::env::var("CHECKER_HANDSHAKE_TIMEOUT_MS")
+            .and_then(|v| v.parse::<u64>().map_err(|_| std::env::VarError::NotPresent))
+        {
             builder = builder.handshake_timeout(Duration::from_millis(timeout));
         }
 
-        if let Ok(timeout) = std::env::var("CHECKER_READ_WRITE_TIMEOUT_MS").and_then(|v| v.parse::<u64>().map_err(|_| std::env::VarError::NotPresent)) {
+        if let Ok(timeout) = std::env::var("CHECKER_READ_WRITE_TIMEOUT_MS")
+            .and_then(|v| v.parse::<u64>().map_err(|_| std::env::VarError::NotPresent))
+        {
             builder = builder.read_write_timeout(Duration::from_millis(timeout));
         }
 
-        if let Ok(bytes) = std::env::var("CHECKER_MAX_READ_BYTES").and_then(|v| v.parse::<usize>().map_err(|_| std::env::VarError::NotPresent)) {
+        if let Ok(bytes) = std::env::var("CHECKER_MAX_READ_BYTES").and_then(|v| {
+            v.parse::<usize>()
+                .map_err(|_| std::env::VarError::NotPresent)
+        }) {
             builder = builder.max_read_bytes(bytes);
         }
 
-        if let Ok(ip_str) = std::env::var("CHECKER_LOCAL_BIND_IP") {
-            if let Ok(ip) = ip_str.parse::<IpAddr>() {
-                builder = builder.local_bind_ip(ip);
-            }
+        if let Ok(ip_str) = std::env::var("CHECKER_LOCAL_BIND_IP")
+            && let Ok(ip) = ip_str.parse::<IpAddr>()
+        {
+            builder = builder.local_bind_ip(ip);
         }
 
-        if let Ok(ip_str) = std::env::var("CHECKER_REAL_IP") {
-            if let Ok(ip) = ip_str.parse::<IpAddr>() {
-                builder = builder.real_ip(ip);
-            }
+        if let Ok(ip_str) = std::env::var("CHECKER_REAL_IP")
+            && let Ok(ip) = ip_str.parse::<IpAddr>()
+        {
+            builder = builder.real_ip(ip);
         }
 
         if let Ok(val) = std::env::var("ENABLE_THIRD_PARTY_JUDGES") {
@@ -127,7 +139,9 @@ impl CheckerConfig {
                 builder = builder.judge_selection_strategy(JudgeSelectionStrategy::RoundRobin);
             } else if val.eq_ignore_ascii_case("priority") {
                 builder = builder.judge_selection_strategy(JudgeSelectionStrategy::Priority);
-            } else if val.eq_ignore_ascii_case("lowest_latency") || val.eq_ignore_ascii_case("latency") {
+            } else if val.eq_ignore_ascii_case("lowest_latency")
+                || val.eq_ignore_ascii_case("latency")
+            {
                 builder = builder.judge_selection_strategy(JudgeSelectionStrategy::LowestLatency);
             }
         }
@@ -135,23 +149,26 @@ impl CheckerConfig {
         if let Ok(add_judges_str) = std::env::var("ADDITIONAL_JUDGES") {
             for (idx, entry) in add_judges_str.split(',').enumerate() {
                 let parts: Vec<&str> = entry.trim().split('|').collect();
-                if !parts.is_empty() {
-                    if let Ok(http_url) = parts[0].trim().parse::<Url>() {
-                        let https_url = if parts.len() > 1 {
-                            parts[1].trim().parse::<Url>().unwrap_or_else(|_| http_url.clone())
-                        } else {
-                            http_url.clone()
-                        };
-                        let custom_ep = JudgeEndpoint::third_party(
-                            format!("custom_{}", idx + 1),
-                            format!("Custom Judge {}", idx + 1),
-                            http_url,
-                            https_url,
-                            10 + idx as u32,
-                            true,
-                        );
-                        builder = builder.add_judge(custom_ep);
-                    }
+                if !parts.is_empty()
+                    && let Ok(http_url) = parts[0].trim().parse::<Url>()
+                {
+                    let https_url = if parts.len() > 1 {
+                        parts[1]
+                            .trim()
+                            .parse::<Url>()
+                            .unwrap_or_else(|_| http_url.clone())
+                    } else {
+                        http_url.clone()
+                    };
+                    let custom_ep = JudgeEndpoint::third_party(
+                        format!("custom_{}", idx + 1),
+                        format!("Custom Judge {}", idx + 1),
+                        http_url,
+                        https_url,
+                        10 + idx as u32,
+                        true,
+                    );
+                    builder = builder.add_judge(custom_ep);
                 }
             }
         }
@@ -228,7 +245,10 @@ impl CheckerConfig {
                 let active_token = self.active_judge_token();
                 let host_str = effective_url.host_str().unwrap_or("localhost");
                 let path = effective_url.path();
-                let query = effective_url.query().map(|q| format!("?{q}")).unwrap_or_default();
+                let query = effective_url
+                    .query()
+                    .map(|q| format!("?{q}"))
+                    .unwrap_or_default();
                 let port_str = match effective_url.port() {
                     Some(p) if p != 443 => format!(":{p}"),
                     _ => String::new(),
@@ -263,7 +283,10 @@ impl CheckerConfig {
         let active_token = self.active_judge_token();
         let host_string = effective_url.host_str().unwrap_or("localhost").to_string();
         let path = effective_url.path();
-        let query = effective_url.query().map(|q| format!("?{q}")).unwrap_or_default();
+        let query = effective_url
+            .query()
+            .map(|q| format!("?{q}"))
+            .unwrap_or_default();
         let port_str = match effective_url.port() {
             Some(p) if p != 443 => format!(":{p}"),
             _ => String::new(),
@@ -303,7 +326,10 @@ impl CheckerConfig {
         let effective_url = self.format_judge_url_for(judge_url, is_builtin);
         let host_string = effective_url.host_str().unwrap_or("localhost").to_string();
         let path = effective_url.path();
-        let query = effective_url.query().map(|q| format!("?{q}")).unwrap_or_default();
+        let query = effective_url
+            .query()
+            .map(|q| format!("?{q}"))
+            .unwrap_or_default();
         let port_str = match effective_url.port() {
             Some(p) if p != 443 => format!(":{p}"),
             _ => String::new(),
@@ -472,46 +498,46 @@ impl CheckerConfigBuilder {
     /// Asynchronously resolve Judge hostnames to SocketAddrs and build the config
     pub async fn build(mut self) -> Result<CheckerConfig, CheckerError> {
         // Resolve HTTP Judge if not explicitly set
-        if self.judge_http_addr.is_none() {
-            if let Some(host) = self.judge_http_url.host_str() {
-                let port = self.judge_http_url.port().unwrap_or(80);
-                if let Ok(ip) = host.parse::<IpAddr>() {
-                    self.judge_http_addr = Some(SocketAddr::new(ip, port));
-                } else {
-                    let host_owned = host.to_string();
-                    let resolved = tokio::task::spawn_blocking(move || {
-                        format!("{host_owned}:{port}")
-                            .to_socket_addrs()
-                            .ok()
-                            .and_then(|mut iter| iter.next())
-                    })
-                    .await
-                    .map_err(|_| CheckerError::new(ErrorReason::InternalError))?;
+        if self.judge_http_addr.is_none()
+            && let Some(host) = self.judge_http_url.host_str()
+        {
+            let port = self.judge_http_url.port().unwrap_or(80);
+            if let Ok(ip) = host.parse::<IpAddr>() {
+                self.judge_http_addr = Some(SocketAddr::new(ip, port));
+            } else {
+                let host_owned = host.to_string();
+                let resolved = tokio::task::spawn_blocking(move || {
+                    format!("{host_owned}:{port}")
+                        .to_socket_addrs()
+                        .ok()
+                        .and_then(|mut iter| iter.next())
+                })
+                .await
+                .map_err(|_| CheckerError::new(ErrorReason::InternalError))?;
 
-                    self.judge_http_addr = resolved;
-                }
+                self.judge_http_addr = resolved;
             }
         }
 
         // Resolve HTTPS Judge if not explicitly set
-        if self.judge_https_addr.is_none() {
-            if let Some(host) = self.judge_https_url.host_str() {
-                let port = self.judge_https_url.port().unwrap_or(443);
-                if let Ok(ip) = host.parse::<IpAddr>() {
-                    self.judge_https_addr = Some(SocketAddr::new(ip, port));
-                } else {
-                    let host_owned = host.to_string();
-                    let resolved = tokio::task::spawn_blocking(move || {
-                        format!("{host_owned}:{port}")
-                            .to_socket_addrs()
-                            .ok()
-                            .and_then(|mut iter| iter.next())
-                    })
-                    .await
-                    .map_err(|_| CheckerError::new(ErrorReason::InternalError))?;
+        if self.judge_https_addr.is_none()
+            && let Some(host) = self.judge_https_url.host_str()
+        {
+            let port = self.judge_https_url.port().unwrap_or(443);
+            if let Ok(ip) = host.parse::<IpAddr>() {
+                self.judge_https_addr = Some(SocketAddr::new(ip, port));
+            } else {
+                let host_owned = host.to_string();
+                let resolved = tokio::task::spawn_blocking(move || {
+                    format!("{host_owned}:{port}")
+                        .to_socket_addrs()
+                        .ok()
+                        .and_then(|mut iter| iter.next())
+                })
+                .await
+                .map_err(|_| CheckerError::new(ErrorReason::InternalError))?;
 
-                    self.judge_https_addr = resolved;
-                }
+                self.judge_https_addr = resolved;
             }
         }
 
@@ -523,7 +549,11 @@ impl CheckerConfigBuilder {
         let cached_tls_req = Arc::new(RwLock::new(CachedTlsRequest {
             day: 0,
             effective_url: self.judge_https_url.clone(),
-            server_name: self.judge_https_url.host_str().unwrap_or("localhost").to_string(),
+            server_name: self
+                .judge_https_url
+                .host_str()
+                .unwrap_or("localhost")
+                .to_string(),
             request_bytes: Vec::new(),
         }));
 
@@ -541,7 +571,11 @@ impl CheckerConfigBuilder {
                 Vec::new()
             };
             third_party.extend(self.custom_judges);
-            Arc::new(JudgePool::new(builtin, third_party, self.judge_selection_strategy))
+            Arc::new(JudgePool::new(
+                builtin,
+                third_party,
+                self.judge_selection_strategy,
+            ))
         };
 
         Ok(CheckerConfig {
@@ -567,6 +601,7 @@ impl CheckerConfigBuilder {
 }
 
 #[cfg(test)]
+#[allow(clippy::await_holding_lock)]
 mod tests {
     use super::*;
     use std::sync::Mutex;
@@ -614,7 +649,9 @@ mod tests {
             "ADDITIONAL_JUDGES",
         ]);
 
-        let cfg = CheckerConfig::from_env().await.expect("config should load with defaults");
+        let cfg = CheckerConfig::from_env()
+            .await
+            .expect("config should load with defaults");
         assert_eq!(cfg.judge_http_url.as_str(), "http://127.0.0.1:8080/");
         assert_eq!(cfg.judge_https_url.as_str(), "http://127.0.0.1:8080/");
         assert_eq!(cfg.judge_expected_token.as_str(), "hydra_secret_token");
@@ -662,14 +699,22 @@ mod tests {
             std::env::set_var("CHECKER_REAL_IP", "203.0.113.50");
             std::env::set_var("ENABLE_THIRD_PARTY_JUDGES", "false");
             std::env::set_var("JUDGE_SELECTION_STRATEGY", "round_robin");
-            std::env::set_var("ADDITIONAL_JUDGES", "http://127.0.0.1:8001|https://127.0.0.1:8002");
+            std::env::set_var(
+                "ADDITIONAL_JUDGES",
+                "http://127.0.0.1:8001|https://127.0.0.1:8002",
+            );
         }
 
-        let cfg = CheckerConfig::from_env().await.expect("custom config should parse");
+        let cfg = CheckerConfig::from_env()
+            .await
+            .expect("custom config should parse");
         assert_eq!(cfg.judge_http_url.as_str(), "http://127.0.0.1:9090/");
         assert_eq!(cfg.judge_https_url.as_str(), "https://127.0.0.1:9443/");
         assert_eq!(cfg.judge_expected_token.as_str(), "custom_secret_marker");
-        assert_eq!(cfg.judge_secret_key.as_deref(), Some("secret_hmac_master_key"));
+        assert_eq!(
+            cfg.judge_secret_key.as_deref(),
+            Some("secret_hmac_master_key")
+        );
         assert_eq!(cfg.concurrency_limit, 12000);
         assert_eq!(cfg.connect_timeout, Duration::from_millis(2500));
         assert_eq!(cfg.handshake_timeout, Duration::from_millis(3500));

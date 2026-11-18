@@ -9,9 +9,9 @@ use crate::error::CheckerError;
 use crate::models::{CheckResult, CheckTarget};
 use crate::pipeline::execute_pipeline;
 use crate::pool::worker_pool::process_stream;
+use crate::transport::Dialer;
 use crate::transport::tcp::TcpDialer;
 use crate::transport::tls::build_tls_connector;
-use crate::transport::Dialer;
 
 /// Primary entrypoint for executing high-throughput proxy checks.
 #[derive(Clone)]
@@ -32,8 +32,8 @@ impl CheckerEngine<TcpDialer> {
 impl<D: Dialer> CheckerEngine<D> {
     /// Initialize engine with a custom dialer (e.g. `MockDialer` for testing)
     pub fn with_dialer(config: CheckerConfig, dialer: D) -> Result<Self, CheckerError> {
-        let tls_connector = build_tls_connector(config.judge_ca_cert_der.as_deref())
-            .map_err(|e| CheckerError::new(e))?;
+        let tls_connector =
+            build_tls_connector(config.judge_ca_cert_der.as_deref()).map_err(CheckerError::new)?;
 
         let limit = config.concurrency_limit;
 

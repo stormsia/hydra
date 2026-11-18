@@ -17,12 +17,25 @@ pub async fn probe_judge_endpoint(
 ) -> Result<u64, String> {
     // 1. Try HTTPS if available
     if endpoint.https_url.scheme() == "https" {
-        match probe_single_url(&endpoint.https_url, endpoint.expected_token.as_deref(), timeout, Some(tls_connector)).await {
+        match probe_single_url(
+            &endpoint.https_url,
+            endpoint.expected_token.as_deref(),
+            timeout,
+            Some(tls_connector),
+        )
+        .await
+        {
             Ok(lat) => return Ok(lat),
             Err(e) => {
                 // If HTTPS failed, fallback to probing HTTP endpoint if distinct
                 if endpoint.http_url != endpoint.https_url {
-                    return probe_single_url(&endpoint.http_url, endpoint.expected_token.as_deref(), timeout, None).await;
+                    return probe_single_url(
+                        &endpoint.http_url,
+                        endpoint.expected_token.as_deref(),
+                        timeout,
+                        None,
+                    )
+                    .await;
                 }
                 return Err(e);
             }
@@ -30,7 +43,13 @@ pub async fn probe_judge_endpoint(
     }
 
     // 2. Otherwise probe plain HTTP
-    probe_single_url(&endpoint.http_url, endpoint.expected_token.as_deref(), timeout, None).await
+    probe_single_url(
+        &endpoint.http_url,
+        endpoint.expected_token.as_deref(),
+        timeout,
+        None,
+    )
+    .await
 }
 
 async fn probe_single_url(
@@ -39,7 +58,9 @@ async fn probe_single_url(
     timeout: Duration,
     tls_connector: Option<&TlsConnector>,
 ) -> Result<u64, String> {
-    let host = url.host_str().ok_or_else(|| "Missing host in judge URL".to_string())?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| "Missing host in judge URL".to_string())?;
     let is_https = url.scheme() == "https";
     let default_port = if is_https { 443 } else { 80 };
     let port = url.port().unwrap_or(default_port);
@@ -58,7 +79,10 @@ async fn probe_single_url(
         .map_err(|e| format!("DNS task join error: {e}"))?
         .map_err(|e| format!("DNS resolution failed for {host}:{port}: {e}"))?;
 
-        let addr = addrs.into_iter().next().ok_or_else(|| format!("No IP found for {host}"))?;
+        let addr = addrs
+            .into_iter()
+            .next()
+            .ok_or_else(|| format!("No IP found for {host}"))?;
 
         let tcp_stream = TcpStream::connect(addr)
             .await
@@ -89,7 +113,8 @@ async fn probe_single_url(
         let mut total_read = 0;
 
         if is_https {
-            let connector = tls_connector.ok_or_else(|| "Missing TLS connector for HTTPS probe".to_string())?;
+            let connector =
+                tls_connector.ok_or_else(|| "Missing TLS connector for HTTPS probe".to_string())?;
             let server_name = ServerName::try_from(host.to_string())
                 .map_err(|e| format!("Invalid server name: {e}"))?;
             let mut tls_stream = connector
@@ -101,7 +126,10 @@ async fn probe_single_url(
                 .write_all(&req_bytes)
                 .await
                 .map_err(|e| format!("Write failed: {e}"))?;
-            tls_stream.flush().await.map_err(|e| format!("Flush failed: {e}"))?;
+            tls_stream
+                .flush()
+                .await
+                .map_err(|e| format!("Flush failed: {e}"))?;
 
             while total_read < resp_buf.len() {
                 let n = tls_stream
@@ -119,7 +147,10 @@ async fn probe_single_url(
                 .write_all(&req_bytes)
                 .await
                 .map_err(|e| format!("Write failed: {e}"))?;
-            stream.flush().await.map_err(|e| format!("Flush failed: {e}"))?;
+            stream
+                .flush()
+                .await
+                .map_err(|e| format!("Flush failed: {e}"))?;
 
             while total_read < resp_buf.len() {
                 let n = stream
@@ -141,7 +172,9 @@ async fn probe_single_url(
         let mut resp = httparse::Response::new(&mut headers);
         let header_len = match resp.parse(&resp_buf[..total_read]) {
             Ok(httparse::Status::Complete(len)) => len,
-            Ok(httparse::Status::Partial) => return Err("Partial HTTP response from judge".to_string()),
+            Ok(httparse::Status::Partial) => {
+                return Err("Partial HTTP response from judge".to_string());
+            }
             Err(e) => return Err(format!("HTTP parse error: {e}")),
         };
 

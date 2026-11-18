@@ -1,5 +1,5 @@
-use std::time::{Duration, Instant};
 use compact_str::CompactString;
+use std::time::{Duration, Instant};
 use tokio_rustls::TlsConnector;
 
 use crate::config::CheckerConfig;
@@ -30,14 +30,18 @@ pub async fn execute_handshake_cascade<D: Dialer>(
 ) -> Result<HandshakeSuccess, ErrorReason> {
     // 1. Resolve Primary Judge
     let override_opt = target.config_override.as_ref();
-    let has_override = override_opt.map_or(false, |o| {
-        o.judge_https_url.is_some() || o.judge_http_url.is_some() || o.judge_expected_token.is_some()
+    let has_override = override_opt.is_some_and(|o| {
+        o.judge_https_url.is_some()
+            || o.judge_http_url.is_some()
+            || o.judge_expected_token.is_some()
     });
 
     let primary_judge = if has_override {
-        let override_https = override_opt.and_then(|o| o.judge_https_url.clone())
+        let override_https = override_opt
+            .and_then(|o| o.judge_https_url.clone())
             .unwrap_or_else(|| config.judge_https_url.clone());
-        let override_http = override_opt.and_then(|o| o.judge_http_url.clone())
+        let override_http = override_opt
+            .and_then(|o| o.judge_http_url.clone())
             .unwrap_or_else(|| config.judge_http_url.clone());
         let override_token = override_opt.and_then(|o| o.judge_expected_token.clone());
 
@@ -63,16 +67,29 @@ pub async fn execute_handshake_cascade<D: Dialer>(
     };
 
     // 2. Primary cascade attempt
-    match run_cascade_attempt(dialer, Some(stream), target, config, tls_connector, &primary_judge).await {
+    match run_cascade_attempt(
+        dialer,
+        Some(stream),
+        target,
+        config,
+        tls_connector,
+        &primary_judge,
+    )
+    .await
+    {
         Ok(success) => {
-            config.judge_pool.record_success(primary_judge.id.as_str(), success.handshake_rtt_ms);
+            config
+                .judge_pool
+                .record_success(primary_judge.id.as_str(), success.handshake_rtt_ms);
             Ok(success)
         }
         Err(err) => {
             // Check if fallback to secondary judge is warranted
             let is_judge_error = matches!(
                 err,
-                ErrorReason::JudgeMismatch | ErrorReason::InvalidResponse | ErrorReason::TimeoutReadWrite
+                ErrorReason::JudgeMismatch
+                    | ErrorReason::InvalidResponse
+                    | ErrorReason::TimeoutReadWrite
             );
 
             if is_judge_error && !has_override {
@@ -85,8 +102,10 @@ pub async fn execute_handshake_cascade<D: Dialer>(
                         .and_then(|o| o.connect_timeout)
                         .unwrap_or(config.connect_timeout);
 
-                    if let Ok(fresh_stream) = dialer.connect(&target.host, target.port, connect_timeout, config).await {
-                        if let Ok(fb_success) = run_cascade_attempt(
+                    if let Ok(fresh_stream) = dialer
+                        .connect(&target.host, target.port, connect_timeout, config)
+                        .await
+                        && let Ok(fb_success) = run_cascade_attempt(
                             dialer,
                             Some(fresh_stream),
                             target,
@@ -95,10 +114,12 @@ pub async fn execute_handshake_cascade<D: Dialer>(
                             fallback_judge,
                         )
                         .await
-                        {
-                            config.judge_pool.record_success(fallback_judge.id.as_str(), fb_success.handshake_rtt_ms);
-                            return Ok(fb_success);
-                        }
+                    {
+                        config.judge_pool.record_success(
+                            fallback_judge.id.as_str(),
+                            fb_success.handshake_rtt_ms,
+                        );
+                        return Ok(fb_success);
                     }
                 }
             }
@@ -186,14 +207,18 @@ async fn run_cascade_attempt<D: Dialer>(
     } else {
         None
     };
-    let tunnel_target = TunnelTarget::from_url(target_judge_url, judge_addr)
-        .ok_or(ErrorReason::InternalError)?;
+    let tunnel_target =
+        TunnelTarget::from_url(target_judge_url, judge_addr).ok_or(ErrorReason::InternalError)?;
 
     // Mode A: Explicit Protocol Specified
     if let Some(protocol) = target.expected_protocol {
         let mut stream = match initial_stream.take() {
             Some(s) => s,
-            None => dialer.connect(&target.host, target.port, connect_timeout, config).await?,
+            None => {
+                dialer
+                    .connect(&target.host, target.port, connect_timeout, config)
+                    .await?
+            }
         };
 
         return match protocol {
@@ -359,7 +384,11 @@ async fn run_cascade_attempt<D: Dialer>(
     // 1. Candidate 1: SOCKS5 (using initial stream)
     let mut stream = match initial_stream.take() {
         Some(s) => s,
-        None => dialer.connect(&target.host, target.port, connect_timeout, config).await?,
+        None => {
+            dialer
+                .connect(&target.host, target.port, connect_timeout, config)
+                .await?
+        }
     };
 
     let start_hs = Instant::now();

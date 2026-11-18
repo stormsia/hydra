@@ -1,13 +1,13 @@
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::time::Duration;
 use chrono::Utc;
 use libsql::Database;
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
 use tokio::sync::mpsc;
 
-use hydra_checker::CheckResult;
 use crate::app_state::SchedulerStats;
 use crate::services::geoip::GeoIpResult;
+use hydra_checker::CheckResult;
 
 pub struct CheckResultWithMeta {
     pub proxy_id: String,
@@ -63,12 +63,11 @@ pub fn update_recent_checks(
             if part.is_empty() {
                 continue;
             }
-            if let Some((ts_str, ok_str)) = part.split_once(':') {
-                if let (Ok(ts), Ok(ok_num)) = (ts_str.parse::<i64>(), ok_str.parse::<u8>()) {
-                    if ts >= cutoff {
-                        checks.push((ts, ok_num == 1));
-                    }
-                }
+            if let Some((ts_str, ok_str)) = part.split_once(':')
+                && let (Ok(ts), Ok(ok_num)) = (ts_str.parse::<i64>(), ok_str.parse::<u8>())
+                && ts >= cutoff
+            {
+                checks.push((ts, ok_num == 1));
             }
         }
     }
@@ -316,14 +315,24 @@ pub async fn flush_batch(
 
     if write_err {
         let _ = conn.execute("ROLLBACK;", ()).await;
-        tracing::warn!("Batch writer rolled back transaction due to errors; retaining {} items in buffer", buffer.len());
+        tracing::warn!(
+            "Batch writer rolled back transaction due to errors; retaining {} items in buffer",
+            buffer.len()
+        );
     } else if let Err(e) = conn.execute("COMMIT;", ()).await {
         let _ = conn.execute("ROLLBACK;", ()).await;
-        tracing::error!("Failed to commit batch writer transaction: {e}; retaining {} items in buffer", buffer.len());
+        tracing::error!(
+            "Failed to commit batch writer transaction: {e}; retaining {} items in buffer",
+            buffer.len()
+        );
     } else {
-        stats.checks_completed.fetch_add(count as u64, Ordering::Relaxed);
+        stats
+            .checks_completed
+            .fetch_add(count as u64, Ordering::Relaxed);
         buffer.clear();
     }
 
-    stats.batch_buffer_size.store(buffer.len(), Ordering::Relaxed);
+    stats
+        .batch_buffer_size
+        .store(buffer.len(), Ordering::Relaxed);
 }

@@ -4,7 +4,9 @@ use hydra_api::models::{PatchProxyRequest, ProxyFilterQuery, ProxyRow, ProxyStat
 
 #[tokio::test]
 async fn test_db_init_and_migrations() {
-    let db = init_db(":memory:").await.expect("Failed to init in-memory DB");
+    let db = init_db(":memory:")
+        .await
+        .expect("Failed to init in-memory DB");
     let conn = db.connect().expect("Failed to connect");
     configure_conn(&conn).await.unwrap();
 
@@ -35,18 +37,33 @@ async fn test_sources_crud_and_cascade() {
     let now = Utc::now().timestamp();
 
     // 1. Upsert source
-    let s1_id = upsert_source(&conn, "src_free", Some("http://free.list"), Some("Free proxies"), now)
-        .await
-        .unwrap();
+    let s1_id = upsert_source(
+        &conn,
+        "src_free",
+        Some("http://free.list"),
+        Some("Free proxies"),
+        now,
+    )
+    .await
+    .unwrap();
     assert!(s1_id > 0);
 
     // 2. Upsert same source updates remark/url without duplicate ID
-    let s2_id = upsert_source(&conn, "src_free", Some("http://free.list/updated"), None, now)
-        .await
-        .unwrap();
+    let s2_id = upsert_source(
+        &conn,
+        "src_free",
+        Some("http://free.list/updated"),
+        None,
+        now,
+    )
+    .await
+    .unwrap();
     assert_eq!(s1_id, s2_id);
 
-    let src = get_source_by_name(&conn, "src_free").await.unwrap().unwrap();
+    let src = get_source_by_name(&conn, "src_free")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(src.name, "src_free");
     assert_eq!(src.url, Some("http://free.list/updated".to_string()));
     assert_eq!(src.remark, Some("Free proxies".to_string()));
@@ -88,13 +105,19 @@ async fn test_sources_crud_and_cascade() {
         last_checked_at: Some(now),
         next_check_at: now + 60,
     };
-    insert_proxy_if_not_exists(&conn, &proxy, false).await.unwrap();
-    link_proxy_to_source(&conn, &proxy.id, s1_id, now).await.unwrap();
+    insert_proxy_if_not_exists(&conn, &proxy, false)
+        .await
+        .unwrap();
+    link_proxy_to_source(&conn, &proxy.id, s1_id, now)
+        .await
+        .unwrap();
 
     let sources_for_p = get_sources_for_proxy(&conn, &proxy.id).await.unwrap();
     assert_eq!(sources_for_p, vec!["src_free".to_string()]);
 
-    let source_details_for_p = get_source_details_for_proxy(&conn, &proxy.id).await.unwrap();
+    let source_details_for_p = get_source_details_for_proxy(&conn, &proxy.id)
+        .await
+        .unwrap();
     assert_eq!(source_details_for_p.len(), 1);
     assert_eq!(source_details_for_p[0].name, "src_free");
     assert_eq!(source_details_for_p[0].added_at, now);
@@ -108,7 +131,10 @@ async fn test_sources_crud_and_cascade() {
     assert_eq!(stats[0].created_at, now);
     assert_eq!(stats[0].last_added_at, Some(now));
 
-    let single = get_source_stats_by_name(&conn, "src_free").await.unwrap().unwrap();
+    let single = get_source_stats_by_name(&conn, "src_free")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(single.name, "src_free");
     assert_eq!(single.total_proxies, 1);
     assert_eq!(single.created_at, now);
@@ -246,7 +272,11 @@ async fn test_proxies_crud_and_query() {
     assert_eq!(patched.next_check_at, now);
 
     // Report fail
-    assert!(report_fail(&conn, &p1.id, "TIMEOUT_TCP", now).await.unwrap());
+    assert!(
+        report_fail(&conn, &p1.id, "TIMEOUT_TCP", now)
+            .await
+            .unwrap()
+    );
     let failed = get_proxy_by_id(&conn, &p1.id).await.unwrap().unwrap();
     assert_eq!(failed.state, ProxyState::Cooldown);
     assert_eq!(failed.dead_strikes, 1);
@@ -301,11 +331,21 @@ async fn test_multicountry_csv_exclusion_and_limit_zero() {
         next_check_at: now + 60,
     };
 
-    insert_proxy_if_not_exists(&conn, &make_proxy("10.0.0.1:8080", Some("DE")), false).await.unwrap();
-    insert_proxy_if_not_exists(&conn, &make_proxy("10.0.0.2:8080", Some("NL")), false).await.unwrap();
-    insert_proxy_if_not_exists(&conn, &make_proxy("10.0.0.3:8080", Some("FR")), false).await.unwrap();
-    insert_proxy_if_not_exists(&conn, &make_proxy("10.0.0.4:8080", Some("RU")), false).await.unwrap();
-    insert_proxy_if_not_exists(&conn, &make_proxy("10.0.0.5:8080", None), false).await.unwrap();
+    insert_proxy_if_not_exists(&conn, &make_proxy("10.0.0.1:8080", Some("DE")), false)
+        .await
+        .unwrap();
+    insert_proxy_if_not_exists(&conn, &make_proxy("10.0.0.2:8080", Some("NL")), false)
+        .await
+        .unwrap();
+    insert_proxy_if_not_exists(&conn, &make_proxy("10.0.0.3:8080", Some("FR")), false)
+        .await
+        .unwrap();
+    insert_proxy_if_not_exists(&conn, &make_proxy("10.0.0.4:8080", Some("RU")), false)
+        .await
+        .unwrap();
+    insert_proxy_if_not_exists(&conn, &make_proxy("10.0.0.5:8080", None), false)
+        .await
+        .unwrap();
 
     // 1. Query with multi-country CSV: DE,NL
     let filter_csv = ProxyFilterQuery {
@@ -326,7 +366,10 @@ async fn test_multicountry_csv_exclusion_and_limit_zero() {
     };
     let items = query_proxies(&conn, &filter_csv).await.unwrap();
     assert_eq!(items.len(), 2);
-    let countries: Vec<_> = items.iter().map(|i| i.country.as_deref().unwrap()).collect();
+    let countries: Vec<_> = items
+        .iter()
+        .map(|i| i.country.as_deref().unwrap())
+        .collect();
     assert!(countries.contains(&"DE"));
     assert!(countries.contains(&"NL"));
 
@@ -417,22 +460,43 @@ async fn test_batch_report_fail_and_db_maintenance() {
     };
 
     // Insert 2 alive proxies
-    insert_proxy_if_not_exists(&conn, &make_proxy("1.1.1.1:8080", ProxyState::Alive, Some(now)), false).await.unwrap();
-    insert_proxy_if_not_exists(&conn, &make_proxy("2.2.2.2:8080", ProxyState::Alive, Some(now)), false).await.unwrap();
+    insert_proxy_if_not_exists(
+        &conn,
+        &make_proxy("1.1.1.1:8080", ProxyState::Alive, Some(now)),
+        false,
+    )
+    .await
+    .unwrap();
+    insert_proxy_if_not_exists(
+        &conn,
+        &make_proxy("2.2.2.2:8080", ProxyState::Alive, Some(now)),
+        false,
+    )
+    .await
+    .unwrap();
 
     // Batch report fail on both
     let reported = report_fails_batch(
         &conn,
-        &["1.1.1.1:8080".to_string(), "2.2.2.2:8080".to_string(), "nonexistent:8080".to_string()],
+        &[
+            "1.1.1.1:8080".to_string(),
+            "2.2.2.2:8080".to_string(),
+            "nonexistent:8080".to_string(),
+        ],
         "GATEWAY_TARGET_ERROR",
         now,
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
 
     assert_eq!(reported.len(), 2);
     assert!(reported.contains(&"1.1.1.1:8080".to_string()));
     assert!(reported.contains(&"2.2.2.2:8080".to_string()));
 
-    let p1 = get_proxy_by_id(&conn, "1.1.1.1:8080").await.unwrap().unwrap();
+    let p1 = get_proxy_by_id(&conn, "1.1.1.1:8080")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(p1.state, ProxyState::Cooldown);
     assert_eq!(p1.dead_strikes, 1);
     assert_eq!(p1.last_error, Some("GATEWAY_TARGET_ERROR".to_string()));
@@ -441,16 +505,46 @@ async fn test_batch_report_fail_and_db_maintenance() {
     let forty_days_ago = now - (40 * 86400);
     let five_days_ago = now - (5 * 86400);
 
-    insert_proxy_if_not_exists(&conn, &make_proxy("dead.old:8080", ProxyState::DeadPermanent, Some(forty_days_ago)), false).await.unwrap();
-    insert_proxy_if_not_exists(&conn, &make_proxy("dead.recent:8080", ProxyState::DeadPermanent, Some(five_days_ago)), false).await.unwrap();
+    insert_proxy_if_not_exists(
+        &conn,
+        &make_proxy(
+            "dead.old:8080",
+            ProxyState::DeadPermanent,
+            Some(forty_days_ago),
+        ),
+        false,
+    )
+    .await
+    .unwrap();
+    insert_proxy_if_not_exists(
+        &conn,
+        &make_proxy(
+            "dead.recent:8080",
+            ProxyState::DeadPermanent,
+            Some(five_days_ago),
+        ),
+        false,
+    )
+    .await
+    .unwrap();
 
     // Run maintenance with retention = 30 days
     let stats = run_db_maintenance(&conn, 30).await.unwrap();
     assert_eq!(stats.purged_dead_proxies, 1);
 
     // Verify 40 days old is purged, 5 days old is preserved
-    assert!(get_proxy_by_id(&conn, "dead.old:8080").await.unwrap().is_none());
-    assert!(get_proxy_by_id(&conn, "dead.recent:8080").await.unwrap().is_some());
+    assert!(
+        get_proxy_by_id(&conn, "dead.old:8080")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        get_proxy_by_id(&conn, "dead.recent:8080")
+            .await
+            .unwrap()
+            .is_some()
+    );
 }
 
 #[tokio::test]
@@ -478,7 +572,10 @@ async fn test_indexes_and_query_plans() {
           next_check_at ASC
         LIMIT ?2;
     ";
-    let mut plan_rows = conn.query(sql_scheduler, libsql::params![1000i64, 100i64]).await.unwrap();
+    let mut plan_rows = conn
+        .query(sql_scheduler, libsql::params![1000i64, 100i64])
+        .await
+        .unwrap();
     let mut plan_details = Vec::new();
     while let Some(row) = plan_rows.next().await.unwrap() {
         let detail: String = row.get(3).unwrap();
@@ -526,7 +623,10 @@ async fn test_indexes_and_query_plans() {
         SELECT id FROM proxies
         WHERE state = 3 AND last_checked_at IS NOT NULL AND last_checked_at < ?1;
     ";
-    let mut plan_rows = conn.query(sql_purge, libsql::params![1000i64]).await.unwrap();
+    let mut plan_rows = conn
+        .query(sql_purge, libsql::params![1000i64])
+        .await
+        .unwrap();
     let mut plan_details = Vec::new();
     while let Some(row) = plan_rows.next().await.unwrap() {
         let detail: String = row.get(3).unwrap();
@@ -585,13 +685,37 @@ async fn test_stability_filtering_and_window_queries() {
     };
 
     // 1. Just revived proxy: checked 30s ago, 100% stable in 5m window
-    insert_proxy_if_not_exists(&conn, &make_proxy("198.51.100.101:8080", Some(now - 30), 100.0, 5), false).await.unwrap();
+    insert_proxy_if_not_exists(
+        &conn,
+        &make_proxy("198.51.100.101:8080", Some(now - 30), 100.0, 5),
+        false,
+    )
+    .await
+    .unwrap();
     // 2. Flickering proxy: checked 30s ago, 50% stable in 5m window
-    insert_proxy_if_not_exists(&conn, &make_proxy("198.51.100.102:8080", Some(now - 30), 50.0, 5), false).await.unwrap();
+    insert_proxy_if_not_exists(
+        &conn,
+        &make_proxy("198.51.100.102:8080", Some(now - 30), 50.0, 5),
+        false,
+    )
+    .await
+    .unwrap();
     // 3. Expired proxy: last checked 10m ago (outside 5m window)
-    insert_proxy_if_not_exists(&conn, &make_proxy("198.51.100.103:8080", Some(now - 600), 100.0, 5), false).await.unwrap();
+    insert_proxy_if_not_exists(
+        &conn,
+        &make_proxy("198.51.100.103:8080", Some(now - 600), 100.0, 5),
+        false,
+    )
+    .await
+    .unwrap();
     // 4. Proxy with 10m window: checked 7m ago, 100% stable in 10m window
-    insert_proxy_if_not_exists(&conn, &make_proxy("198.51.100.104:8080", Some(now - 420), 100.0, 10), false).await.unwrap();
+    insert_proxy_if_not_exists(
+        &conn,
+        &make_proxy("198.51.100.104:8080", Some(now - 420), 100.0, 10),
+        false,
+    )
+    .await
+    .unwrap();
 
     // Query 1: Filter by min_stability = 90.0
     // Must return the recently revived 100% stable proxy (198.51.100.101) and the 10m window proxy (198.51.100.104)
@@ -607,7 +731,10 @@ async fn test_stability_filtering_and_window_queries() {
     assert!(ids.contains(&"198.51.100.104:8080"));
 
     // Verify proxy that "just came alive" has 10% lifetime uptime but 100% window stability
-    let revived = items_high.iter().find(|i| i.id == "198.51.100.101:8080").unwrap();
+    let revived = items_high
+        .iter()
+        .find(|i| i.id == "198.51.100.101:8080")
+        .unwrap();
     assert_eq!(revived.uptime_pct, 10.0);
     assert_eq!(revived.stability_pct, 100.0);
     assert_eq!(revived.stability_window_min, 5);
@@ -626,6 +753,12 @@ async fn test_stability_filtering_and_window_queries() {
     let q_all = ProxyFilterQuery::default();
     let all_items = query_proxies(&conn, &q_all).await.unwrap();
     assert_eq!(all_items.len(), 4);
-    let expired = all_items.iter().find(|i| i.id == "198.51.100.103:8080").unwrap();
-    assert_eq!(expired.stability_pct, 0.0, "Expired check must result in 0.0 effective stability");
+    let expired = all_items
+        .iter()
+        .find(|i| i.id == "198.51.100.103:8080")
+        .unwrap();
+    assert_eq!(
+        expired.stability_pct, 0.0,
+        "Expired check must result in 0.0 effective stability"
+    );
 }

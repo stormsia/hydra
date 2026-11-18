@@ -1,8 +1,8 @@
 use std::net::IpAddr;
 use url::Url;
 
-use hydra_checker::{CheckerConfig, ErrorReason};
 use hydra_checker::net_filter::validate_target_ip;
+use hydra_checker::{CheckerConfig, ErrorReason};
 
 #[tokio::test]
 async fn test_bogon_and_reserved_rejections() {

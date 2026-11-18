@@ -1,31 +1,32 @@
-use std::collections::HashSet;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::time::Duration;
 use chrono::Utc;
 use futures::stream::{self, StreamExt};
 use parking_lot::Mutex;
+use std::collections::HashSet;
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use hydra_checker::{
-    CheckConfigOverride, CheckTarget, ProxyAuth, ProxyProtocol, TargetHost,
-};
 use crate::app_state::AppState;
 use crate::db::proxies::fetch_due_proxies;
 use crate::models::ProxyRow;
 use crate::services::batch_writer::CheckResultWithMeta;
 use crate::services::geoip::GeoIpResult;
+use hydra_checker::{CheckConfigOverride, CheckTarget, ProxyAuth, ProxyProtocol, TargetHost};
 
 pub fn row_to_target(row: &ProxyRow) -> CheckTarget {
     let host = TargetHost::parse(&row.ip);
-    let expected_protocol = row.protocol.as_deref().and_then(|p| match p.to_lowercase().as_str() {
-        "http" => Some(ProxyProtocol::Http),
-        "https" => Some(ProxyProtocol::Https),
-        "socks4" => Some(ProxyProtocol::Socks4),
-        "socks4a" => Some(ProxyProtocol::Socks4a),
-        "socks5" => Some(ProxyProtocol::Socks5),
-        _ => None,
-    });
+    let expected_protocol = row
+        .protocol
+        .as_deref()
+        .and_then(|p| match p.to_lowercase().as_str() {
+            "http" => Some(ProxyProtocol::Http),
+            "https" => Some(ProxyProtocol::Https),
+            "socks4" => Some(ProxyProtocol::Socks4),
+            "socks4a" => Some(ProxyProtocol::Socks4a),
+            "socks5" => Some(ProxyProtocol::Socks5),
+            _ => None,
+        });
 
     let config_override = CheckConfigOverride {
         connect_timeout: Some(Duration::from_millis(row.connect_timeout_ms as u64)),
@@ -51,7 +52,10 @@ pub async fn scheduler_loop(state: AppState, cancel: CancellationToken) {
     let mut check_tick = tokio::time::interval(Duration::from_secs(1));
     let mut stats_tick = tokio::time::interval(Duration::from_secs(1));
 
-    let mut last_completed_count = state.scheduler_stats.checks_completed.load(Ordering::Relaxed);
+    let mut last_completed_count = state
+        .scheduler_stats
+        .checks_completed
+        .load(Ordering::Relaxed);
 
     loop {
         tokio::select! {

@@ -12,10 +12,11 @@ pub fn is_authorized(
     // 1. Check Query Parameter (?token=...)
     if let Some((_path, query)) = path_and_query.split_once('?') {
         for pair in query.split('&') {
-            if let Some((k, v)) = pair.split_once('=') {
-                if k == "token" && token_provider.validate_token(v) {
-                    return true;
-                }
+            if let Some((k, v)) = pair.split_once('=')
+                && k == "token"
+                && token_provider.validate_token(v)
+            {
+                return true;
             }
         }
     }

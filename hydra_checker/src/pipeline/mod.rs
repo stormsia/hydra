@@ -28,21 +28,14 @@ pub async fn execute_pipeline<D: Dialer>(
         .unwrap_or(config.connect_timeout);
 
     // Stage 1: L4 TCP Probe (Fail-Fast)
-    let (stream, tcp_rtt) = match execute_l4_probe(
-        dialer,
-        &target.host,
-        target.port,
-        connect_timeout,
-        config,
-    )
-    .await
-    {
-        Ok(res) => res,
-        Err(reason) => {
-            metrics.total_rtt_ms = check_start.elapsed().as_millis() as u64;
-            return CheckResult::failure(target.host, target.port, reason, metrics);
-        }
-    };
+    let (stream, tcp_rtt) =
+        match execute_l4_probe(dialer, &target.host, target.port, connect_timeout, config).await {
+            Ok(res) => res,
+            Err(reason) => {
+                metrics.total_rtt_ms = check_start.elapsed().as_millis() as u64;
+                return CheckResult::failure(target.host, target.port, reason, metrics);
+            }
+        };
 
     metrics.tcp_connect_rtt_ms = tcp_rtt;
 

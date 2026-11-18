@@ -1,7 +1,5 @@
 use hydra_api::models::*;
-use hydra_api::services::parser::{
-    parse_input_item, parse_proxy_string, parse_proxy_string_opt,
-};
+use hydra_api::services::parser::{parse_input_item, parse_proxy_string, parse_proxy_string_opt};
 
 #[test]
 fn test_proxy_parser_all_variations() {
@@ -127,7 +125,8 @@ fn test_models_defaults_and_serde() {
     assert_eq!(policy.stability_window_min, 5);
     assert_eq!(policy.dead_backoff_mult, 1.5);
 
-    let custom_policy: CheckPolicyDto = serde_json::from_str(r#"{"window_min": 10, "backoff_multiplier": 2.5}"#).unwrap();
+    let custom_policy: CheckPolicyDto =
+        serde_json::from_str(r#"{"window_min": 10, "backoff_multiplier": 2.5}"#).unwrap();
     assert_eq!(custom_policy.stability_window_min, 10);
     assert_eq!(custom_policy.dead_backoff_mult, 2.5);
 
@@ -141,8 +140,8 @@ fn test_models_defaults_and_serde() {
 
 #[test]
 fn test_openapi_spec_structure_and_completeness() {
-    use utoipa::OpenApi;
     use hydra_api::ApiDoc;
+    use utoipa::OpenApi;
 
     let doc = ApiDoc::openapi();
     let v = serde_json::to_value(&doc).expect("serialize OpenAPI doc to JSON");
@@ -150,11 +149,13 @@ fn test_openapi_spec_structure_and_completeness() {
     // Verify info metadata
     assert_eq!(v["info"]["title"], "Hydra Proxy Checker API");
     assert_eq!(v["info"]["version"], "1.0.0");
-    let desc = v["info"]["description"].as_str().expect("description string");
+    let desc = v["info"]["description"]
+        .as_str()
+        .expect("description string");
     assert!(desc.contains("Hydra"));
     assert!(desc.contains("Authentication"));
     assert_eq!(v["info"]["contact"]["name"], "Hydra Core Team");
-    assert_eq!(v["info"]["license"]["name"], "MIT OR Apache-2.0");
+    assert_eq!(v["info"]["license"]["name"], "MIT");
 
     // Verify servers
     let servers = v["servers"].as_array().expect("servers array");
@@ -167,7 +168,9 @@ fn test_openapi_spec_structure_and_completeness() {
     assert_eq!(tag_names, vec!["Proxies", "Sources", "Stats", "Judges"]);
 
     // Verify schemas
-    let schemas = v["components"]["schemas"].as_object().expect("schemas object");
+    let schemas = v["components"]["schemas"]
+        .as_object()
+        .expect("schemas object");
 
     let expected_schemas = [
         "ImportBatchRequest",
@@ -235,7 +238,10 @@ fn test_openapi_spec_structure_and_completeness() {
                 if let Some(op_id) = op["operationId"].as_str() {
                     found_ops.push(op_id.to_string());
                     assert!(op["summary"].is_string(), "Op {op_id} missing summary");
-                    assert!(op["description"].is_string(), "Op {op_id} missing description");
+                    assert!(
+                        op["description"].is_string(),
+                        "Op {op_id} missing description"
+                    );
 
                     let op_tags = op["tags"].as_array().expect("op tags array");
                     assert!(!op_tags.is_empty(), "Op {op_id} missing tags");
