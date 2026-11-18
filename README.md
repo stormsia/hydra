@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Hydra Logo" width="max">
+  <img src="assets/logo.svg" alt="Hydra Logo" width="100%">
 </p>
 
 # Hydra — High-Performance Distributed Proxy Engine
