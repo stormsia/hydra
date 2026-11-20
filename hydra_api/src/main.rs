@@ -162,14 +162,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         scheduler_stats: scheduler_stats.clone(),
     };
 
-    tokio::spawn(batch_writer_loop(
+    let batch_writer_handle = tokio::spawn(batch_writer_loop(
         result_rx,
         db.clone(),
         config.batch_flush_interval_ms,
         scheduler_stats.clone(),
     ));
 
-    tokio::spawn(scheduler_loop(state.clone(), cancel.clone()));
+    let scheduler_handle = tokio::spawn(scheduler_loop(state.clone(), cancel.clone()));
 
     tokio::spawn(db_maintenance_loop(
         db.clone(),
@@ -220,6 +220,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             shutdown_cancel.cancel();
         })
         .await?;
+
+    tracing::info!("HTTP server stopped. Waiting for scheduler and workers to drain...");
+    let _ = scheduler_handle.await;
+
+    tracing::info!("Waiting for batch writer to flush in-flight results...");
+    let _ = batch_writer_handle.await;
+
+    tracing::info!("Graceful shutdown complete.");
 
     Ok(())
 }

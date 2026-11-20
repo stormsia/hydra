@@ -938,4 +938,15 @@ async fn test_fetch_due_proxies_lease_mechanism() {
     assert_eq!(expired.len(), 2);
     assert_eq!(expired[0].next_check_at, 1120);
     assert_eq!(expired[1].next_check_at, 1120);
+
+    // 5. Proxy with custom large timeouts: (10s + 10s + 10s) * 4 protocols = 120s lease
+    let mut custom_large_proxy = make_proxy("3.3.3.3:80", 2000);
+    custom_large_proxy.connect_timeout_ms = 10000;
+    custom_large_proxy.handshake_timeout_ms = 10000;
+    custom_large_proxy.rw_timeout_ms = 10000;
+    insert_proxy_if_not_exists(&conn, &custom_large_proxy, false).await.unwrap();
+
+    let fetched_custom = fetch_due_proxies(&conn, 2000, 10).await.unwrap();
+    let p3 = fetched_custom.iter().find(|p| p.id == "3.3.3.3:80").unwrap();
+    assert_eq!(p3.next_check_at, 2120); // 2000 + 120s
 }

@@ -478,10 +478,10 @@ pub async fn patch_proxy(
         params.push((policy.rw_timeout_ms as i64).into());
         sets.push(format!("rw_timeout_ms = ?{}", params.len()));
 
-        params.push((policy.recheck_alive_sec as i64).into());
+        params.push(((policy.recheck_alive_sec as i64).max(1)).into());
         sets.push(format!("recheck_alive_sec = ?{}", params.len()));
 
-        params.push((policy.recheck_dead_sec as i64).into());
+        params.push(((policy.recheck_dead_sec as i64).max(1)).into());
         sets.push(format!("recheck_dead_sec = ?{}", params.len()));
 
         params.push((policy.max_dead_strikes as i64).into());
@@ -765,16 +765,17 @@ pub async fn fetch_due_proxies(
     }
 
     // Step 4: Atomic Lease pattern to prevent Head-of-Line (HoL) blocking.
-    // Leases the fetched proxies for 60 seconds (now + 60) so subsequent scheduler
+    // Leases the fetched proxies for a duration calculated from the sum of all check
+    // timeouts multiplied by the maximum number of cascade checks (4 protocols), with a
+    // minimum lease of 60 seconds (now + lease_duration) so subsequent scheduler
     // ticks do not pick them up while they are in-flight.
     if !results.is_empty() {
-        const LEASE_DURATION_SECS: i64 = 60;
-        let lease_until = now + LEASE_DURATION_SECS;
-
         for chunk in results.chunks_mut(500) {
-            let mut sql_lease = String::from("UPDATE proxies SET next_check_at = ?1 WHERE id IN (");
+            let mut sql_lease = String::from(
+                "UPDATE proxies SET next_check_at = ?1 + MAX(CAST(((connect_timeout_ms + handshake_timeout_ms + rw_timeout_ms) * 4 + 999) / 1000 AS INTEGER), 60) WHERE id IN ("
+            );
             let mut params: Vec<libsql::Value> = Vec::with_capacity(chunk.len() + 1);
-            params.push(lease_until.into());
+            params.push(now.into());
 
             for (idx, r) in chunk.iter().enumerate() {
                 if idx > 0 {
@@ -787,7 +788,11 @@ pub async fn fetch_due_proxies(
 
             conn.execute(&sql_lease, params).await?;
             for r in chunk.iter_mut() {
-                r.next_check_at = lease_until;
+                let per_check_ms = (r.connect_timeout_ms as u64)
+                    + (r.handshake_timeout_ms as u64)
+                    + (r.rw_timeout_ms as u64);
+                let lease_secs = (per_check_ms * 4).div_ceil(1000).max(60) as i64;
+                r.next_check_at = now + lease_secs;
             }
         }
     }
