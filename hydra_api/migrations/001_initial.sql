@@ -47,9 +47,11 @@ CREATE TABLE IF NOT EXISTS proxies (
     rw_timeout_ms        INTEGER NOT NULL DEFAULT 5000,  -- L7 read/write timeout
     recheck_alive_sec    INTEGER NOT NULL DEFAULT 60,    -- Alive proxy recheck interval
     recheck_dead_sec     INTEGER NOT NULL DEFAULT 1800,  -- Dead proxy cooldown interval (0 = do not recheck)
-    max_dead_strikes     INTEGER NOT NULL DEFAULT 3,     -- Failure threshold before marking dead_permanent
+    max_dead_strikes_zero INTEGER NOT NULL DEFAULT 3,    -- Failure threshold for zero-uptime proxies (checks_success == 0)
+    max_dead_strikes_active INTEGER NOT NULL DEFAULT 3,  -- Failure threshold for active proxies (checks_success > 0)
     stability_window_min INTEGER NOT NULL DEFAULT 5,     -- Stability window (in minutes)
-    dead_backoff_mult    REAL NOT NULL DEFAULT 1.5,      -- Exponential backoff multiplier for dead recheck (>= 1.0)
+    dead_backoff_mult_zero REAL NOT NULL DEFAULT 1.5,    -- Exponential backoff multiplier for zero-uptime proxies (checks_success == 0)
+    dead_backoff_mult_active REAL NOT NULL DEFAULT 1.5,  -- Exponential backoff multiplier for active proxies (checks_success > 0)
 
     -- === Statistics ===
     checks_total    INTEGER NOT NULL DEFAULT 0,

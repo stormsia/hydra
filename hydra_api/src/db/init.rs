@@ -69,7 +69,25 @@ pub async fn run_migrations(db: &Database) -> Result<(), libsql::Error> {
         .await;
     let _ = conn
         .execute(
-            "ALTER TABLE proxies ADD COLUMN dead_backoff_mult REAL NOT NULL DEFAULT 1.5;",
+            "ALTER TABLE proxies ADD COLUMN max_dead_strikes_zero INTEGER NOT NULL DEFAULT 3;",
+            (),
+        )
+        .await;
+    let _ = conn
+        .execute(
+            "ALTER TABLE proxies ADD COLUMN max_dead_strikes_active INTEGER NOT NULL DEFAULT 3;",
+            (),
+        )
+        .await;
+    let _ = conn
+        .execute(
+            "ALTER TABLE proxies ADD COLUMN dead_backoff_mult_zero REAL NOT NULL DEFAULT 1.5;",
+            (),
+        )
+        .await;
+    let _ = conn
+        .execute(
+            "ALTER TABLE proxies ADD COLUMN dead_backoff_mult_active REAL NOT NULL DEFAULT 1.5;",
             (),
         )
         .await;

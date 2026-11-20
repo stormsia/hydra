@@ -16,7 +16,7 @@ Base URL: `http://127.0.0.1:3000`
 | `cold_queue` | `0` | Новая прокси, ожидает первой проверки в очереди первичного тестирования. |
 | `alive` | `1` | Рабочая прокси в активном пуле, подтвержденная judge-сервером. Готова к выдаче клиентам. |
 | `cooldown` | `2` | Карантин после сбоя проверки или клиентского fail-report. Ожидает речека с экспоненциальным бэкоффом. |
-| `dead_permanent` | `3` | Превышен лимит последовательных сбоев (`max_dead_strikes`). Исключена из очередей речека. |
+| `dead_permanent` | `3` | Превышен лимит последовательных сбоев. Исключена из очередей речека. |
 
 ### 1.2. Протоколы и уровни анонимности
 
@@ -38,17 +38,23 @@ Base URL: `http://127.0.0.1:3000`
 | `rw_timeout_ms` | `u32` | `5000` (мс) | `100` – `60000` | Предельный тайм-аут на отправку контрольного HTTP-запроса и чтение ответа от judge-сервера (I/O). При превышении чекер фиксирует сбой этапа валидации (`rw timeout`). |
 | `recheck_alive_sec` | `u32` | `60` (с) | `10` – `86400` | Интервал плановой фоновой перепроверки валидных прокси в статусе `alive`. При успешной проверке планировщик выставляет `next_check_at = now + recheck_alive_sec`. |
 | `recheck_dead_sec` | `u32` | `1800` (с) | `30` – `604800` | Базовый интервал речека сбойных прокси в карантине (`cooldown`). Служит основой для расчета задержки первого и последующих штрафных речеков. При значении `0` прокси сразу помечается как `dead_permanent`. |
-| `max_dead_strikes` | `u32` | `3` | `1` – `50` | Порог допустимых последовательных сбоев (`dead_strikes`). При достижении порога прокси безвозвратно переводится в `dead_permanent` (код `3`) и исключается из очередей планировщика. |
+| `max_dead_strikes_zero` | `u32` | `3` | `1` – `50` | Порог допустимых последовательных сбоев для «нулевых» прокси (`checks_success == 0`). Алиасы: `max_dead_strikes_0`. |
+| `max_dead_strikes_active` | `u32` | `3` | `1` – `50` | Порог допустимых последовательных сбоев для активных прокси (`checks_success > 0`). Алиасы: `max_dead_strikes_nonzero`, `max_dead_strikes_alive`. |
 | `stability_window_min` | `u32` | `5` (мин) | `1` – `1440` | Временное скользящее окно (в минутах) для расчета метрики качества `stability_pct`. Результаты проверок старше `(now - stability_window_min * 60)` автоматически отсекаются. Алиасы: `stability_window`, `window_min`, `window_minutes`. |
-| `dead_backoff_mult` | `f32` | `1.5` | `1.0` – `10.0` | Множитель экспоненциального бэкоффа для расчета задержки повторных проверок в статусе `cooldown`. При значении `1.0` интервал между речеками остается постоянным. Алиасы: `backoff_multiplier`, `recheck_dead_multiplier`, `dead_multiplier`, `recheck_dead_mult`, `multiplier`. |
+| `dead_backoff_mult_zero` | `f32` | `1.5` | `1.0` – `10.0` | Множитель экспоненциального бэкоффа для «нулевых» прокси (`checks_success == 0`). Алиасы: `dead_backoff_mult_0`, `backoff_multiplier_zero`. |
+| `dead_backoff_mult_active` | `f32` | `1.5` | `1.0` – `10.0` | Множитель экспоненциального бэкоффа для активных прокси (`checks_success > 0`). Алиасы: `dead_backoff_mult_nonzero`, `dead_backoff_mult_alive`, `backoff_multiplier_active`, `backoff_multiplier_nonzero`. |
 
 **Формула расчета карантинного речека в `cooldown`:**
 
-При неудачной проверке инкрементируется счетчик последовательных сбоев `strikes` (`new_strikes = current_strikes + 1`). Если `strikes < max_dead_strikes`, прокси переводится в статус `cooldown` (или остается в нем), а задержка следующей проверки вычисляется по формуле:
+При неудачной проверке инкрементируется счетчик последовательных сбоев `strikes` (`new_strikes = current_strikes + 1`). Действующие порог и коэффициент бэкоффа определяются динамически в зависимости от наличия успешных проверок:
+- Если `checks_success == 0`: `effective_max_strikes = max_dead_strikes_zero`, `effective_backoff_mult = dead_backoff_mult_zero`.
+- Если `checks_success > 0`: `effective_max_strikes = max_dead_strikes_active`, `effective_backoff_mult = dead_backoff_mult_active`.
 
-`интервал = recheck_dead_sec * (dead_backoff_mult ^ (strikes - 1))`
+Если `strikes < effective_max_strikes`, прокси переводится в статус `cooldown` (или остается в нем), а задержка следующей проверки вычисляется по формуле:
 
-> *Примечание:* Вычисленный `интервал` аппаратно ограничивается диапазоном от 1 секунды до 30 дней: `clamp(1, 2592000)` секунд. Время следующей проверки назначается как `next_check_at = now + интервал`. При `strikes >= max_dead_strikes` прокси переходит в терминальное состояние `dead_permanent` (код `3`).
+`интервал = recheck_dead_sec * (effective_backoff_mult ^ (strikes - 1))`
+
+> *Примечание:* Вычисленный `интервал` аппаратно ограничивается диапазоном от 1 секунды до 30 дней: `clamp(1, 2592000)` секунд. Время следующей проверки назначается как `next_check_at = now + интервал`. При `strikes >= effective_max_strikes` прокси переходит в терминальное состояние `dead_permanent` (код `3`).
 
 > **Формат идентификатора прокси (`id`):** `ip:port` (для публичных) или `ip:port:user:pass` (для приватных). В путях URL (`/api/v1/proxies/{id}`) спецсимволы (`:`, `@`, `#`, `/`) **обязаны** быть percent-encoded (например, `1.2.3.4%3A8080%3Au%40ser%3Ap%23ass`).
 
@@ -75,9 +81,11 @@ Base URL: `http://127.0.0.1:3000`
       "rw_timeout_ms": 5000,
       "recheck_alive_sec": 60,
       "recheck_dead_sec": 1800,
-      "max_dead_strikes": 3,
+      "max_dead_strikes_zero": 3,
+      "max_dead_strikes_active": 3,
       "stability_window_min": 5,
-      "dead_backoff_mult": 1.5
+      "dead_backoff_mult_zero": 1.5,
+      "dead_backoff_mult_active": 1.5
     },
     "proxies": [
       "socks5://user:pass@185.220.101.5:1080",
@@ -250,9 +258,11 @@ Base URL: `http://127.0.0.1:3000`
       "rw_timeout_ms": 5000,
       "recheck_alive_sec": 60,
       "recheck_dead_sec": 1800,
-      "max_dead_strikes": 3,
+      "max_dead_strikes_zero": 3,
+      "max_dead_strikes_active": 3,
       "stability_window_min": 5,
-      "dead_backoff_mult": 1.5
+      "dead_backoff_mult_zero": 1.5,
+      "dead_backoff_mult_active": 1.5
     },
     "stats": {
       "checks_total": 450,
@@ -301,9 +311,11 @@ Base URL: `http://127.0.0.1:3000`
       "rw_timeout_ms": 4000,
       "recheck_alive_sec": 30,
       "recheck_dead_sec": 600,
-      "max_dead_strikes": 2,
+      "max_dead_strikes_zero": 2,
+      "max_dead_strikes_active": 2,
       "stability_window_min": 5,
-      "dead_backoff_mult": 2.0
+      "dead_backoff_mult_zero": 2.0,
+      "dead_backoff_mult_active": 2.0
     }
   }
   ```

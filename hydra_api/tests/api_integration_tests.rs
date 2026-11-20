@@ -501,13 +501,14 @@ async fn test_import_with_stability_policy_and_api_responses() {
     let (base_url, api_key) = spawn_test_server().await;
     let client = reqwest::Client::new();
 
-    // 1. Import with custom stability_window_min (10 min), dead_backoff_mult (2.5), and recheck_alive_sec (15 sec)
+    // 1. Import with custom stability_window_min (10 min), dead_backoff_mult_zero (2.5), and recheck_alive_sec (15 sec)
     let import_req = serde_json::json!({
         "source": "fast_recheck_pool",
         "policy": {
             "recheck_alive_sec": 15,
             "stability_window_min": 10,
-            "dead_backoff_mult": 2.5
+            "dead_backoff_mult_zero": 2.5,
+            "dead_backoff_mult_active": 2.5
         },
         "proxies": ["185.22.15.201:8080", "185.22.15.202:8080"]
     });
@@ -549,7 +550,8 @@ async fn test_import_with_stability_policy_and_api_responses() {
     let details: ProxyFullDetails = details_res.json().await.unwrap();
     assert_eq!(details.policy.recheck_alive_sec, 15);
     assert_eq!(details.policy.stability_window_min, 10);
-    assert_eq!(details.policy.dead_backoff_mult, 2.5);
+    assert_eq!(details.policy.dead_backoff_mult_zero, 2.5);
+    assert_eq!(details.policy.dead_backoff_mult_active, 2.5);
     assert_eq!(details.stats.stability_pct, 0.0);
 
     // 4. Update policy via PATCH
@@ -560,9 +562,11 @@ async fn test_import_with_stability_policy_and_api_responses() {
             "rw_timeout_ms": 5000,
             "recheck_alive_sec": 10,
             "recheck_dead_sec": 300,
-            "max_dead_strikes": 2,
+            "max_dead_strikes_zero": 2,
+            "max_dead_strikes_active": 2,
             "stability_window_min": 3,
-            "dead_backoff_mult": 1.75
+            "dead_backoff_mult_zero": 1.75,
+            "dead_backoff_mult_active": 1.75
         }
     });
     let patch_res = client
@@ -584,5 +588,6 @@ async fn test_import_with_stability_policy_and_api_responses() {
     let patched: ProxyFullDetails = patched_details_res.json().await.unwrap();
     assert_eq!(patched.policy.stability_window_min, 3);
     assert_eq!(patched.policy.recheck_alive_sec, 10);
-    assert_eq!(patched.policy.dead_backoff_mult, 1.75);
+    assert_eq!(patched.policy.dead_backoff_mult_zero, 1.75);
+    assert_eq!(patched.policy.dead_backoff_mult_active, 1.75);
 }

@@ -16,7 +16,7 @@
 | `cold_queue` | `0` | 新导入系统的待测代理，处于初检队列中等待分配探测任务。 |
 | `alive` | `1` | 通过 Judge 探针全流程验证的高可用代理，处于活跃池，可正常对外分发。 |
 | `cooldown` | `2` | 探测超时失败或由客户端上报异常后的隔离状态，按指数退避算法等待下一次复检。 |
-| `dead_permanent` | `3` | 连续探测失败次数突破上限阈值 (`max_dead_strikes`)，被永久标记废弃并移出复检队列。 |
+| `dead_permanent` | `3` | 连续探测失败次数突破上限阈值，被永久标记废弃并移出复检队列。 |
 
 ### 1.2. 协议支持与匿名度分类
 
@@ -38,17 +38,23 @@
 | `rw_timeout_ms` | `u32` | `5000` (ms) | `100` – `60000` | 向裁判节点发送探针请求并等待全量响应体返回的 I/O 读写超时。 |
 | `recheck_alive_sec` | `u32` | `60` (s) | `10` – `86400` | 处于 `alive` 状态的健康节点后台常规巡检周期。巡检成功后设定 `next_check_at = now + recheck_alive_sec`。 |
 | `recheck_dead_sec` | `u32` | `1800` (s) | `30` – `604800` | 隔离区 (`cooldown`) 节点的初次复检等待基准时延（秒）。若配置为 `0`，则发生故障时直接降级为 `dead_permanent`。 |
-| `max_dead_strikes` | `u32` | `3` | `1` – `50` | 允许的最大连续失败次数 (`dead_strikes`)。达到或超过该阈值时节点被永久标记为 `dead_permanent`（状态码 `3`）并不再重试。 |
+| `max_dead_strikes_zero` | `u32` | `3` | `1` – `50` | 零成功率/全新节点 (`checks_success == 0`) 的最大连续失败次数。兼容别名：`max_dead_strikes_0`。 |
+| `max_dead_strikes_active` | `u32` | `3` | `1` – `50` | 曾存活验证过的活跃节点 (`checks_success > 0`) 的最大连续失败次数。兼容别名：`max_dead_strikes_nonzero`, `max_dead_strikes_alive`。 |
 | `stability_window_min` | `u32` | `5` (min) | `1` – `1440` | 计算短周期健康度评分 `stability_pct` 的滑动时间窗口（单位：分钟）。早于该时间的历史记录不计入统计。兼容别名：`stability_window`, `window_min`, `window_minutes`。 |
-| `dead_backoff_mult` | `f32` | `1.5` | `1.0` – `10.0` | 隔离复检的指数退避乘子。若设为 `1.0` 则复检保持固定间隔不变。兼容别名：`backoff_multiplier`, `recheck_dead_multiplier`, `dead_multiplier`, `recheck_dead_mult`, `multiplier`。 |
+| `dead_backoff_mult_zero` | `f32` | `1.5` | `1.0` – `10.0` | 零成功率/全新节点 (`checks_success == 0`) 的隔离复检指数退避乘子。兼容别名：`dead_backoff_mult_0`, `backoff_multiplier_zero`。 |
+| `dead_backoff_mult_active` | `f32` | `1.5` | `1.0` – `10.0` | 曾存活验证过的活跃节点 (`checks_success > 0`) 的隔离复检指数退避乘子。兼容别名：`dead_backoff_mult_nonzero`, `dead_backoff_mult_alive`, `backoff_multiplier_active`, `backoff_multiplier_nonzero`。 |
 
 **隔离复检指数退避数学公式：**
 
-当代理节点探测失败时，连续失败计数递增：`new_strikes = current_strikes + 1`。若 `strikes < max_dead_strikes`，节点进入或停留在 `cooldown` 状态，下次检测触发延迟按以下公式计算：
+当代理节点探测失败时，连续失败计数递增：`new_strikes = current_strikes + 1`。系统依据节点历史是否存在成功检测记录（`checks_success`）动态匹配差异化阈值与退避系数：
+- 若 `checks_success == 0`: `effective_max_strikes = max_dead_strikes_zero`, `effective_backoff_mult = dead_backoff_mult_zero`。
+- 若 `checks_success > 0`: `effective_max_strikes = max_dead_strikes_active`, `effective_backoff_mult = dead_backoff_mult_active`。
 
-`interval = recheck_dead_sec * (dead_backoff_mult ^ (strikes - 1))`
+若 `strikes < effective_max_strikes`，节点进入或停留在 `cooldown` 状态，下次检测触发延迟按以下公式计算：
 
-> *注：* 计算出的 `interval` 会被硬性限制在 1 秒至 30 天区间内：`clamp(1, 2592000)` 秒。下一次调度时间计算为 `next_check_at = now + interval`。若 `strikes >= max_dead_strikes`，节点正式进入终态 `dead_permanent`。
+`interval = recheck_dead_sec * (effective_backoff_mult ^ (strikes - 1))`
+
+> *注：* 计算出的 `interval` 会被硬性限制在 1 秒至 30 天区间内：`clamp(1, 2592000)` 秒。下一次调度时间计算为 `next_check_at = now + interval`。若 `strikes >= effective_max_strikes`，节点正式进入终态 `dead_permanent`。
 
 > **代理唯一标识符格式 (`id`)：** 公开无密节点格式为 `ip:port`，私密认证节点格式为 `ip:port:user:pass`。在 REST API 路由路径中使用时（`/api/v1/proxies/{id}`），所有特殊符号（如 `:`、`@`、`#`、`/`）**必须**进行标准 URL 百分号编码（例如：`1.2.3.4%3A8080%3Au%40ser%3Ap%23ass`）。
 
@@ -75,9 +81,11 @@
       "rw_timeout_ms": 5000,
       "recheck_alive_sec": 60,
       "recheck_dead_sec": 1800,
-      "max_dead_strikes": 3,
+      "max_dead_strikes_zero": 3,
+      "max_dead_strikes_active": 3,
       "stability_window_min": 5,
-      "dead_backoff_mult": 1.5
+      "dead_backoff_mult_zero": 1.5,
+      "dead_backoff_mult_active": 1.5
     },
     "proxies": [
       "socks5://user:pass@185.220.101.5:1080",
@@ -250,9 +258,11 @@
       "rw_timeout_ms": 5000,
       "recheck_alive_sec": 60,
       "recheck_dead_sec": 1800,
-      "max_dead_strikes": 3,
+      "max_dead_strikes_zero": 3,
+      "max_dead_strikes_active": 3,
       "stability_window_min": 5,
-      "dead_backoff_mult": 1.5
+      "dead_backoff_mult_zero": 1.5,
+      "dead_backoff_mult_active": 1.5
     },
     "stats": {
       "checks_total": 450,
@@ -301,9 +311,11 @@
       "rw_timeout_ms": 4000,
       "recheck_alive_sec": 30,
       "recheck_dead_sec": 600,
-      "max_dead_strikes": 2,
+      "max_dead_strikes_zero": 2,
+      "max_dead_strikes_active": 2,
       "stability_window_min": 5,
-      "dead_backoff_mult": 2.0
+      "dead_backoff_mult_zero": 2.0,
+      "dead_backoff_mult_active": 2.0
     }
   }
   ```

@@ -16,7 +16,7 @@ Authentication: HTTP header `X-API-Key: <token>` (configured via `API_KEY` envir
 | `cold_queue` | `0` | Newly ingested proxy awaiting its initial check in the pre-flight testing queue. |
 | `alive` | `1` | Validated, operational proxy in active pool confirmed by an echo judge. Ready for client rotation. |
 | `cooldown` | `2` | Quarantined following a verification error or client fail report. Scheduled for exponential backoff recheck. |
-| `dead_permanent` | `3` | Consecutive failure threshold exceeded (`max_dead_strikes`). Excluded from scheduling queues. |
+| `dead_permanent` | `3` | Consecutive failure threshold exceeded. Excluded from scheduling queues. |
 
 ### 1.2. Protocols and Anonymity Levels
 
@@ -38,17 +38,23 @@ Network timeouts, degradation thresholds, and background scheduler settings. Con
 | `rw_timeout_ms` | `u32` | `5000` (ms) | `100` – `60000` | Maximum timeout for sending test HTTP request and reading full response from judge (I/O). Exceeding triggers a `rw timeout` phase failure. |
 | `recheck_alive_sec` | `u32` | `60` (s) | `10` – `86400` | Interval for routine background re-validation of healthy `alive` proxies. On success, scheduler sets `next_check_at = now + recheck_alive_sec`. |
 | `recheck_dead_sec` | `u32` | `1800` (s) | `30` – `604800` | Base recheck interval for quarantined nodes in `cooldown`. Serves as base delay for exponential backoff. When set to `0`, proxy transitions directly to `dead_permanent`. |
-| `max_dead_strikes` | `u32` | `3` | `1` – `50` | Maximum allowed consecutive failures (`dead_strikes`). Once reached, proxy is permanently transitioned to `dead_permanent` (code `3`) and excluded from active queues. |
+| `max_dead_strikes_zero` | `u32` | `3` | `1` – `50` | Maximum allowed consecutive failures for zero-uptime proxies (`checks_success == 0`). Once reached, proxy transitions to `dead_permanent`. Aliases: `max_dead_strikes_0`. |
+| `max_dead_strikes_active` | `u32` | `3` | `1` – `50` | Maximum allowed consecutive failures for active proxies (`checks_success > 0`). Once reached, proxy transitions to `dead_permanent`. Aliases: `max_dead_strikes_nonzero`, `max_dead_strikes_alive`. |
 | `stability_window_min` | `u32` | `5` (min) | `1` – `1440` | Sliding time window (minutes) for calculating `stability_pct`. Check history older than `(now - stability_window_min * 60)` is discarded. Aliases: `stability_window`, `window_min`, `window_minutes`. |
-| `dead_backoff_mult` | `f32` | `1.5` | `1.0` – `10.0` | Exponential backoff multiplier for calculating penalty recheck delays in `cooldown`. If `1.0`, recheck interval remains constant. Aliases: `backoff_multiplier`, `recheck_dead_multiplier`, `dead_multiplier`, `recheck_dead_mult`, `multiplier`. |
+| `dead_backoff_mult_zero` | `f32` | `1.5` | `1.0` – `10.0` | Exponential backoff multiplier for zero-uptime proxies (`checks_success == 0`). Aliases: `dead_backoff_mult_0`, `backoff_multiplier_zero`. |
+| `dead_backoff_mult_active` | `f32` | `1.5` | `1.0` – `10.0` | Exponential backoff multiplier for active proxies (`checks_success > 0`). Aliases: `dead_backoff_mult_nonzero`, `dead_backoff_mult_alive`, `backoff_multiplier_active`, `backoff_multiplier_nonzero`. |
 
 **Exponential Backoff Formula in `cooldown`:**
 
-When a check fails, consecutive strikes increment: `new_strikes = current_strikes + 1`. If `strikes < max_dead_strikes`, proxy is put into or retained in `cooldown`, with delay calculated as:
+When a check fails, consecutive strikes increment: `new_strikes = current_strikes + 1`. The effective threshold and backoff multiplier are determined dynamically by checking whether the proxy has had any successful checks:
+- If `checks_success == 0`: `effective_max_strikes = max_dead_strikes_zero`, `effective_backoff_mult = dead_backoff_mult_zero`.
+- If `checks_success > 0`: `effective_max_strikes = max_dead_strikes_active`, `effective_backoff_mult = dead_backoff_mult_active`.
 
-`interval = recheck_dead_sec * (dead_backoff_mult ^ (strikes - 1))`
+If `strikes < effective_max_strikes`, proxy is put into or retained in `cooldown`, with delay calculated as:
 
-> *Note:* Computed `interval` is clamped between 1 second and 30 days: `clamp(1, 2592000)` seconds. Next check is scheduled as `next_check_at = now + interval`. If `strikes >= max_dead_strikes`, proxy moves to terminal state `dead_permanent` (code `3`).
+`interval = recheck_dead_sec * (effective_backoff_mult ^ (strikes - 1))`
+
+> *Note:* Computed `interval` is clamped between 1 second and 30 days: `clamp(1, 2592000)` seconds. Next check is scheduled as `next_check_at = now + interval`. If `strikes >= effective_max_strikes`, proxy moves to terminal state `dead_permanent` (code `3`).
 
 > **Proxy Identifier Format (`id`):** `ip:port` (for public proxies) or `ip:port:user:pass` (for authenticated proxies). Special characters (`:`, `@`, `#`, `/`) in URL paths (`/api/v1/proxies/{id}`) **must** be percent-encoded (e.g. `1.2.3.4%3A8080%3Au%40ser%3Ap%23ass`).
 
@@ -75,9 +81,11 @@ Batch ingestion of raw proxies into `cold_queue` with validation, deduplication,
       "rw_timeout_ms": 5000,
       "recheck_alive_sec": 60,
       "recheck_dead_sec": 1800,
-      "max_dead_strikes": 3,
+      "max_dead_strikes_zero": 3,
+      "max_dead_strikes_active": 3,
       "stability_window_min": 5,
-      "dead_backoff_mult": 1.5
+      "dead_backoff_mult_zero": 1.5,
+      "dead_backoff_mult_active": 1.5
     },
     "proxies": [
       "socks5://user:pass@185.220.101.5:1080",
@@ -250,9 +258,11 @@ Retrieve complete proxy details with configured check policies (see [Section 1.3
       "rw_timeout_ms": 5000,
       "recheck_alive_sec": 60,
       "recheck_dead_sec": 1800,
-      "max_dead_strikes": 3,
+      "max_dead_strikes_zero": 3,
+      "max_dead_strikes_active": 3,
       "stability_window_min": 5,
-      "dead_backoff_mult": 1.5
+      "dead_backoff_mult_zero": 1.5,
+      "dead_backoff_mult_active": 1.5
     },
     "stats": {
       "checks_total": 450,
@@ -301,9 +311,11 @@ Partial update of metadata, credentials, Check Policy timeouts, or triggering an
       "rw_timeout_ms": 4000,
       "recheck_alive_sec": 30,
       "recheck_dead_sec": 600,
-      "max_dead_strikes": 2,
+      "max_dead_strikes_zero": 2,
+      "max_dead_strikes_active": 2,
       "stability_window_min": 5,
-      "dead_backoff_mult": 2.0
+      "dead_backoff_mult_zero": 2.0,
+      "dead_backoff_mult_active": 2.0
     }
   }
   ```

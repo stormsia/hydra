@@ -15,10 +15,13 @@ pub struct CheckResultWithMeta {
     pub geoip: GeoIpResult,
     pub recheck_alive_sec: u32,
     pub recheck_dead_sec: u32,
-    pub max_dead_strikes: u32,
+    pub max_dead_strikes_zero: u32,
+    pub max_dead_strikes_active: u32,
     pub current_strikes: u32,
     pub stability_window_min: u32,
-    pub dead_backoff_mult: f32,
+    pub dead_backoff_mult_zero: f32,
+    pub dead_backoff_mult_active: f32,
+    pub checks_success: u64,
     pub recent_checks: Option<String>,
 }
 
@@ -265,7 +268,12 @@ pub async fn flush_batch(
             }
         } else {
             let new_strikes = item.current_strikes + 1;
-            let is_permanent = new_strikes >= item.max_dead_strikes || item.recheck_dead_sec == 0;
+            let (effective_max_strikes, effective_backoff_mult) = if item.checks_success == 0 {
+                (item.max_dead_strikes_zero, item.dead_backoff_mult_zero)
+            } else {
+                (item.max_dead_strikes_active, item.dead_backoff_mult_active)
+            };
+            let is_permanent = new_strikes >= effective_max_strikes || item.recheck_dead_sec == 0;
             let new_state = if is_permanent { 3i64 } else { 2i64 };
             let next_check = if is_permanent {
                 now + 365 * 86400
@@ -273,7 +281,7 @@ pub async fn flush_batch(
                 calculate_dead_next_check(
                     now,
                     item.recheck_dead_sec,
-                    item.dead_backoff_mult,
+                    effective_backoff_mult,
                     new_strikes,
                 )
             };

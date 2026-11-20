@@ -34,7 +34,7 @@
 ### 🎯 三大核心优势：
 
 1. **零配置极速摄取全格式代理（14,000+ 代理/秒）**：支持无格式要求的原始数据流直接导入 — 自动识别 `ip:port`、`ip:port:user:pass`、`user:pass@ip:port`、URL 协议前缀、IPv6 (`[::1]:port`) 及结构化 JSON。系统纳秒级过滤 Bogon/私网地址，并执行协议级联探测（`SOCKS5` &rarr; `SOCKS4/4a` &rarr; `HTTP CONNECT` &rarr; `Plain HTTP`）。
-2. **细粒度全生命周期策略（为每个代理池定制 SLA）**：通过可插拔的检测策略（Check Policy）精准控制分层超时（L4 连接、L7 握手、I/O 读写）、健康存活轮询间隔、指数退避隔离期（`cooldown`）以及连续失败熔断阈值（`max_dead_strikes`），调度器 7×24 小时全自动保障池内节点时效性。
+2. **细粒度全生命周期策略（为每个代理池定制 SLA）**：通过可插拔的检测策略（Check Policy）精准控制分层超时（L4 连接、L7 握手、I/O 读写）、健康存活轮询间隔、差异化指数退避隔离期（`dead_backoff_mult_zero` / `dead_backoff_mult_active`）以及独立连续失败熔断阈值（`max_dead_strikes_zero` / `max_dead_strikes_active`），调度器 7×24 小时全自动保障池内节点时效性。
 3. **0.06 毫秒极速查询与零锁死保证**：基于 SQLite WAL 模式、WITHOUT ROWID 聚簇表与 8 个专用 B-Tree 索引，针对国家、ASN、协议与匿名度实现亚毫秒级检索。结合 MPSC 微批处理写入架构（100 毫秒事务刷盘），在 10,000,000 级代理持续高并发冲击下保持 100% 事务稳定性与 0 锁错误。
 
 ---
@@ -272,7 +272,7 @@ stateDiagram-v2
     alive --> cooldown: 复检失败 或 客户端 POST /report-fail 上报
 
     cooldown --> alive: 隔离期复检成功 (strikes 重置为 0)
-    cooldown --> cooldown: 持续失败 (strikes < max_dead_strikes)
+    cooldown --> cooldown: 持续失败 (strikes < strike_limit)
     cooldown --> dead_permanent: 连续失败次数达到上限 (state=3)
 
     dead_permanent --> cold_queue: 重新导入激活 (revive_dead=true)

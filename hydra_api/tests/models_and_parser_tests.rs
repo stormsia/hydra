@@ -121,14 +121,27 @@ fn test_models_defaults_and_serde() {
     assert_eq!(policy.rw_timeout_ms, 5000);
     assert_eq!(policy.recheck_alive_sec, 60);
     assert_eq!(policy.recheck_dead_sec, 1800);
-    assert_eq!(policy.max_dead_strikes, 3);
+    assert_eq!(policy.max_dead_strikes_zero, 3);
+    assert_eq!(policy.max_dead_strikes_active, 3);
     assert_eq!(policy.stability_window_min, 5);
-    assert_eq!(policy.dead_backoff_mult, 1.5);
+    assert_eq!(policy.dead_backoff_mult_zero, 1.5);
+    assert_eq!(policy.dead_backoff_mult_active, 1.5);
 
-    let custom_policy: CheckPolicyDto =
-        serde_json::from_str(r#"{"window_min": 10, "backoff_multiplier": 2.5}"#).unwrap();
+    let custom_policy: CheckPolicyDto = serde_json::from_str(
+        r#"{
+            "window_min": 10,
+            "max_dead_strikes_zero": 1,
+            "max_dead_strikes_nonzero": 5,
+            "dead_backoff_mult_zero": 3.0,
+            "dead_backoff_mult_nonzero": 1.2
+        }"#,
+    )
+    .unwrap();
     assert_eq!(custom_policy.stability_window_min, 10);
-    assert_eq!(custom_policy.dead_backoff_mult, 2.5);
+    assert_eq!(custom_policy.max_dead_strikes_zero, 1);
+    assert_eq!(custom_policy.max_dead_strikes_active, 5);
+    assert_eq!(custom_policy.dead_backoff_mult_zero, 3.0);
+    assert_eq!(custom_policy.dead_backoff_mult_active, 1.2);
 
     let state = ProxyState::from_i64(1);
     assert_eq!(state, ProxyState::Alive);

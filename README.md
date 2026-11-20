@@ -34,7 +34,7 @@
 ### 🎯 Three Key Advantages:
 
 1. **Zero-Config Ingestion of Any Format (14,000+ proxies/sec)**: Ingest raw, messy proxy lists without prior manual cleaning — automatically parsing `ip:port`, `ip:port:user:pass`, `user:pass@ip:port`, URL schemes, IPv6 (`[::1]:port`), and structured JSON. Hydra discards Bogon/Private IPs on the fly and performs cascading protocol auto-detection (`SOCKS5` &rarr; `SOCKS4/4a` &rarr; `HTTP CONNECT` &rarr; `Plain HTTP`).
-2. **Granular Lifecycle Policies (Custom SLA per Pool)**: Fine-grained verification control via customizable Check Policies — distinct timeouts (L4 Connect, L7 Handshake, I/O), scheduled recheck intervals for alive nodes, exponential quarantine backoff (`cooldown`), and configurable failure thresholds (`max_dead_strikes`). The background scheduler keeps the pool healthy 24/7.
+2. **Granular Lifecycle Policies (Custom SLA per Pool)**: Fine-grained verification control via customizable Check Policies — distinct timeouts (L4 Connect, L7 Handshake, I/O), scheduled recheck intervals for alive nodes, differentiated exponential quarantine backoff (`dead_backoff_mult_zero` / `dead_backoff_mult_active`), and configurable failure thresholds (`max_dead_strikes_zero` / `max_dead_strikes_active`). The background scheduler keeps the pool healthy 24/7.
 3. **0.06 ms Lookup Latency & Zero Database Locks**: Clustered tables and 8 specialized B-Tree indexes under SQLite WAL mode deliver sub-millisecond filtering across country, ASN, protocol, and anonymity levels. An MPSC micro-batching architecture (committing every 100 ms) guarantees 100% transactional stability even under a sustained concurrent load of 10,000,000 proxies.
 
 ---
@@ -272,7 +272,7 @@ stateDiagram-v2
     alive --> cooldown: Recheck fails OR client POST /report-fail
 
     cooldown --> alive: Quarantine recheck passes (strikes reset to 0)
-    cooldown --> cooldown: Repeated failure (strikes < max_dead_strikes)
+    cooldown --> cooldown: Repeated failure (strikes < strike_limit)
     cooldown --> dead_permanent: Strike threshold reached (state=3)
 
     dead_permanent --> cold_queue: Re-imported with revive_dead=true

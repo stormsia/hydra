@@ -18,7 +18,8 @@ pub async fn insert_proxy_if_not_exists(
                 out_ip, country, asn, asn_org, anon,
                 rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
                 connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-                recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
+                recheck_alive_sec, recheck_dead_sec, max_dead_strikes_zero, max_dead_strikes_active,
+                stability_window_min, dead_backoff_mult_zero, dead_backoff_mult_active,
                 checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
                 first_seen_at, last_checked_at, next_check_at
              ) VALUES (
@@ -26,9 +27,10 @@ pub async fn insert_proxy_if_not_exists(
                 ?9, ?10, ?11, ?12, ?13,
                 ?14, ?15, ?16,
                 ?17, ?18, ?19,
-                ?20, ?21, ?22, ?23, ?24,
-                ?25, ?26, ?27, ?28, ?29, ?30, ?31,
-                ?32, ?33, ?34
+                ?20, ?21, ?22, ?23,
+                ?24, ?25, ?26,
+                ?27, ?28, ?29, ?30, ?31, ?32, ?33,
+                ?34, ?35, ?36
              );",
             libsql::params![
                 row.id.as_str(),
@@ -52,9 +54,11 @@ pub async fn insert_proxy_if_not_exists(
                 row.rw_timeout_ms as i64,
                 row.recheck_alive_sec as i64,
                 row.recheck_dead_sec as i64,
-                row.max_dead_strikes as i64,
+                row.max_dead_strikes_zero as i64,
+                row.max_dead_strikes_active as i64,
                 row.stability_window_min as i64,
-                row.dead_backoff_mult as f64,
+                row.dead_backoff_mult_zero as f64,
+                row.dead_backoff_mult_active as f64,
                 row.checks_total as i64,
                 row.checks_success as i64,
                 row.dead_strikes as i64,
@@ -130,15 +134,17 @@ fn map_proxy_row(row: &libsql::Row) -> Result<ProxyRow, libsql::Error> {
     let rw_timeout: i64 = row.get(18)?;
     let recheck_alive: i64 = row.get(19)?;
     let recheck_dead: i64 = row.get(20)?;
-    let max_strikes: i64 = row.get(21)?;
-    let stability_window: i64 = row.get(22)?;
-    let dead_backoff: f64 = row.get(23)?;
-    let checks_total: i64 = row.get(24)?;
-    let checks_success: i64 = row.get(25)?;
-    let dead_strikes: i64 = row.get(26)?;
+    let max_strikes_zero: i64 = row.get(21)?;
+    let max_strikes_active: i64 = row.get(22)?;
+    let stability_window: i64 = row.get(23)?;
+    let dead_backoff_zero: f64 = row.get(24)?;
+    let dead_backoff_active: f64 = row.get(25)?;
+    let checks_total: i64 = row.get(26)?;
+    let checks_success: i64 = row.get(27)?;
+    let dead_strikes: i64 = row.get(28)?;
     let asn_val: Option<i64> = row.get(10)?;
     let port_num: i64 = row.get(2)?;
-    let stability_pct_val: f64 = row.get(28)?;
+    let stability_pct_val: f64 = row.get(30)?;
 
     Ok(ProxyRow {
         id: row.get(0)?,
@@ -162,19 +168,21 @@ fn map_proxy_row(row: &libsql::Row) -> Result<ProxyRow, libsql::Error> {
         rw_timeout_ms: rw_timeout as u32,
         recheck_alive_sec: recheck_alive as u32,
         recheck_dead_sec: recheck_dead as u32,
-        max_dead_strikes: max_strikes as u32,
+        max_dead_strikes_zero: max_strikes_zero as u32,
+        max_dead_strikes_active: max_strikes_active as u32,
         stability_window_min: stability_window as u32,
-        dead_backoff_mult: dead_backoff as f32,
+        dead_backoff_mult_zero: dead_backoff_zero as f32,
+        dead_backoff_mult_active: dead_backoff_active as f32,
         checks_total: checks_total as u64,
         checks_success: checks_success as u64,
         dead_strikes: dead_strikes as u32,
-        last_error: row.get(27)?,
+        last_error: row.get(29)?,
         stability_pct: stability_pct_val as f32,
-        recent_checks: row.get(29)?,
-        remark: row.get(30)?,
-        first_seen_at: row.get(31)?,
-        last_checked_at: row.get(32)?,
-        next_check_at: row.get(33)?,
+        recent_checks: row.get(31)?,
+        remark: row.get(32)?,
+        first_seen_at: row.get(33)?,
+        last_checked_at: row.get(34)?,
+        next_check_at: row.get(35)?,
     })
 }
 
@@ -185,7 +193,8 @@ pub async fn get_proxy_by_id(
     let sql = "SELECT id, ip, port, auth_user, auth_pass, state, protocol, supports_https,
                       out_ip, country, asn, asn_org, anon, rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
                       connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-                      recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
+                      recheck_alive_sec, recheck_dead_sec, max_dead_strikes_zero, max_dead_strikes_active,
+                      stability_window_min, dead_backoff_mult_zero, dead_backoff_mult_active,
                       checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
                       first_seen_at, last_checked_at, next_check_at
                FROM proxies WHERE id = ?1;";
@@ -496,14 +505,20 @@ pub async fn patch_proxy(
         params.push(((policy.recheck_dead_sec as i64).max(1)).into());
         sets.push(format!("recheck_dead_sec = ?{}", params.len()));
 
-        params.push((policy.max_dead_strikes as i64).into());
-        sets.push(format!("max_dead_strikes = ?{}", params.len()));
+        params.push((policy.max_dead_strikes_zero as i64).into());
+        sets.push(format!("max_dead_strikes_zero = ?{}", params.len()));
+
+        params.push((policy.max_dead_strikes_active as i64).into());
+        sets.push(format!("max_dead_strikes_active = ?{}", params.len()));
 
         params.push((policy.stability_window_min as i64).into());
         sets.push(format!("stability_window_min = ?{}", params.len()));
 
-        params.push((policy.dead_backoff_mult as f64).into());
-        sets.push(format!("dead_backoff_mult = ?{}", params.len()));
+        params.push((policy.dead_backoff_mult_zero as f64).into());
+        sets.push(format!("dead_backoff_mult_zero = ?{}", params.len()));
+
+        params.push((policy.dead_backoff_mult_active as f64).into());
+        sets.push(format!("dead_backoff_mult_active = ?{}", params.len()));
     }
 
     if req.force_recheck.unwrap_or(false) {
@@ -683,10 +698,13 @@ fn map_proxy_check_item(row: &libsql::Row) -> Result<ProxyCheckItem, libsql::Err
     let rw_timeout: i64 = row.get(9)?;
     let recheck_alive: i64 = row.get(10)?;
     let recheck_dead: i64 = row.get(11)?;
-    let max_strikes: i64 = row.get(12)?;
-    let dead_strikes: i64 = row.get(13)?;
-    let stability_window: i64 = row.get(14)?;
-    let dead_backoff: f64 = row.get(15)?;
+    let max_strikes_zero: i64 = row.get(12)?;
+    let max_strikes_active: i64 = row.get(13)?;
+    let dead_strikes: i64 = row.get(14)?;
+    let stability_window: i64 = row.get(15)?;
+    let dead_backoff_zero: f64 = row.get(16)?;
+    let dead_backoff_active: f64 = row.get(17)?;
+    let checks_success: i64 = row.get(18)?;
 
     Ok(ProxyCheckItem {
         id: row.get(0)?,
@@ -701,12 +719,15 @@ fn map_proxy_check_item(row: &libsql::Row) -> Result<ProxyCheckItem, libsql::Err
         rw_timeout_ms: rw_timeout as u32,
         recheck_alive_sec: recheck_alive as u32,
         recheck_dead_sec: recheck_dead as u32,
-        max_dead_strikes: max_strikes as u32,
+        max_dead_strikes_zero: max_strikes_zero as u32,
+        max_dead_strikes_active: max_strikes_active as u32,
         dead_strikes: dead_strikes as u32,
         stability_window_min: stability_window as u32,
-        dead_backoff_mult: dead_backoff as f32,
-        recent_checks: row.get(16)?,
-        next_check_at: row.get(17)?,
+        dead_backoff_mult_zero: dead_backoff_zero as f32,
+        dead_backoff_mult_active: dead_backoff_active as f32,
+        checks_success: checks_success as u64,
+        recent_checks: row.get(19)?,
+        next_check_at: row.get(20)?,
     })
 }
 
@@ -734,8 +755,8 @@ pub async fn fetch_due_proxies(
     let sql_cold = "
         SELECT id, ip, port, auth_user, auth_pass, state, protocol,
                connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-               recheck_alive_sec, recheck_dead_sec, max_dead_strikes, dead_strikes,
-               stability_window_min, dead_backoff_mult, recent_checks, next_check_at
+               recheck_alive_sec, recheck_dead_sec, max_dead_strikes_zero, max_dead_strikes_active, dead_strikes,
+               stability_window_min, dead_backoff_mult_zero, dead_backoff_mult_active, checks_success, recent_checks, next_check_at
         FROM proxies
         WHERE state = 0 AND next_check_at <= ?1
         ORDER BY next_check_at ASC, first_seen_at ASC
@@ -758,8 +779,8 @@ pub async fn fetch_due_proxies(
         let sql_recheck = "
             SELECT id, ip, port, auth_user, auth_pass, state, protocol,
                    connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-                   recheck_alive_sec, recheck_dead_sec, max_dead_strikes, dead_strikes,
-                   stability_window_min, dead_backoff_mult, recent_checks, next_check_at
+                   recheck_alive_sec, recheck_dead_sec, max_dead_strikes_zero, max_dead_strikes_active, dead_strikes,
+                   stability_window_min, dead_backoff_mult_zero, dead_backoff_mult_active, checks_success, recent_checks, next_check_at
             FROM proxies
             WHERE state IN (1, 2) AND next_check_at <= ?1
             ORDER BY
@@ -785,8 +806,8 @@ pub async fn fetch_due_proxies(
         let sql_extra_cold = "
             SELECT id, ip, port, auth_user, auth_pass, state, protocol,
                    connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-                   recheck_alive_sec, recheck_dead_sec, max_dead_strikes, dead_strikes,
-                   stability_window_min, dead_backoff_mult, recent_checks, next_check_at
+                   recheck_alive_sec, recheck_dead_sec, max_dead_strikes_zero, max_dead_strikes_active, dead_strikes,
+                   stability_window_min, dead_backoff_mult_zero, dead_backoff_mult_active, checks_success, recent_checks, next_check_at
             FROM proxies
             WHERE state = 0 AND next_check_at <= ?1
             ORDER BY next_check_at ASC, first_seen_at ASC

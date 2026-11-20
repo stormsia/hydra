@@ -32,10 +32,13 @@ async fn test_row_to_target_mapping() {
         rw_timeout_ms: 4500,
         recheck_alive_sec: 90,
         recheck_dead_sec: 1200,
-        max_dead_strikes: 2,
+        max_dead_strikes_zero: 2,
+        max_dead_strikes_active: 2,
         dead_strikes: 0,
         stability_window_min: 5,
-        dead_backoff_mult: 1.5,
+        dead_backoff_mult_zero: 1.5,
+        dead_backoff_mult_active: 1.5,
+        checks_success: 0,
         recent_checks: None,
         next_check_at: 1000,
     };
@@ -84,9 +87,11 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         rw_timeout_ms: 5000,
         recheck_alive_sec: 60,
         recheck_dead_sec: 300,
-        max_dead_strikes: 2,
+        max_dead_strikes_zero: 2,
+        max_dead_strikes_active: 2,
         stability_window_min: 5,
-        dead_backoff_mult: 1.5,
+        dead_backoff_mult_zero: 1.5,
+        dead_backoff_mult_active: 1.5,
         checks_total: 0,
         checks_success: 0,
         dead_strikes: 0,
@@ -129,10 +134,13 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         },
         recheck_alive_sec: proxy.recheck_alive_sec,
         recheck_dead_sec: proxy.recheck_dead_sec,
-        max_dead_strikes: proxy.max_dead_strikes,
+        max_dead_strikes_zero: proxy.max_dead_strikes_zero,
+        max_dead_strikes_active: proxy.max_dead_strikes_active,
         current_strikes: 0,
         stability_window_min: proxy.stability_window_min,
-        dead_backoff_mult: proxy.dead_backoff_mult,
+        dead_backoff_mult_zero: proxy.dead_backoff_mult_zero,
+        dead_backoff_mult_active: proxy.dead_backoff_mult_active,
+        checks_success: 0,
         recent_checks: proxy.recent_checks.clone(),
     };
 
@@ -162,10 +170,13 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         geoip: GeoIpResult::default(),
         recheck_alive_sec: proxy.recheck_alive_sec,
         recheck_dead_sec: proxy.recheck_dead_sec,
-        max_dead_strikes: proxy.max_dead_strikes,
+        max_dead_strikes_zero: proxy.max_dead_strikes_zero,
+        max_dead_strikes_active: proxy.max_dead_strikes_active,
         current_strikes: 0,
         stability_window_min: proxy.stability_window_min,
-        dead_backoff_mult: proxy.dead_backoff_mult,
+        dead_backoff_mult_zero: proxy.dead_backoff_mult_zero,
+        dead_backoff_mult_active: proxy.dead_backoff_mult_active,
+        checks_success: p_alive.checks_success,
         recent_checks: p_alive.recent_checks.clone(),
     };
     let mut buf = vec![meta_fail1];
@@ -189,10 +200,13 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         geoip: GeoIpResult::default(),
         recheck_alive_sec: proxy.recheck_alive_sec,
         recheck_dead_sec: proxy.recheck_dead_sec,
-        max_dead_strikes: proxy.max_dead_strikes,
+        max_dead_strikes_zero: proxy.max_dead_strikes_zero,
+        max_dead_strikes_active: proxy.max_dead_strikes_active,
         current_strikes: 1, // current is now 1 -> next is 2 >= max
         stability_window_min: proxy.stability_window_min,
-        dead_backoff_mult: proxy.dead_backoff_mult,
+        dead_backoff_mult_zero: proxy.dead_backoff_mult_zero,
+        dead_backoff_mult_active: proxy.dead_backoff_mult_active,
+        checks_success: p_cool.checks_success,
         recent_checks: p_cool.recent_checks.clone(),
     };
     let mut buf = vec![meta_fail2];
@@ -202,6 +216,161 @@ async fn test_batch_writer_alive_and_dead_transitions() {
     assert_eq!(p_dead.state, ProxyState::DeadPermanent);
     assert_eq!(p_dead.dead_strikes, 2);
     assert_eq!(p_dead.last_error, Some("CONN_REFUSED".to_string()));
+}
+
+#[tokio::test]
+async fn test_batch_writer_zero_vs_active_policy_differentiation() {
+    let db = init_db(":memory:").await.unwrap();
+    let conn = db.connect().unwrap();
+    configure_conn(&conn).await.unwrap();
+    let (mut stmt_alive, mut stmt_dead) = prepare_batch_statements(&conn).await.unwrap();
+    let stats = Arc::new(SchedulerStats::default());
+    let now = Utc::now().timestamp();
+
+    // 1. Setup a zero-uptime proxy (checks_success = 0):
+    //    max_dead_strikes_zero = 1 -> should immediately become dead_permanent on strike 1.
+    //    max_dead_strikes_active = 5.
+    let proxy_zero = ProxyRow {
+        id: "198.51.100.11:1080".to_string(),
+        ip: "198.51.100.11".to_string(),
+        port: 1080,
+        auth_user: None,
+        auth_pass: None,
+        state: ProxyState::ColdQueue,
+        protocol: None,
+        supports_https: false,
+        out_ip: None,
+        country: None,
+        asn: None,
+        asn_org: None,
+        anon: None,
+        rtt_tcp_ms: None,
+        rtt_handshake_ms: None,
+        rtt_total_ms: None,
+        connect_timeout_ms: 3000,
+        handshake_timeout_ms: 4000,
+        rw_timeout_ms: 5000,
+        recheck_alive_sec: 60,
+        recheck_dead_sec: 100,
+        max_dead_strikes_zero: 1, // Will become permanent on first failure
+        max_dead_strikes_active: 5,
+        stability_window_min: 5,
+        dead_backoff_mult_zero: 3.0,
+        dead_backoff_mult_active: 1.2,
+        checks_total: 0,
+        checks_success: 0,
+        dead_strikes: 0,
+        last_error: None,
+        stability_pct: 0.0,
+        recent_checks: None,
+        remark: None,
+        first_seen_at: now,
+        last_checked_at: None,
+        next_check_at: now,
+    };
+    insert_proxy_if_not_exists(&conn, &proxy_zero, false).await.unwrap();
+
+    // Simulate first check failure for zero-uptime proxy:
+    let meta_zero_fail = CheckResultWithMeta {
+        proxy_id: proxy_zero.id.clone(),
+        result: CheckResult::failure(
+            TargetHost::parse(&proxy_zero.ip),
+            proxy_zero.port,
+            ErrorReason::ConnRefused,
+            CheckMetrics::default(),
+        ),
+        geoip: GeoIpResult::default(),
+        recheck_alive_sec: proxy_zero.recheck_alive_sec,
+        recheck_dead_sec: proxy_zero.recheck_dead_sec,
+        max_dead_strikes_zero: proxy_zero.max_dead_strikes_zero,
+        max_dead_strikes_active: proxy_zero.max_dead_strikes_active,
+        current_strikes: 0,
+        stability_window_min: proxy_zero.stability_window_min,
+        dead_backoff_mult_zero: proxy_zero.dead_backoff_mult_zero,
+        dead_backoff_mult_active: proxy_zero.dead_backoff_mult_active,
+        checks_success: 0, // checks_success == 0
+        recent_checks: None,
+    };
+    let mut buf = vec![meta_zero_fail];
+    flush_batch(&mut buf, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
+
+    let p_zero_res = get_proxy_by_id(&conn, &proxy_zero.id).await.unwrap().unwrap();
+    // With max_dead_strikes_zero = 1, new_strikes = 1 >= 1 => dead_permanent (state = 3)
+    assert_eq!(p_zero_res.state, ProxyState::DeadPermanent);
+    assert_eq!(p_zero_res.dead_strikes, 1);
+
+    // 2. Setup an active proxy (checks_success = 10, uptime > 0):
+    //    Same policy (max_dead_strikes_zero = 1, max_dead_strikes_active = 5, backoff_active = 2.0).
+    //    On strike 1 it should NOT become dead_permanent; it should go to Cooldown (state = 2).
+    let proxy_active = ProxyRow {
+        id: "198.51.100.12:1080".to_string(),
+        ip: "198.51.100.12".to_string(),
+        port: 1080,
+        auth_user: None,
+        auth_pass: None,
+        state: ProxyState::Alive,
+        protocol: Some("socks5".to_string()),
+        supports_https: true,
+        out_ip: None,
+        country: None,
+        asn: None,
+        asn_org: None,
+        anon: None,
+        rtt_tcp_ms: None,
+        rtt_handshake_ms: None,
+        rtt_total_ms: None,
+        connect_timeout_ms: 3000,
+        handshake_timeout_ms: 4000,
+        rw_timeout_ms: 5000,
+        recheck_alive_sec: 60,
+        recheck_dead_sec: 100,
+        max_dead_strikes_zero: 1,
+        max_dead_strikes_active: 5,
+        stability_window_min: 5,
+        dead_backoff_mult_zero: 3.0,
+        dead_backoff_mult_active: 2.0,
+        checks_total: 10,
+        checks_success: 10,
+        dead_strikes: 0,
+        last_error: None,
+        stability_pct: 100.0,
+        recent_checks: None,
+        remark: None,
+        first_seen_at: now,
+        last_checked_at: Some(now),
+        next_check_at: now,
+    };
+    insert_proxy_if_not_exists(&conn, &proxy_active, false).await.unwrap();
+
+    let meta_active_fail = CheckResultWithMeta {
+        proxy_id: proxy_active.id.clone(),
+        result: CheckResult::failure(
+            TargetHost::parse(&proxy_active.ip),
+            proxy_active.port,
+            ErrorReason::ConnRefused,
+            CheckMetrics::default(),
+        ),
+        geoip: GeoIpResult::default(),
+        recheck_alive_sec: proxy_active.recheck_alive_sec,
+        recheck_dead_sec: proxy_active.recheck_dead_sec,
+        max_dead_strikes_zero: proxy_active.max_dead_strikes_zero,
+        max_dead_strikes_active: proxy_active.max_dead_strikes_active,
+        current_strikes: 0,
+        stability_window_min: proxy_active.stability_window_min,
+        dead_backoff_mult_zero: proxy_active.dead_backoff_mult_zero,
+        dead_backoff_mult_active: proxy_active.dead_backoff_mult_active,
+        checks_success: 10, // checks_success > 0
+        recent_checks: None,
+    };
+    let mut buf = vec![meta_active_fail];
+    flush_batch(&mut buf, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
+
+    let p_active_res = get_proxy_by_id(&conn, &proxy_active.id).await.unwrap().unwrap();
+    // With max_dead_strikes_active = 5, new_strikes = 1 < 5 => Cooldown (state = 2)
+    assert_eq!(p_active_res.state, ProxyState::Cooldown);
+    assert_eq!(p_active_res.dead_strikes, 1);
+    // Strike 1 backoff: recheck_dead_sec * (2.0 ^ (1 - 1)) = 100 * 1 = 100 seconds
+    assert_eq!(p_active_res.next_check_at, now + 100);
 }
 
 #[tokio::test]
@@ -236,9 +405,11 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
         rw_timeout_ms: 5000,
         recheck_alive_sec: 60,
         recheck_dead_sec: 300,
-        max_dead_strikes: 2,
+        max_dead_strikes_zero: 2,
+        max_dead_strikes_active: 2,
         stability_window_min: 5,
-        dead_backoff_mult: 1.5,
+        dead_backoff_mult_zero: 1.5,
+        dead_backoff_mult_active: 1.5,
         checks_total: 0,
         checks_success: 0,
         dead_strikes: 0,
@@ -265,10 +436,13 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
         geoip: GeoIpResult::default(),
         recheck_alive_sec: proxy.recheck_alive_sec,
         recheck_dead_sec: proxy.recheck_dead_sec,
-        max_dead_strikes: proxy.max_dead_strikes,
+        max_dead_strikes_zero: proxy.max_dead_strikes_zero,
+        max_dead_strikes_active: proxy.max_dead_strikes_active,
         current_strikes: 0,
         stability_window_min: proxy.stability_window_min,
-        dead_backoff_mult: proxy.dead_backoff_mult,
+        dead_backoff_mult_zero: proxy.dead_backoff_mult_zero,
+        dead_backoff_mult_active: proxy.dead_backoff_mult_active,
+        checks_success: 0,
         recent_checks: proxy.recent_checks.clone(),
     };
 
@@ -434,9 +608,11 @@ async fn test_continuous_scheduler_pipeline_and_shutdown() {
             rw_timeout_ms: 100,
             recheck_alive_sec: 60,
             recheck_dead_sec: 300,
-            max_dead_strikes: 2,
+                max_dead_strikes_zero: 2,
+            max_dead_strikes_active: 2,
             stability_window_min: 5,
-            dead_backoff_mult: 1.5,
+                dead_backoff_mult_zero: 1.5,
+            dead_backoff_mult_active: 1.5,
             checks_total: 0,
             checks_success: 0,
             dead_strikes: 0,
@@ -570,9 +746,11 @@ async fn test_autodetect_http_protocol_persistence() {
         rw_timeout_ms: 5000,
         recheck_alive_sec: 60,
         recheck_dead_sec: 300,
-        max_dead_strikes: 2,
+        max_dead_strikes_zero: 2,
+        max_dead_strikes_active: 2,
         stability_window_min: 5,
-        dead_backoff_mult: 1.5,
+        dead_backoff_mult_zero: 1.5,
+        dead_backoff_mult_active: 1.5,
         checks_total: 0,
         checks_success: 0,
         dead_strikes: 0,
@@ -615,10 +793,13 @@ async fn test_autodetect_http_protocol_persistence() {
         },
         recheck_alive_sec: proxy.recheck_alive_sec,
         recheck_dead_sec: proxy.recheck_dead_sec,
-        max_dead_strikes: proxy.max_dead_strikes,
+        max_dead_strikes_zero: proxy.max_dead_strikes_zero,
+        max_dead_strikes_active: proxy.max_dead_strikes_active,
         current_strikes: 0,
         stability_window_min: proxy.stability_window_min,
-        dead_backoff_mult: proxy.dead_backoff_mult,
+        dead_backoff_mult_zero: proxy.dead_backoff_mult_zero,
+        dead_backoff_mult_active: proxy.dead_backoff_mult_active,
+        checks_success: 0,
         recent_checks: None,
     };
     let mut buf = vec![meta];
@@ -637,12 +818,13 @@ async fn test_autodetect_http_protocol_persistence() {
             "UPDATE proxies SET
                 protocol = NULL,
                 state = 0,
-                next_check_at = ?5,
+                next_check_at = ?6,
                 auth_user = COALESCE(?1, auth_user),
                 auth_pass = COALESCE(?2, auth_pass),
                 stability_window_min = ?3,
-                dead_backoff_mult = ?4
-             WHERE id = ?6;",
+                dead_backoff_mult_zero = ?4,
+                dead_backoff_mult_active = ?5
+             WHERE id = ?7;",
         )
         .await
         .unwrap();
@@ -652,6 +834,7 @@ async fn test_autodetect_http_protocol_persistence() {
             Option::<&str>::None,
             Option::<&str>::None,
             5i64,
+            1.5f64,
             1.5f64,
             now,
             proxy.id.as_str(),

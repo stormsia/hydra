@@ -101,10 +101,13 @@ pub async fn scheduler_loop(state: AppState, cancel: CancellationToken) {
                         geoip,
                         recheck_alive_sec: row.recheck_alive_sec,
                         recheck_dead_sec: row.recheck_dead_sec,
-                        max_dead_strikes: row.max_dead_strikes,
+                        max_dead_strikes_zero: row.max_dead_strikes_zero,
+                        max_dead_strikes_active: row.max_dead_strikes_active,
                         current_strikes: row.dead_strikes,
                         stability_window_min: row.stability_window_min,
-                        dead_backoff_mult: row.dead_backoff_mult,
+                        dead_backoff_mult_zero: row.dead_backoff_mult_zero,
+                        dead_backoff_mult_active: row.dead_backoff_mult_active,
+                        checks_success: row.checks_success,
                         recent_checks: row.recent_checks,
                     };
 

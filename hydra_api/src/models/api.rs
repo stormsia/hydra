@@ -37,9 +37,11 @@ fn default_dead_backoff_mult() -> f32 {
     "rw_timeout_ms": 5000,
     "recheck_alive_sec": 60,
     "recheck_dead_sec": 1800,
-    "max_dead_strikes": 3,
+    "max_dead_strikes_zero": 3,
+    "max_dead_strikes_active": 3,
     "stability_window_min": 5,
-    "dead_backoff_mult": 1.5
+    "dead_backoff_mult_zero": 1.5,
+    "dead_backoff_mult_active": 1.5
 }))]
 pub struct CheckPolicyDto {
     /// Maximum TCP connection establishment timeout (in milliseconds)
@@ -67,10 +69,22 @@ pub struct CheckPolicyDto {
     #[schema(example = 1800, minimum = 30, maximum = 604800, default = 1800)]
     pub recheck_dead_sec: u32,
 
-    /// Number of consecutive failures before marking proxy as dead_permanent
-    #[serde(default = "default_max_strikes")]
+    /// Consecutive failure threshold for zero-uptime proxies (checks_success == 0)
+    #[serde(
+        default = "default_max_strikes",
+        alias = "max_dead_strikes_0"
+    )]
     #[schema(example = 3, minimum = 1, maximum = 50, default = 3)]
-    pub max_dead_strikes: u32,
+    pub max_dead_strikes_zero: u32,
+
+    /// Consecutive failure threshold for active/tested proxies (checks_success > 0)
+    #[serde(
+        default = "default_max_strikes",
+        alias = "max_dead_strikes_nonzero",
+        alias = "max_dead_strikes_alive"
+    )]
+    #[schema(example = 3, minimum = 1, maximum = 50, default = 3)]
+    pub max_dead_strikes_active: u32,
 
     /// Time window for calculating stability percentage (in minutes, default: 5)
     #[serde(
@@ -82,17 +96,25 @@ pub struct CheckPolicyDto {
     #[schema(example = 5, minimum = 1, maximum = 1440, default = 5)]
     pub stability_window_min: u32,
 
-    /// Exponential backoff multiplier for rechecking failed proxies in quarantine (cooldown)
+    /// Exponential backoff multiplier for zero-uptime proxies in quarantine (checks_success == 0)
     #[serde(
         default = "default_dead_backoff_mult",
-        alias = "backoff_multiplier",
-        alias = "recheck_dead_multiplier",
-        alias = "dead_multiplier",
-        alias = "recheck_dead_mult",
-        alias = "multiplier"
+        alias = "dead_backoff_mult_0",
+        alias = "backoff_multiplier_zero"
     )]
     #[schema(example = 1.5, minimum = 1.0, maximum = 10.0, default = 1.5)]
-    pub dead_backoff_mult: f32,
+    pub dead_backoff_mult_zero: f32,
+
+    /// Exponential backoff multiplier for active/tested proxies in quarantine (checks_success > 0)
+    #[serde(
+        default = "default_dead_backoff_mult",
+        alias = "dead_backoff_mult_nonzero",
+        alias = "dead_backoff_mult_alive",
+        alias = "backoff_multiplier_active",
+        alias = "backoff_multiplier_nonzero"
+    )]
+    #[schema(example = 1.5, minimum = 1.0, maximum = 10.0, default = 1.5)]
+    pub dead_backoff_mult_active: f32,
 }
 
 impl Default for CheckPolicyDto {
@@ -103,9 +125,11 @@ impl Default for CheckPolicyDto {
             rw_timeout_ms: default_rw_timeout(),
             recheck_alive_sec: default_recheck_alive(),
             recheck_dead_sec: default_recheck_dead(),
-            max_dead_strikes: default_max_strikes(),
+            max_dead_strikes_zero: default_max_strikes(),
+            max_dead_strikes_active: default_max_strikes(),
             stability_window_min: default_stability_window_min(),
-            dead_backoff_mult: default_dead_backoff_mult(),
+            dead_backoff_mult_zero: default_dead_backoff_mult(),
+            dead_backoff_mult_active: default_dead_backoff_mult(),
         }
     }
 }
@@ -191,9 +215,11 @@ impl From<&str> for ProxyInputItem {
         "rw_timeout_ms": 4000,
         "recheck_alive_sec": 45,
         "recheck_dead_sec": 900,
-        "max_dead_strikes": 3,
+        "max_dead_strikes_zero": 3,
+        "max_dead_strikes_active": 3,
         "stability_window_min": 5,
-        "dead_backoff_mult": 1.5
+        "dead_backoff_mult_zero": 1.5,
+        "dead_backoff_mult_active": 1.5
     },
     "proxies": [
         "socks5://user:pass@185.220.101.5:1080",
@@ -376,9 +402,11 @@ pub struct ReportFailResponse {
         "rw_timeout_ms": 4000,
         "recheck_alive_sec": 30,
         "recheck_dead_sec": 600,
-        "max_dead_strikes": 2,
+        "max_dead_strikes_zero": 2,
+        "max_dead_strikes_active": 2,
         "stability_window_min": 5,
-        "dead_backoff_mult": 1.5
+        "dead_backoff_mult_zero": 1.5,
+        "dead_backoff_mult_active": 1.5
     }
 }))]
 pub struct PatchProxyRequest {
@@ -630,9 +658,11 @@ pub struct ProxyShortItem {
         "rw_timeout_ms": 5000,
         "recheck_alive_sec": 60,
         "recheck_dead_sec": 1800,
-        "max_dead_strikes": 3,
+        "max_dead_strikes_zero": 3,
+        "max_dead_strikes_active": 3,
         "stability_window_min": 5,
-        "dead_backoff_mult": 1.5
+        "dead_backoff_mult_zero": 1.5,
+        "dead_backoff_mult_active": 1.5
     },
     "stats": {
         "checks_total": 450,
