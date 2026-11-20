@@ -22,7 +22,7 @@
 
 <br>
 
-[⚡ 快速上手](#quick-start) • [✨ 核心特性](#features) • [📊 性能基准](#benchmarks) • [⚖️ 横向对比](#comparison) • [📐 系统架构](#architecture) • [⚙️ 环境配置](#configuration) • [📖 REST API](docs/API.zh.md)
+[⚡ 快速上手](#quick-start) • [✨ 核心特性](#features) • [📊 性能基准](#benchmarks) • [⚖️ 横向对比](#comparison) • [📐 系统架构](#architecture) • [⚙️ 环境配置](#configuration) • [📖 REST API](docs/API.zh.md) • [🛡️ 徽标 (Badges)](assets/badges/README.md)
 
 </div>
 
@@ -390,6 +390,19 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ---
 
+## 🛡️ 仓库专属徽标 (Repository Badges)
+
+如果您的项目正在分发代理列表、爬虫数据源，或将 Hydra 作为上游流式代理池引擎，欢迎向社区展示您的代理节点经过实时验证：
+
+| 徽标样式 | Markdown 嵌入代码 |
+| :--- | :--- |
+| ![Proxies Checked](assets/badges/proxies-checked-by-hydra.svg) | `[![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)` |
+| ![Proxies Pill](assets/badges/proxies-by-hydra-pill-20.svg) | `[![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra)` |
+
+👉 **[查看完整徽标库、翡翠绿 SLA 认证标识及 Shields.io 动态链接](assets/badges/README.md)**
+
+---
+
 ## 🤝 贡献代码
 
 非常欢迎提交 Issue、Pull Request 与性能优化提案！
@@ -398,6 +411,12 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ---
 
-## 📄 开源许可证
+## 📄 开源许可证与署名 (License & Attribution)
 
 本项目基于 **MIT License** 开源协议发布。详情请查阅 [LICENSE](LICENSE) 文件。
+
+> [!TIP]
+> **在您的项目中使用 Hydra？**  
+> 如果您在公开仓库维护代理池或使用 Hydra 进行爬虫轮换调度，欢迎在 README 中添加 [Hydra 官方验证徽标](assets/badges/README.md)，向用户直观展示节点的高可用性：
+> 
+> [![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)

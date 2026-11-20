@@ -22,7 +22,7 @@
 
 <br>
 
-[⚡ Quick Start](#quick-start) • [✨ Features & Benefits](#features) • [📊 Benchmarks](#benchmarks) • [⚖️ Comparison](#comparison) • [📐 Architecture](#architecture) • [⚙️ Configuration](#configuration) • [📖 REST API](docs/API.md)
+[⚡ Quick Start](#quick-start) • [✨ Features & Benefits](#features) • [📊 Benchmarks](#benchmarks) • [⚖️ Comparison](#comparison) • [📐 Architecture](#architecture) • [⚙️ Configuration](#configuration) • [📖 REST API](docs/API.md) • [🛡️ Badges](assets/badges/README.md)
 
 </div>
 
@@ -390,6 +390,19 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ---
 
+## 🛡️ Repository Badges
+
+If your project distributes proxy lists, scraper feeds, or embeds Hydra as its pool engine, let your community know your proxies are actively verified:
+
+| Badge | Markdown Code |
+| :--- | :--- |
+| ![Proxies Checked](assets/badges/proxies-checked-by-hydra.svg) | `[![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)` |
+| ![Proxies Pill](assets/badges/proxies-by-hydra-pill-20.svg) | `[![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra)` |
+
+👉 **[Explore all badge styles, emerald SLA seals & Shields.io URLs](assets/badges/README.md)**
+
+---
+
 ## 🤝 Contributing
 
 We warmly welcome Pull Requests, bug reports, and performance optimization proposals!
@@ -398,6 +411,12 @@ Please review the contribution guidelines:
 
 ---
 
-## 📄 License
+## 📄 License & Attribution
 
 Hydra is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
+
+> [!TIP]
+> **Using Hydra in your repository?**  
+> If you maintain a public proxy list or use Hydra for proxy rotation in your scraper, you can show your users that your proxies are validated by adding an [Official Hydra Badge](assets/badges/README.md) to your README:
+> 
+> [![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)

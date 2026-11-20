@@ -22,7 +22,7 @@
 
 <br>
 
-[⚡ Быстрый старт](#quick-start) • [✨ Возможности](#features) • [📊 Бенчмарки](#benchmarks) • [⚖️ Сравнение](#comparison) • [📐 Архитектура](#architecture) • [⚙️ Конфигурация](#configuration) • [📖 REST API](docs/API.ru.md)
+[⚡ Быстрый старт](#quick-start) • [✨ Возможности](#features) • [📊 Бенчмарки](#benchmarks) • [⚖️ Сравнение](#comparison) • [📐 Архитектура](#architecture) • [⚙️ Конфигурация](#configuration) • [📖 REST API](docs/API.ru.md) • [🛡️ Бейджи](assets/badges/README.md)
 
 </div>
 
@@ -390,6 +390,19 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ---
 
+## 🛡️ Бейджи для вашего репозитория
+
+Если ваш проект распространяет списки прокси, дампы для скрапинга или использует Hydra как движок пула, покажите сообществу, что прокси регулярно верифицируются:
+
+| Бейдж | Код Markdown |
+| :--- | :--- |
+| ![Proxies Checked](assets/badges/proxies-checked-by-hydra.svg) | `[![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)` |
+| ![Proxies Pill](assets/badges/proxies-by-hydra-pill-20.svg) | `[![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra)` |
+
+👉 **[Посмотреть все стили бейджей, изумрудные SLA-знаки и Shields.io ссылки](assets/badges/README.md)**
+
+---
+
 ## 🤝 Участие в разработке
 
 Мы приветствуем Pull Request'ы, сообщения об ошибках и предложения по оптимизации сетевого стека!
@@ -398,6 +411,12 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ---
 
-## 📄 Лицензия
+## 📄 Лицензия и атрибуция
 
 Проект распространяется под открытой лицензией **MIT License**. Подробности в файле [LICENSE](LICENSE).
+
+> [!TIP]
+> **Используете Hydra в своем проекте?**  
+> Если вы публикуете открытый список прокси или используете Hydra для ротации пула в парсере, вы можете показать пользователям статус валидации с помощью [официального бейджа Hydra](assets/badges/README.md):
+> 
+> [![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)
