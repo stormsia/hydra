@@ -2,7 +2,7 @@ use chrono::Utc;
 use hydra_api::app_state::{AppState, SchedulerStats};
 use hydra_api::config::ApiConfig;
 use hydra_api::db::*;
-use hydra_api::models::{ProxyRow, ProxyState};
+use hydra_api::models::{ProxyCheckItem, ProxyRow, ProxyState};
 use hydra_api::services::batch_writer::{
     CheckResultWithMeta, flush_batch, prepare_batch_statements, update_recent_checks,
 };
@@ -19,7 +19,7 @@ use tokio_util::sync::CancellationToken;
 
 #[tokio::test]
 async fn test_row_to_target_mapping() {
-    let row = ProxyRow {
+    let item = ProxyCheckItem {
         id: "198.51.100.5:8080".to_string(),
         ip: "198.51.100.5".to_string(),
         port: 8080,
@@ -27,36 +27,20 @@ async fn test_row_to_target_mapping() {
         auth_pass: Some("testpass".to_string()),
         state: ProxyState::ColdQueue,
         protocol: Some("socks5".to_string()),
-        supports_https: true,
-        out_ip: None,
-        country: None,
-        asn: None,
-        asn_org: None,
-        anon: None,
-        rtt_tcp_ms: None,
-        rtt_handshake_ms: None,
-        rtt_total_ms: None,
         connect_timeout_ms: 2500,
         handshake_timeout_ms: 3500,
         rw_timeout_ms: 4500,
         recheck_alive_sec: 90,
         recheck_dead_sec: 1200,
         max_dead_strikes: 2,
+        dead_strikes: 0,
         stability_window_min: 5,
         dead_backoff_mult: 1.5,
-        checks_total: 0,
-        checks_success: 0,
-        dead_strikes: 0,
-        last_error: None,
-        stability_pct: 0.0,
         recent_checks: None,
-        remark: None,
-        first_seen_at: 1000,
-        last_checked_at: None,
         next_check_at: 1000,
     };
 
-    let target = row_to_target(&row);
+    let target = row_to_target(&item);
     assert_eq!(target.port, 8080);
     assert_eq!(target.expected_protocol, Some(ProxyProtocol::Socks5));
     assert_eq!(target.auth.as_ref().unwrap().username, "testuser");

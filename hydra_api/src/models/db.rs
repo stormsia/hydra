@@ -82,3 +82,54 @@ pub struct SourceRow {
     pub remark: Option<String>,
     pub created_at: i64,
 }
+
+/// Lightweight proxy item fetched specifically for the scheduler check pipeline.
+/// Excludes non-essential metrics and heavy metadata (country, asn_org, logs, etc.)
+/// to avoid tens of thousands of redundant heap allocations per second.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProxyCheckItem {
+    pub id: String, // "ip:port"
+    pub ip: String,
+    pub port: u16,
+    pub auth_user: Option<String>,
+    pub auth_pass: Option<String>,
+    pub state: ProxyState,
+    pub protocol: Option<String>,
+    pub connect_timeout_ms: u32,
+    pub handshake_timeout_ms: u32,
+    pub rw_timeout_ms: u32,
+    pub recheck_alive_sec: u32,
+    pub recheck_dead_sec: u32,
+    pub max_dead_strikes: u32,
+    pub dead_strikes: u32,
+    pub stability_window_min: u32,
+    pub dead_backoff_mult: f32,
+    pub recent_checks: Option<String>,
+    pub next_check_at: i64,
+}
+
+impl From<&ProxyRow> for ProxyCheckItem {
+    fn from(row: &ProxyRow) -> Self {
+        ProxyCheckItem {
+            id: row.id.clone(),
+            ip: row.ip.clone(),
+            port: row.port,
+            auth_user: row.auth_user.clone(),
+            auth_pass: row.auth_pass.clone(),
+            state: row.state,
+            protocol: row.protocol.clone(),
+            connect_timeout_ms: row.connect_timeout_ms,
+            handshake_timeout_ms: row.handshake_timeout_ms,
+            rw_timeout_ms: row.rw_timeout_ms,
+            recheck_alive_sec: row.recheck_alive_sec,
+            recheck_dead_sec: row.recheck_dead_sec,
+            max_dead_strikes: row.max_dead_strikes,
+            dead_strikes: row.dead_strikes,
+            stability_window_min: row.stability_window_min,
+            dead_backoff_mult: row.dead_backoff_mult,
+            recent_checks: row.recent_checks.clone(),
+            next_check_at: row.next_check_at,
+        }
+    }
+}
+

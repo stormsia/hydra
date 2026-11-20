@@ -13,6 +13,9 @@ use hydra_api::services::maintenance::db_maintenance_loop;
 use hydra_api::services::scheduler::scheduler_loop;
 use hydra_checker::{CheckerConfig, CheckerEngine};
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     hydra_api::init_crypto_provider();

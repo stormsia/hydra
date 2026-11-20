@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::app_state::{AppState, SchedulerStats};
 use crate::db::proxies::fetch_due_proxies;
-use crate::models::ProxyRow;
+use crate::models::ProxyCheckItem;
 use crate::services::batch_writer::CheckResultWithMeta;
 use crate::services::geoip::GeoIpResult;
 use hydra_checker::{CheckConfigOverride, CheckTarget, ProxyAuth, ProxyProtocol, TargetHost};
@@ -23,7 +23,7 @@ impl Drop for WorkerGuard {
     }
 }
 
-pub fn row_to_target(row: &ProxyRow) -> CheckTarget {
+pub fn row_to_target(row: &ProxyCheckItem) -> CheckTarget {
     let host = TargetHost::parse(&row.ip);
     let expected_protocol = row
         .protocol
@@ -60,7 +60,7 @@ pub async fn scheduler_loop(state: AppState, cancel: CancellationToken) {
     let batch_size = state.config.scheduler_batch_size.max(1);
 
     // 1. Bounded MPSC channel for continuous task pipeline
-    let (task_tx, task_rx) = tokio::sync::mpsc::channel::<ProxyRow>(concurrency);
+    let (task_tx, task_rx) = tokio::sync::mpsc::channel::<ProxyCheckItem>(concurrency);
 
     // 2. Worker Pool (Consumer)
     let worker_state = state.clone();

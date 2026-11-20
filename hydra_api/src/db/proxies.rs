@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::models::{
     AsnStatsDto, CountryStatsDto, PatchProxyRequest, PoolCountsDto, PoolQualityDto,
-    ProxyFilterQuery, ProxyRow, ProxyShortItem, ProxyState,
+    ProxyCheckItem, ProxyFilterQuery, ProxyRow, ProxyShortItem, ProxyState,
 };
 
 pub async fn insert_proxy_if_not_exists(
@@ -663,6 +663,41 @@ pub async fn run_db_maintenance(
     })
 }
 
+fn map_proxy_check_item(row: &libsql::Row) -> Result<ProxyCheckItem, libsql::Error> {
+    let port_num: i64 = row.get(2)?;
+    let state_num: i64 = row.get(5)?;
+    let connect_timeout: i64 = row.get(7)?;
+    let handshake_timeout: i64 = row.get(8)?;
+    let rw_timeout: i64 = row.get(9)?;
+    let recheck_alive: i64 = row.get(10)?;
+    let recheck_dead: i64 = row.get(11)?;
+    let max_strikes: i64 = row.get(12)?;
+    let dead_strikes: i64 = row.get(13)?;
+    let stability_window: i64 = row.get(14)?;
+    let dead_backoff: f64 = row.get(15)?;
+
+    Ok(ProxyCheckItem {
+        id: row.get(0)?,
+        ip: row.get(1)?,
+        port: port_num as u16,
+        auth_user: row.get(3)?,
+        auth_pass: row.get(4)?,
+        state: ProxyState::from_i64(state_num),
+        protocol: row.get(6)?,
+        connect_timeout_ms: connect_timeout as u32,
+        handshake_timeout_ms: handshake_timeout as u32,
+        rw_timeout_ms: rw_timeout as u32,
+        recheck_alive_sec: recheck_alive as u32,
+        recheck_dead_sec: recheck_dead as u32,
+        max_dead_strikes: max_strikes as u32,
+        dead_strikes: dead_strikes as u32,
+        stability_window_min: stability_window as u32,
+        dead_backoff_mult: dead_backoff as f32,
+        recent_checks: row.get(16)?,
+        next_check_at: row.get(17)?,
+    })
+}
+
 /// Fetches proxies due for checking with 70/30 partitioned fair-share scheduling:
 /// - 70% of available worker capacity is reserved for Cold (never checked: state = 0) proxies
 /// - 30% (+ all unused capacity) is allocated for Recheck (alive state = 1, then cooldown state = 2)
@@ -676,7 +711,7 @@ pub async fn fetch_due_proxies(
     conn: &Connection,
     now: i64,
     limit: usize,
-) -> Result<Vec<ProxyRow>, libsql::Error> {
+) -> Result<Vec<ProxyCheckItem>, libsql::Error> {
     if limit == 0 {
         return Ok(Vec::new());
     }
@@ -685,12 +720,10 @@ pub async fn fetch_due_proxies(
 
     // Step 1: Fetch Cold proxies (state = 0)
     let sql_cold = "
-        SELECT id, ip, port, auth_user, auth_pass, state, protocol, supports_https,
-               out_ip, country, asn, asn_org, anon, rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
+        SELECT id, ip, port, auth_user, auth_pass, state, protocol,
                connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-               recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
-               checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
-               first_seen_at, last_checked_at, next_check_at
+               recheck_alive_sec, recheck_dead_sec, max_dead_strikes, dead_strikes,
+               stability_window_min, dead_backoff_mult, recent_checks, next_check_at
         FROM proxies
         WHERE state = 0 AND next_check_at <= ?1
         ORDER BY next_check_at ASC, first_seen_at ASC
@@ -703,7 +736,7 @@ pub async fn fetch_due_proxies(
 
     let mut results = Vec::with_capacity(limit);
     while let Some(row) = cold_rows.next().await? {
-        results.push(map_proxy_row(&row)?);
+        results.push(map_proxy_check_item(&row)?);
     }
     let cold_fetched = results.len();
 
@@ -711,12 +744,10 @@ pub async fn fetch_due_proxies(
     let recheck_limit = limit.saturating_sub(cold_fetched);
     if recheck_limit > 0 {
         let sql_recheck = "
-            SELECT id, ip, port, auth_user, auth_pass, state, protocol, supports_https,
-                   out_ip, country, asn, asn_org, anon, rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
+            SELECT id, ip, port, auth_user, auth_pass, state, protocol,
                    connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-                   recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
-                   checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
-                   first_seen_at, last_checked_at, next_check_at
+                   recheck_alive_sec, recheck_dead_sec, max_dead_strikes, dead_strikes,
+                   stability_window_min, dead_backoff_mult, recent_checks, next_check_at
             FROM proxies
             WHERE state IN (1, 2) AND next_check_at <= ?1
             ORDER BY
@@ -731,7 +762,7 @@ pub async fn fetch_due_proxies(
             .await?;
 
         while let Some(row) = recheck_rows.next().await? {
-            results.push(map_proxy_row(&row)?);
+            results.push(map_proxy_check_item(&row)?);
         }
     }
 
@@ -740,12 +771,10 @@ pub async fn fetch_due_proxies(
     let remaining_capacity = limit.saturating_sub(results.len());
     if remaining_capacity > 0 && cold_fetched == cold_quota {
         let sql_extra_cold = "
-            SELECT id, ip, port, auth_user, auth_pass, state, protocol, supports_https,
-                   out_ip, country, asn, asn_org, anon, rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
+            SELECT id, ip, port, auth_user, auth_pass, state, protocol,
                    connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
-                   recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
-                   checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
-                   first_seen_at, last_checked_at, next_check_at
+                   recheck_alive_sec, recheck_dead_sec, max_dead_strikes, dead_strikes,
+                   stability_window_min, dead_backoff_mult, recent_checks, next_check_at
             FROM proxies
             WHERE state = 0 AND next_check_at <= ?1
             ORDER BY next_check_at ASC, first_seen_at ASC
@@ -760,7 +789,7 @@ pub async fn fetch_due_proxies(
             .await?;
 
         while let Some(row) = extra_cold_rows.next().await? {
-            results.push(map_proxy_row(&row)?);
+            results.push(map_proxy_check_item(&row)?);
         }
     }
 
