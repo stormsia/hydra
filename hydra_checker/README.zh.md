@@ -64,7 +64,7 @@ hydra_checker/
 1. **L4 (TCP Connect)**：发起 SYN 连接握手，启用 `SO_LINGER=0`，前置拦截 Bogon/SSRF，并高精度测算 TCP RTT。
 2. **Handshake（握手协商）**：协商代理协议（SOCKS5、SOCKS4、HTTP CONNECT）或按序进行级联自动探测。
 3. **TLS / Judge（回显验证）**：在隧道之上建立 TLS 加密会话，向指定裁判发送 HTTP 请求并严格核验响应中的防伪令牌。
-4. **Anonymity（匿名度判定）**：深度比对回显网络请求头及客户端出口 IP，精确判定等级（高匿 Elite、普通匿名 Anonymous、透明 Transparent）。
+4. **Anonymity（匿名度判定）**：深度比对回显网络请求头及客户端出口 IP，精确判定等级（高匿 Elite、普通匿名 Anonymous、透明 Transparent）。当未指定 `CHECKER_REAL_IP` 时，引擎将在健康探活循环中通过健康裁判多数票共识动态自动探测真实公网出口 IP（自动过滤 bogon/私网地址）。
 
 ## 环境变量配置
 
@@ -80,7 +80,7 @@ hydra_checker/
 | `CHECKER_READ_WRITE_TIMEOUT_MS` | u64 | `5000` | 裁判数据收发 I/O 超时（毫秒） |
 | `CHECKER_MAX_READ_BYTES` | usize | `8192` | 裁判响应报文最大读取字节限制 |
 | `CHECKER_LOCAL_BIND_IP` | IpAddr | — | 出站套接字本地网卡绑定 IP |
-| `CHECKER_REAL_IP` | IpAddr | — | 本机外网出口公网 IP |
+| `CHECKER_REAL_IP` | IpAddr | *(自动: 裁判共识)* | 本机外网出口公网 IP（用于判定透明代理；未指定时默认基于健康裁判多数票共识动态探测，显式配置优先） |
 | `ENABLE_BUILTIN_JUDGE` | bool | `true` | 是否在检测池中启用内置/主裁判节点 |
 | `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | 是否启用内置第三方公共裁判节点池 |
 | `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | 活跃裁判节点负载均衡优选策略 |

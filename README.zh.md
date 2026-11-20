@@ -129,7 +129,7 @@ $env:EMBED_JUDGE="true"; .\target\release\hydra_api.exe
 | **高并发写入时 SQLite 数据库锁死** | 基于 **SQLite WAL** 的非阻塞 **MPSC 微批写入（100ms 刷新）** | 写入吞吐达 **8,340 检测/秒**，导入达 **14,000+ 条/秒**，**0 数据库锁错误** |
 | **大量 TCP 连接致套接字耗尽 (`TIME_WAIT`)** | 套接字层精细控制 **`SO_LINGER=0` (TCP RST 丢弃)** | 5,000 并发任务下系统套接字零累积，释放瞬时完成 |
 | **不可达 IP 浪费网络带宽与算力** | **4 阶段快速失败流水线**：L4 Connect &rarr; 协议握手 &rarr; TLS/Judge &rarr; 匿名度判定 | 节约高达 95% 带宽与文件描述符（在 SYN 阶段快速阻断） |
-| **中心检测节点 (Judge) 单点故障** | **动态故障转移裁判池 (Failover Pool)**（支持最小延迟策略 `lowest_latency`） | 首选裁判失活时秒级无缝漂移至备选健康集群 |
+| **中心检测节点 (Judge) 单点故障** | **动态故障转移裁判池 (Failover Pool)**（支持 `lowest_latency` 路由与多数票共识） | 首选裁判失活时秒级无缝漂移至备选健康集群；通过健康裁判多数票共识自动动态解析公网出口 IP |
 | **公网回显服务被网络扫描器滥用** | **防滥用 Token 防护** + 24 小时动态滑动窗口 **HMAC-SHA256** | 自动拦截 Shodan、Censys 等爬虫探测并以 TCP RST 阻断 |
 | **IP 归属地库版本落后滞后** | 基于 **`ArcSwap` 实现无锁 GeoIP/ASN 内存更新**（支持 HTTP ETag 增量拉取） | MaxMind 数据库热更新无需重启，零阻塞 Tokio 异步运行时 |
 | **爬虫业务端被风控封禁反馈** | 闭环回传接口 **`POST /api/v1/proxies/report-fail`** | 触发故障的代理立即进入 `cooldown` 隔离队列并启用指数退避 |
@@ -253,6 +253,9 @@ flowchart LR
     Maintenance -->|"增量垃圾回收 incremental_vacuum"| DB
 ```
 
+> [!NOTE]
+> **裁判故障转移池与动态匿名度判定**：在第 4 阶段中，引擎通过检查回显头（`REMOTE_ADDR`、`X-Forwarded-For`、`Via`）中是否泄露客户端真实公网 IP 来判定代理匿名等级（Elite、Anonymous、Transparent）。若未配置 `CHECKER_REAL_IP`， чекер 在后台健康探活轮询（health check loop）中自动基于健康裁判的多数票共识（majority vote）动态探测自身公网出口 IP，并强制过滤 bogon 与私网保留地址。静态显式配置具有更高优先级。
+
 ---
 
 ## 🔄 确定性状态机与生命周期模型
@@ -334,7 +337,7 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
 | `JUDGE_HTTPS_URL` | `Url` | `http://127.0.0.1:8080` | 否 | 用于测试 SOCKS / CONNECT 隧道的 HTTPS Judge 端点。 |
 | `JUDGE_SECRET_TOKEN` | `String` | `hydra_secret_token` | 否 | 用于校验 Judge 响应内容的静态安全签名 Token。 |
 | `CHECKER_CONCURRENCY` | `usize` | `5000` | 否 | 网络检测协程最大并发处理上限。 |
-| `CHECKER_REAL_IP` | `IpAddr` | *(自动)* | 否 | 宿主机公网真实出口 IP（用于高灵敏度识别 Transparent 透明代理）。 |
+| `CHECKER_REAL_IP` | `IpAddr` | *(自动: 裁判共识)* | 否 | 宿主机公网出口 IP（用于高灵敏度识别 Transparent 透明代理；默认基于健康裁判多数票共识动态自动探测，显式配置优先）。 |
 | `ENABLE_BUILTIN_JUDGE` | `bool` | *(自动)* | 否 | 是否将内置裁判节点加入检测池（若开启 EMBED_JUDGE 或自定义 URL 则默认为 true，否则为 false）。 |
 | `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | 否 | 是否启用公网第三方回显节点（如 Httpbingo）进行故障转移容灾。 |
 | `JUDGE_SELECTION_STRATEGY` | `String` | `lowest_latency` | 否 | 裁判选择路由算法：`lowest_latency`, `priority`, `round_robin`。 |

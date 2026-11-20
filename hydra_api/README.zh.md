@@ -77,7 +77,7 @@ hydra_api/
 | `EMBED_JUDGE` | bool | `false` | 是否在 API 主进程中运行内置 Judge 裁判服务 |
 | `EMBED_JUDGE_PORT` | u16 | `8080` | 内置 Judge 服务监听端口 |
 | `CHECKER_CONCURRENCY` | usize | `5000` | 检测引擎并发工作协程上限 |
-| `CHECKER_REAL_IP` | String | — | 本机外网出口 IP（用于比对透明/高匿） |
+| `CHECKER_REAL_IP` | String | *(自动: 裁判共识)* | 宿主机公网出口 IP（用于比对透明代理；默认基于健康裁判多数票共识动态自动探测，显式配置优先） |
 | `JUDGE_HTTP_URL` | String | `http://127.0.0.1:8080` | 用于 HTTP 检测的回显裁判地址 |
 | `JUDGE_HTTPS_URL` | String | `http://127.0.0.1:8080` | 用于 HTTPS 隧道检测的回显裁判地址 |
 | `JUDGE_SECRET_TOKEN` | String | `hydra_secret_token` | 用于验证裁判合法回显的静态令牌 |

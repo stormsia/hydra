@@ -129,7 +129,7 @@ Once running, the following endpoints are available:
 | **Database lock contention under heavy writes** | Non-blocking **MPSC Micro-Batching (100 ms)** with **SQLite WAL** mode | Up to **8,340 checks/sec** write throughput and **14,000+ proxies/sec** import with **zero `database locked` errors** |
 | **Socket leaks and port exhaustion (`TIME_WAIT`)** | Low-level socket control with **`SO_LINGER=0` (TCP RST drop)** | Zero descriptor accumulation across 5,000+ concurrent workers |
 | **Wasted bandwidth on dead IPs** | **4-Phase Fail-Fast Pipeline**: L4 Connect &rarr; Handshake &rarr; TLS/Judge &rarr; Anonymity Verdict | Up to 95% bandwidth and socket savings by discarding dead IPs at the SYN stage |
-| **Single point of failure for verification judges** | **Dynamic Failover Judge Pool** (using `lowest_latency` strategy) | Traffic shifts to healthy standby mirrors in seconds if leader fails |
+| **Single point of failure for verification judges** | **Dynamic Failover Judge Pool** (`lowest_latency` / consensus) | Seamless failover across healthy mirrors; automatically resolves checker public IP via majority-vote consensus |
 | **Echo server abuse by public port scanners** | **Anti-Abuse Token Guard** + 24h rolling sliding-window **HMAC-SHA256** | Unauthorized bots (Shodan, Censys) are immediately dropped with TCP RST |
 | **Outdated geolocation databases** | **Lock-Free GeoIP/ASN via `ArcSwap`** with HTTP ETag auto-updates | MaxMind databases update on the fly without Tokio runtime pauses or restarts |
 | **Downstream target site rate limits/bans** | Feedback loop via **`POST /api/v1/proxies/report-fail`** | Failed proxies immediately quarantined into `cooldown` with exponential backoff |
@@ -253,6 +253,9 @@ flowchart LR
     Maintenance -->|"Cleanup & incremental_vacuum"| DB
 ```
 
+> [!NOTE]
+> **Judge Failover Pool & Dynamic Anonymity Detection**: During Phase 4, proxy anonymity (Elite, Anonymous, Transparent) is classified by checking whether the client's public IP leaks in echoed headers (`REMOTE_ADDR`, `X-Forwarded-For`, `Via`). If `CHECKER_REAL_IP` is unset, the engine dynamically auto-discovers its outbound public IP during background health check loops using majority-vote consensus among healthy judges, strictly filtering out bogon and loopback addresses. Explicitly setting `CHECKER_REAL_IP` overrides auto-discovery.
+
 ---
 
 ## 🔄 Deterministic Proxy Lifecycle
@@ -334,7 +337,7 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
 | `JUDGE_HTTPS_URL` | `Url` | `http://127.0.0.1:8080` | No | HTTPS URL for checking CONNECT and SOCKS tunnels. |
 | `JUDGE_SECRET_TOKEN` | `String` | `hydra_secret_token` | No | Static validation token for verifying judge echo response. |
 | `CHECKER_CONCURRENCY` | `usize` | `5000` | No | Maximum number of concurrent network verification tasks. |
-| `CHECKER_REAL_IP` | `IpAddr` | *(auto)* | No | Outbound public IP of checker host (for accurate Transparent detection). |
+| `CHECKER_REAL_IP` | `IpAddr` | *(auto: judge consensus)* | No | Outbound public IP of checker host for Transparent proxy detection (defaults to dynamic auto-discovery via judge consensus majority vote; explicit value overrides auto-detection). |
 | `ENABLE_BUILTIN_JUDGE` | `bool` | *(auto)* | No | Enable builtin judge in selection pool (true if embedded or custom URL, else false). |
 | `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | No | Enable public fallback judges (Httpbingo, Httpbin) for failover. |
 | `JUDGE_SELECTION_STRATEGY` | `String` | `lowest_latency` | No | Judge selection algorithm: `lowest_latency`, `priority`, `round_robin`. |

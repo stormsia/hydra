@@ -77,7 +77,7 @@ All settings are read from the environment or `.env` file. All endpoints require
 | `EMBED_JUDGE` | bool | `false` | Run embedded Judge echo server inside API process |
 | `EMBED_JUDGE_PORT` | u16 | `8080` | Port for embedded Judge server |
 | `CHECKER_CONCURRENCY` | usize | `5000` | Maximum concurrent checker validation tasks |
-| `CHECKER_REAL_IP` | String | — | Real public IP for client anonymity detection |
+| `CHECKER_REAL_IP` | String | *(auto: consensus)* | Outbound public IP for Transparent proxy detection (defaults to dynamic judge consensus via majority vote; explicit value overrides) |
 | `JUDGE_HTTP_URL` | String | `http://127.0.0.1:8080` | Judge echo server URL for HTTP checks |
 | `JUDGE_HTTPS_URL` | String | `http://127.0.0.1:8080` | Judge echo server URL for HTTPS tunnel checks |
 | `JUDGE_SECRET_TOKEN` | String | `hydra_secret_token` | Static verification token for judge response |

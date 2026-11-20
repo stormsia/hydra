@@ -77,7 +77,7 @@ hydra_api/
 | `EMBED_JUDGE` | bool | `false` | Запуск встроенного сервера Judge |
 | `EMBED_JUDGE_PORT` | u16 | `8080` | Порт встроенного сервера Judge |
 | `CHECKER_CONCURRENCY` | usize | `5000` | Лимит параллельных проверок чекера |
-| `CHECKER_REAL_IP` | String | — | Внешний IP детекта анонимности |
+| `CHECKER_REAL_IP` | String | *(авто: консенсус)* | Публичный исходящий IP для детекта Transparent прокси (по умолчанию динамический консенсус большинства судей; явное значение переопределяет) |
 | `JUDGE_HTTP_URL` | String | `http://127.0.0.1:8080` | URL эхо-сервера HTTP проверок |
 | `JUDGE_HTTPS_URL` | String | `http://127.0.0.1:8080` | URL эхо-сервера HTTPS проверок |
 | `JUDGE_SECRET_TOKEN` | String | `hydra_secret_token` | Статический токен верификации судьи |

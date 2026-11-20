@@ -64,7 +64,7 @@ hydra_checker/
 1. **L4 (TCP Connect)**: SYN handshake with `SO_LINGER=0`, instantaneous Bogon/SSRF rejection, and microsecond TCP RTT measurement.
 2. **Handshake**: Protocol negotiation (SOCKS5, SOCKS4, HTTP CONNECT) or sequential cascading auto-detection.
 3. **TLS / Judge**: Establish TLS session through the tunnel, execute L7 HTTP request to judge, and validate authenticity token.
-4. **Anonymity**: Inspect forwarded headers and reflect client IP to classify level (Elite, Anonymous, Transparent).
+4. **Anonymity**: Inspect forwarded headers and reflected client IP to classify level (Elite, Anonymous, Transparent). When `CHECKER_REAL_IP` is unset, the engine dynamically auto-discovers its outbound public IP via majority-vote judge consensus with bogon filtering.
 
 ## ENV Configuration
 
@@ -80,7 +80,7 @@ hydra_checker/
 | `CHECKER_READ_WRITE_TIMEOUT_MS` | u64 | `5000` | Judge data transmission timeout |
 | `CHECKER_MAX_READ_BYTES` | usize | `8192` | Maximum response body buffer size |
 | `CHECKER_LOCAL_BIND_IP` | IpAddr | — | Outbound socket binding IP interface |
-| `CHECKER_REAL_IP` | IpAddr | — | Host public IP for anonymity comparison |
+| `CHECKER_REAL_IP` | IpAddr | *(auto: consensus)* | Host public IP for anonymity comparison (defaults to dynamic discovery via judge consensus majority vote; explicit value overrides) |
 | `ENABLE_BUILTIN_JUDGE` | bool | `true` | Enable built-in/primary judge in pool |
 | `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | Enable built-in third-party judge pool |
 | `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | Judge selection strategy |
