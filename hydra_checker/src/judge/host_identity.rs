@@ -115,7 +115,7 @@ impl HostIdentity {
 
         // 3. Token-based IP parser: split value on comma, space, semicolons, brackets, quotes
         // and test if any parsed IP belongs to this host or any of its IPv6 subnets.
-        for token in value.split(|c: char| c == ',' || c == ' ' || c == ';' || c == '"' || c == '\'' || c == '[' || c == ']') {
+        for token in value.split([',', ' ', ';', '"', '\'', '[', ']']) {
             let trimmed = token.trim();
             if trimmed.is_empty() {
                 continue;
@@ -133,10 +133,10 @@ impl HostIdentity {
                 trimmed
             };
 
-            if let Ok(parsed_ip) = candidate.parse::<IpAddr>() {
-                if self.contains_ip(&parsed_ip) {
-                    return true;
-                }
+            if let Ok(parsed_ip) = candidate.parse::<IpAddr>()
+                && self.contains_ip(&parsed_ip)
+            {
+                return true;
             }
         }
 
@@ -147,7 +147,7 @@ impl HostIdentity {
     /// Example: "198.51.100.1, 198.51.100.2, 2001:db8:cafe::/64, 2001:db8::1"
     pub fn parse_from_str(s: &str) -> Self {
         let mut id = Self::new();
-        for token in s.split(|c: char| c == ',' || c == ' ' || c == ';' || c == '\n') {
+        for token in s.split([',', ' ', ';', '\n']) {
             let trimmed = token.trim();
             if trimmed.is_empty() {
                 continue;
