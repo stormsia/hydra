@@ -1,5 +1,6 @@
 use std::net::IpAddr;
 
+use super::host_identity::HostIdentity;
 use crate::models::AnonymityLevel;
 
 /// Known headers that indicate the presence or involvement of a proxy
@@ -22,19 +23,19 @@ const PROXY_HEADER_NAMES: &[&str] = &[
     "http_proxy_connection",
 ];
 
-/// Classify anonymity level based on extracted headers and our real public IP
-pub fn classify_anonymity<'a, I>(headers: I, real_ip: Option<IpAddr>) -> AnonymityLevel
+/// Classify anonymity level based on extracted headers and our comprehensive host identity
+pub fn classify_anonymity_with_identity<'a, I>(
+    headers: I,
+    identity: &HostIdentity,
+) -> AnonymityLevel
 where
     I: IntoIterator<Item = (&'a str, &'a str)>,
 {
-    let real_ip_str = real_ip.map(|ip| ip.to_string());
     let mut has_proxy_header = false;
 
     for (name, value) in headers {
-        // 1. If our real IP is leaked anywhere in headers, it's Transparent
-        if let Some(real_str) = &real_ip_str
-            && value.contains(real_str.as_str())
-        {
+        // 1. If any of our real IPs or IPv6 subnets are leaked in headers, it's Transparent
+        if identity.matches_header_value(value) {
             return AnonymityLevel::Transparent;
         }
 
@@ -52,4 +53,16 @@ where
     } else {
         AnonymityLevel::Elite
     }
+}
+
+/// Classify anonymity level based on extracted headers and our real public IP (legacy wrapper)
+pub fn classify_anonymity<'a, I>(headers: I, real_ip: Option<IpAddr>) -> AnonymityLevel
+where
+    I: IntoIterator<Item = (&'a str, &'a str)>,
+{
+    let mut identity = HostIdentity::new();
+    if let Some(ip) = real_ip {
+        identity.add_ip(ip);
+    }
+    classify_anonymity_with_identity(headers, &identity)
 }

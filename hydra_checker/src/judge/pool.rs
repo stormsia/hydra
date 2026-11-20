@@ -10,7 +10,8 @@ use tokio_util::sync::CancellationToken;
 
 use super::endpoint::JudgeEndpoint;
 use super::health::{JudgeHealth, JudgeHealthReport, JudgeHealthStatus};
-use super::probe::probe_judge_endpoint;
+use super::host_identity::HostIdentity;
+use super::probe::probe_judge_endpoint_with_bind;
 
 fn current_unix_sec() -> u64 {
     SystemTime::now()
@@ -54,7 +55,9 @@ pub struct JudgePool {
     strategy: JudgeSelectionStrategy,
     round_robin_counter: AtomicUsize,
     strike_limit: u32,
+    discovered_identity: Arc<arc_swap::ArcSwap<HostIdentity>>,
     discovered_ip: Arc<arc_swap::ArcSwapOption<IpAddr>>,
+    local_bind_ip: RwLock<Option<IpAddr>>,
 }
 
 impl JudgePool {
@@ -70,12 +73,17 @@ impl JudgePool {
             list.push(Arc::new(JudgeEntry::new(ep)));
         }
 
+        let initial_identity = HostIdentity::from_local_interfaces();
+        let initial_ip = initial_identity.primary_ip();
+
         Self {
             entries: RwLock::new(list),
             strategy,
             round_robin_counter: AtomicUsize::new(0),
             strike_limit: 2,
-            discovered_ip: Arc::new(arc_swap::ArcSwapOption::empty()),
+            discovered_identity: Arc::new(arc_swap::ArcSwap::from_pointee(initial_identity)),
+            discovered_ip: Arc::new(arc_swap::ArcSwapOption::new(initial_ip.map(Arc::new))),
+            local_bind_ip: RwLock::new(None),
         }
     }
 
@@ -86,13 +94,24 @@ impl JudgePool {
             .map(|ep| Arc::new(JudgeEntry::new(ep)))
             .collect();
 
+        let initial_identity = HostIdentity::from_local_interfaces();
+        let initial_ip = initial_identity.primary_ip();
+
         Self {
             entries: RwLock::new(entries),
             strategy,
             round_robin_counter: AtomicUsize::new(0),
             strike_limit: 2,
-            discovered_ip: Arc::new(arc_swap::ArcSwapOption::empty()),
+            discovered_identity: Arc::new(arc_swap::ArcSwap::from_pointee(initial_identity)),
+            discovered_ip: Arc::new(arc_swap::ArcSwapOption::new(initial_ip.map(Arc::new))),
+            local_bind_ip: RwLock::new(None),
         }
+    }
+
+    /// Configure local socket bind interface for judge availability probes
+    pub fn set_local_bind_ip(&self, bind_ip: Option<IpAddr>) {
+        let mut guard = self.local_bind_ip.write().unwrap();
+        *guard = bind_ip;
     }
 
     /// Add a new judge to the pool
@@ -280,6 +299,7 @@ impl JudgePool {
             guard.clone()
         };
 
+        let bind_ip = *self.local_bind_ip.read().unwrap();
         let mut probe_futures = Vec::with_capacity(entries_snapshot.len());
 
         for entry in &entries_snapshot {
@@ -289,7 +309,7 @@ impl JudgePool {
             let ep = entry.endpoint.clone();
             let tls = tls_connector.clone();
             probe_futures.push(async move {
-                let res = probe_judge_endpoint(&ep, timeout, &tls).await;
+                let res = probe_judge_endpoint_with_bind(&ep, timeout, &tls, bind_ip).await;
                 (ep.id, res)
             });
         }
@@ -304,9 +324,24 @@ impl JudgePool {
         }
 
         let reports = self.get_health_reports();
+
+        // 1. Harvest discovered public IPs and subnets from all healthy judges
+        let harvested = harvest_discovered_identity(&reports);
+
+        // 2. Merge harvested IPs with our current identity (which includes local interfaces)
+        let current_id = self.discovered_identity.load();
+        let mut updated_identity = (**current_id).clone();
+        updated_identity.merge(&harvested);
+
+        // 3. For backward compatibility with tests and scalar real_ip:
         if let Some(consensus_ip) = resolve_consensus_ip(&reports) {
+            updated_identity.add_ip(consensus_ip);
             self.discovered_ip.store(Some(Arc::new(consensus_ip)));
+        } else if let Some(primary) = updated_identity.primary_ip() {
+            self.discovered_ip.store(Some(Arc::new(primary)));
         }
+
+        self.discovered_identity.store(Arc::new(updated_identity));
         reports
     }
 
@@ -340,9 +375,23 @@ impl JudgePool {
         reports
     }
 
-    /// Returns the currently discovered public IP resolved by judge consensus
+    /// Returns the currently discovered host identity (interfaces + judge probes)
+    pub fn discovered_identity(&self) -> Arc<HostIdentity> {
+        self.discovered_identity.load_full()
+    }
+
+    /// Provides shared handle to the atomic ArcSwap holding the dynamic HostIdentity
+    pub fn discovered_identity_handle(&self) -> Arc<arc_swap::ArcSwap<HostIdentity>> {
+        self.discovered_identity.clone()
+    }
+
+    /// Returns the currently discovered public IP resolved by judge consensus (legacy fallback)
     pub fn discovered_ip(&self) -> Option<IpAddr> {
-        self.discovered_ip.load().as_ref().map(|arc| **arc)
+        self.discovered_ip
+            .load()
+            .as_ref()
+            .map(|arc| **arc)
+            .or_else(|| self.discovered_identity.load().primary_ip())
     }
 
     /// Provides shared handle to the atomic ArcSwapOption holding the dynamic IP
@@ -426,4 +475,22 @@ pub fn resolve_consensus_ip(reports: &[JudgeHealthReport]) -> Option<IpAddr> {
                 .then_with(|| ip_a.cmp(ip_b))
         })
         .map(|(ip, _)| ip)
+}
+
+/// Harvests all distinct public IPv4 and IPv6 addresses observed from judges,
+/// along with /64 IPv6 subnets, discarding bogons and private LAN addresses.
+pub fn harvest_discovered_identity(reports: &[JudgeHealthReport]) -> HostIdentity {
+    let mut id = HostIdentity::new();
+    for r in reports {
+        if let Some(ip) = r.observed_ip {
+            let is_bogon = match ip {
+                IpAddr::V4(v4) => crate::net_filter::is_bogon_or_reserved_v4(v4),
+                IpAddr::V6(v6) => crate::net_filter::is_bogon_or_reserved_v6(v6),
+            };
+            if !is_bogon {
+                id.add_ip(ip);
+            }
+        }
+    }
+    id
 }

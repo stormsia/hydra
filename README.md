@@ -254,7 +254,7 @@ flowchart LR
 ```
 
 > [!NOTE]
-> **Judge Failover Pool & Dynamic Anonymity Detection**: During Phase 4, proxy anonymity (Elite, Anonymous, Transparent) is classified by checking whether the client's public IP leaks in echoed headers (`REMOTE_ADDR`, `X-Forwarded-For`, `Via`). If `CHECKER_REAL_IP` is unset, the engine dynamically auto-discovers its outbound public IP during background health check loops using majority-vote consensus among healthy judges, strictly filtering out bogon and loopback addresses. Explicitly setting `CHECKER_REAL_IP` overrides auto-discovery.
+> **Judge Failover Pool & Dynamic Anonymity Detection**: During Phase 4, proxy anonymity (Elite, Anonymous, Transparent) is classified by checking whether the client's public IP leaks in echoed headers (`REMOTE_ADDR`, `X-Forwarded-For`, `Via`). If `CHECKER_REAL_IPS` / `CHECKER_REAL_IP` is unset, the engine dynamically auto-discovers its outbound network identity (`HostIdentity`) by combining local interface inspection with background health check loops across healthy judges, tracking all public IPv4s and routed `/64` IPv6 subnets (defeating ephemeral SLAAC privacy address rotations and multi-WAN setups). Explicitly setting `CHECKER_REAL_IPS` or `CHECKER_REAL_IP` overrides auto-discovery.
 
 ---
 
@@ -337,7 +337,7 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
 | `JUDGE_HTTPS_URL` | `Url` | `http://127.0.0.1:8080` | No | HTTPS URL for checking CONNECT and SOCKS tunnels. |
 | `JUDGE_SECRET_TOKEN` | `String` | `hydra_secret_token` | No | Static validation token for verifying judge echo response. |
 | `CHECKER_CONCURRENCY` | `usize` | `5000` | No | Maximum number of concurrent network verification tasks. |
-| `CHECKER_REAL_IP` | `IpAddr` | *(auto: judge consensus)* | No | Outbound public IP of checker host for Transparent proxy detection (defaults to dynamic auto-discovery via judge consensus majority vote; explicit value overrides auto-detection). |
+| `CHECKER_REAL_IP` | `IpAddr` | *(auto: interfaces + judges)* | No | Outbound public IP of checker host for Transparent proxy detection. Supports `CHECKER_REAL_IPS` for multiple IPs and CIDR subnets (e.g. `203.0.113.1,2001:db8::/64`); defaults to composite auto-discovery combining host interfaces and judge consensus. |
 | `ENABLE_BUILTIN_JUDGE` | `bool` | *(auto)* | No | Enable builtin judge in selection pool (true if embedded or custom URL, else false). |
 | `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | No | Enable public fallback judges (Httpbingo, Httpbin) for failover. |
 | `JUDGE_SELECTION_STRATEGY` | `String` | `lowest_latency` | No | Judge selection algorithm: `lowest_latency`, `priority`, `round_robin`. |

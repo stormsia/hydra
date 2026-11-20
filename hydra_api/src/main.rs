@@ -112,10 +112,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(ref key) = config.judge_secret_key {
         builder = builder.judge_secret_key(key);
     }
-    if let Ok(ip_str) = std::env::var("CHECKER_REAL_IP")
-        && let Ok(ip) = ip_str.parse::<std::net::IpAddr>()
-    {
-        builder = builder.real_ip(ip);
+    if let Ok(ip_str) = std::env::var("CHECKER_REAL_IPS").or_else(|_| std::env::var("CHECKER_REAL_IP")) {
+        let parsed_id = hydra_checker::judge::HostIdentity::parse_from_str(&ip_str);
+        if !parsed_id.is_empty() {
+            builder = builder.host_identity(parsed_id);
+        }
     }
     let checker_config = builder.build().await?;
     let engine = Arc::new(CheckerEngine::new(checker_config)?);
@@ -140,9 +141,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 r.latency_ms
             );
         }
-        if let Some(ip) = engine_for_probe.config().real_ip() {
-            tracing::info!("Checker public IP dynamically detected: {}", ip);
-        }
+        let identity = engine_for_probe.config().host_identity();
+        tracing::info!(
+            "Checker host network identity resolved: IPv4={:?}, IPv6={:?}, IPv6 subnets={:?}",
+            identity.ipv4_addrs,
+            identity.ipv6_addrs,
+            identity.ipv6_subnets
+        );
         judge_pool
             .start_health_check_loop(health_interval, tls_connector, health_cancel)
             .await;

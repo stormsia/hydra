@@ -8,13 +8,15 @@ use crate::models::AnonymityLevel;
 pub mod anonymity;
 pub mod endpoint;
 pub mod health;
+pub mod host_identity;
 pub mod pool;
 pub mod probe;
 
-pub use anonymity::classify_anonymity;
+pub use anonymity::{classify_anonymity, classify_anonymity_with_identity};
 pub use endpoint::JudgeEndpoint;
 pub use health::{JudgeHealth, JudgeHealthReport, JudgeHealthStatus};
-pub use pool::{JudgeEntry, JudgePool, JudgeSelectionStrategy, resolve_consensus_ip};
+pub use host_identity::HostIdentity;
+pub use pool::{JudgeEntry, JudgePool, JudgeSelectionStrategy, harvest_discovered_identity, resolve_consensus_ip};
 pub use probe::{ProbeOutput, probe_judge_endpoint};
 
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -37,10 +39,10 @@ pub struct JudgePayload {
     pub anonymity: Option<AnonymityLevel>,
 }
 
-/// Parse Judge response body (supporting AZenv format, httpbin JSON format, and raw text).
-pub fn parse_judge_response(
+/// Parse Judge response body with comprehensive HostIdentity tracking
+pub fn parse_judge_response_with_identity(
     body: &str,
-    real_ip: Option<IpAddr>,
+    identity: &HostIdentity,
 ) -> Result<JudgePayload, ErrorReason> {
     let body = body.trim().strip_prefix('\u{feff}').unwrap_or(body.trim());
 
@@ -81,16 +83,13 @@ pub fn parse_judge_response(
             && let Some((client_parts, _last_ip)) = orig.rsplit_once(',')
         {
             proxy_forwarded_origin = true;
-            if let Some(real_ip) = real_ip {
-                let real_str = real_ip.to_string();
-                if client_parts.contains(&real_str) {
-                    leaked_ip_in_origin = true;
-                }
+            if identity.matches_header_value(client_parts) {
+                leaked_ip_in_origin = true;
             }
         }
 
         let mut anonymity = if !header_pairs.is_empty() || json.origin.is_some() {
-            Some(classify_anonymity(header_pairs, real_ip))
+            Some(classify_anonymity_with_identity(header_pairs, identity))
         } else {
             None
         };
@@ -129,7 +128,7 @@ pub fn parse_judge_response(
     }
 
     if exit_ip.is_some() && !azenv_headers.is_empty() {
-        let anonymity = Some(classify_anonymity(azenv_headers, real_ip));
+        let anonymity = Some(classify_anonymity_with_identity(azenv_headers, identity));
         return Ok(JudgePayload { exit_ip, anonymity });
     }
 
@@ -142,4 +141,16 @@ pub fn parse_judge_response(
     }
 
     Err(ErrorReason::InvalidResponse)
+}
+
+/// Parse Judge response body (supporting AZenv format, httpbin JSON format, and raw text). Legacy wrapper.
+pub fn parse_judge_response(
+    body: &str,
+    real_ip: Option<IpAddr>,
+) -> Result<JudgePayload, ErrorReason> {
+    let mut identity = HostIdentity::new();
+    if let Some(ip) = real_ip {
+        identity.add_ip(ip);
+    }
+    parse_judge_response_with_identity(body, &identity)
 }

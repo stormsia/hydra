@@ -6,7 +6,7 @@ use url::Url;
 
 use crate::config::CheckerConfig;
 use crate::error::ErrorReason;
-use crate::judge::{JudgePayload, parse_judge_response};
+use crate::judge::{JudgePayload, parse_judge_response_with_identity};
 use crate::models::ProxyAuth;
 use crate::protocols::http_plain::build_plain_http_request;
 
@@ -235,7 +235,8 @@ where
         }
 
         // Parse exit IP and headers for anonymity
-        let payload = parse_judge_response(body_str, config.real_ip())?;
+        let host_id = config.host_identity();
+        let payload = parse_judge_response_with_identity(body_str, &host_id)?;
 
         // Reject if exit IP is missing
         if payload.exit_ip.is_none() {
@@ -243,10 +244,15 @@ where
         }
 
         // Reject if exit IP matches our real IP (transparent loop or proxy bypassed)
-        if let Some(real_ip) = config.real_ip()
-            && payload.exit_ip == Some(real_ip)
-        {
-            return Err(ErrorReason::JudgeMismatch);
+        if let Some(exit_ip) = payload.exit_ip {
+            if host_id.contains_ip(&exit_ip) {
+                return Err(ErrorReason::JudgeMismatch);
+            }
+            if let Some(real_ip) = config.real_ip()
+                && exit_ip == real_ip
+            {
+                return Err(ErrorReason::JudgeMismatch);
+            }
         }
 
         Ok(payload)

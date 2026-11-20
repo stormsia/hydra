@@ -153,7 +153,10 @@ pub fn validate_target_ip(ip: IpAddr, config: &CheckerConfig) -> Result<(), Erro
         return Err(ErrorReason::BogonOrReservedIp);
     }
 
-    // 2. Reject self-scan against caller's real public IP
+    // 2. Reject self-scan against caller's real public IP or host identity
+    if config.host_identity().contains_ip(&ip) {
+        return Err(ErrorReason::BogonOrReservedIp);
+    }
     if let Some(real_ip) = config.real_ip()
         && ip == real_ip
     {

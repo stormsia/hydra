@@ -21,6 +21,8 @@ futures = "0.3"
 base64 = "0.23"
 url = { version = "2.5", features = ["serde"] }
 arc-swap = "1.7"
+if-addrs = "0.15"
+ipnet = { version = "2.11", features = ["serde"] }
 
 [dev-dependencies]
 tokio = { version = "1.43", features = ["full", "test-util"] }

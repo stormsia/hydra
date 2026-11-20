@@ -5,7 +5,7 @@ use std::time::Duration;
 use url::Url;
 
 use crate::error::{CheckerError, ErrorReason};
-use crate::judge::{JudgeEndpoint, JudgePool, JudgeSelectionStrategy};
+use crate::judge::{HostIdentity, JudgeEndpoint, JudgePool, JudgeSelectionStrategy};
 use crate::token::{DailyTokenProvider, current_epoch_day};
 
 #[derive(Debug, Clone)]
@@ -49,6 +49,10 @@ pub struct CheckerConfig {
     pub static_real_ip: Option<IpAddr>,
     /// Caller's dynamically discovered public IP from judge pool
     pub dynamic_real_ip: Arc<arc_swap::ArcSwapOption<IpAddr>>,
+    /// Caller's static configured HostIdentity (takes precedence over dynamic discovery)
+    pub static_host_identity: Option<HostIdentity>,
+    /// Caller's dynamically discovered HostIdentity from interfaces and judge pool
+    pub dynamic_host_identity: Arc<arc_swap::ArcSwap<HostIdentity>>,
     /// Maximum allowed bytes to read from Judge response (Default: 8192 bytes)
     pub max_read_bytes: usize,
     /// Dynamic pool of Judge endpoints with live health tracking and fallback
@@ -125,10 +129,11 @@ impl CheckerConfig {
             builder = builder.local_bind_ip(ip);
         }
 
-        if let Ok(ip_str) = std::env::var("CHECKER_REAL_IP")
-            && let Ok(ip) = ip_str.parse::<IpAddr>()
-        {
-            builder = builder.real_ip(ip);
+        if let Ok(ip_str) = std::env::var("CHECKER_REAL_IPS").or_else(|_| std::env::var("CHECKER_REAL_IP")) {
+            let parsed_id = HostIdentity::parse_from_str(&ip_str);
+            if !parsed_id.is_empty() {
+                builder = builder.host_identity(parsed_id);
+            }
         }
 
         if let Ok(val) = std::env::var("ENABLE_THIRD_PARTY_JUDGES") {
@@ -183,13 +188,26 @@ impl CheckerConfig {
         builder.build().await
     }
 
+    /// Caller's comprehensive HostIdentity (static configuration takes precedence, fallback to dynamic discovery)
+    #[inline]
+    pub fn host_identity(&self) -> Arc<HostIdentity> {
+        if let Some(ref static_id) = self.static_host_identity {
+            Arc::new(static_id.clone())
+        } else {
+            self.dynamic_host_identity.load_full()
+        }
+    }
+
     /// Caller's effective real public IP (static configuration takes precedence, fallback to dynamic discovery)
     #[inline]
     pub fn real_ip(&self) -> Option<IpAddr> {
         if let Some(ip) = self.static_real_ip {
             Some(ip)
+        } else if let Some(ref static_id) = self.static_host_identity {
+            static_id.primary_ip()
         } else {
-            self.dynamic_real_ip.load().as_ref().map(|arc| **arc)
+            self.dynamic_host_identity.load().primary_ip()
+                .or_else(|| self.dynamic_real_ip.load().as_ref().map(|arc| **arc))
         }
     }
 
@@ -387,6 +405,7 @@ pub struct CheckerConfigBuilder {
     concurrency_limit: usize,
     local_bind_ip: Option<IpAddr>,
     real_ip: Option<IpAddr>,
+    host_identity: Option<HostIdentity>,
     max_read_bytes: usize,
     enable_third_party_judges: bool,
     enable_builtin_judge: bool,
@@ -415,6 +434,7 @@ impl CheckerConfigBuilder {
             concurrency_limit: 5000,
             local_bind_ip: None,
             real_ip: None,
+            host_identity: None,
             max_read_bytes: 8192,
             enable_third_party_judges: true,
             enable_builtin_judge: true,
@@ -463,6 +483,15 @@ impl CheckerConfigBuilder {
     #[inline]
     pub fn real_ip(mut self, ip: IpAddr) -> Self {
         self.real_ip = Some(ip);
+        let mut id = self.host_identity.unwrap_or_default();
+        id.add_ip(ip);
+        self.host_identity = Some(id);
+        self
+    }
+
+    #[inline]
+    pub fn host_identity(mut self, identity: HostIdentity) -> Self {
+        self.host_identity = Some(identity);
         self
     }
 
@@ -604,7 +633,12 @@ impl CheckerConfigBuilder {
             ))
         };
 
+        if let Some(bind_ip) = self.local_bind_ip {
+            judge_pool.set_local_bind_ip(Some(bind_ip));
+        }
+
         let dynamic_real_ip = judge_pool.discovered_ip_handle();
+        let dynamic_host_identity = judge_pool.discovered_identity_handle();
 
         Ok(CheckerConfig {
             judge_http_url: self.judge_http_url,
@@ -622,6 +656,8 @@ impl CheckerConfigBuilder {
             local_bind_ip: self.local_bind_ip,
             static_real_ip: self.real_ip,
             dynamic_real_ip,
+            static_host_identity: self.host_identity,
+            dynamic_host_identity,
             max_read_bytes: self.max_read_bytes,
             judge_pool,
             cached_tls_req,

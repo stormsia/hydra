@@ -1,4 +1,4 @@
-use std::net::{IpAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -16,11 +16,12 @@ pub struct ProbeOutput {
     pub observed_ip: Option<IpAddr>,
 }
 
-/// Direct probe function to verify availability of a Judge endpoint
-pub async fn probe_judge_endpoint(
+/// Direct probe function to verify availability of a Judge endpoint with optional local IP binding
+pub async fn probe_judge_endpoint_with_bind(
     endpoint: &JudgeEndpoint,
     timeout: Duration,
     tls_connector: &TlsConnector,
+    local_bind_ip: Option<IpAddr>,
 ) -> Result<ProbeOutput, String> {
     // 1. Try HTTPS if available
     if endpoint.https_url.scheme() == "https" {
@@ -29,6 +30,7 @@ pub async fn probe_judge_endpoint(
             endpoint.expected_token.as_deref(),
             timeout,
             Some(tls_connector),
+            local_bind_ip,
         )
         .await
         {
@@ -41,6 +43,7 @@ pub async fn probe_judge_endpoint(
                         endpoint.expected_token.as_deref(),
                         timeout,
                         None,
+                        local_bind_ip,
                     )
                     .await;
                 }
@@ -55,8 +58,18 @@ pub async fn probe_judge_endpoint(
         endpoint.expected_token.as_deref(),
         timeout,
         None,
+        local_bind_ip,
     )
     .await
+}
+
+/// Direct probe function to verify availability of a Judge endpoint
+pub async fn probe_judge_endpoint(
+    endpoint: &JudgeEndpoint,
+    timeout: Duration,
+    tls_connector: &TlsConnector,
+) -> Result<ProbeOutput, String> {
+    probe_judge_endpoint_with_bind(endpoint, timeout, tls_connector, None).await
 }
 
 async fn probe_single_url(
@@ -64,6 +77,7 @@ async fn probe_single_url(
     expected_token: Option<&str>,
     timeout: Duration,
     tls_connector: Option<&TlsConnector>,
+    local_bind_ip: Option<IpAddr>,
 ) -> Result<ProbeOutput, String> {
     let host = url
         .host_str()
@@ -86,14 +100,57 @@ async fn probe_single_url(
         .map_err(|e| format!("DNS task join error: {e}"))?
         .map_err(|e| format!("DNS resolution failed for {host}:{port}: {e}"))?;
 
-        let addr = addrs
-            .into_iter()
-            .next()
-            .ok_or_else(|| format!("No IP found for {host}"))?;
+        if addrs.is_empty() {
+            return Err(format!("No IP found for {host}"));
+        }
 
-        let tcp_stream = TcpStream::connect(addr)
-            .await
-            .map_err(|e| format!("TCP connect failed to {addr}: {e}"))?;
+        let mut last_conn_err = None;
+        let mut connected_stream = None;
+
+        for addr in addrs {
+            let stream_res = if let Some(bind_ip) = local_bind_ip {
+                if (bind_ip.is_ipv4() && addr.is_ipv4()) || (bind_ip.is_ipv6() && addr.is_ipv6()) {
+                    let domain = match addr {
+                        SocketAddr::V4(_) => socket2::Domain::IPV4,
+                        SocketAddr::V6(_) => socket2::Domain::IPV6,
+                    };
+                    match socket2::Socket::new(domain, socket2::Type::STREAM, Some(socket2::Protocol::TCP)) {
+                        Ok(socket) => {
+                            let _ = socket.set_nonblocking(true);
+                            let _ = socket.bind(&SocketAddr::new(bind_ip, 0).into());
+                            let std_sock: std::net::TcpStream = socket.into();
+                            match tokio::net::TcpSocket::from_std_stream(std_sock).connect(addr).await {
+                                Ok(stream) => Ok(stream),
+                                Err(e) => Err(format!("TCP connect failed to {addr}: {e}")),
+                            }
+                        }
+                        Err(e) => Err(format!("Socket creation failed: {e}")),
+                    }
+                } else {
+                    TcpStream::connect(addr)
+                        .await
+                        .map_err(|e| format!("TCP connect failed to {addr}: {e}"))
+                }
+            } else {
+                TcpStream::connect(addr)
+                    .await
+                    .map_err(|e| format!("TCP connect failed to {addr}: {e}"))
+            };
+
+            match stream_res {
+                Ok(s) => {
+                    connected_stream = Some(s);
+                    break;
+                }
+                Err(e) => {
+                    last_conn_err = Some(e);
+                }
+            }
+        }
+
+        let tcp_stream = connected_stream.ok_or_else(|| {
+            last_conn_err.unwrap_or_else(|| format!("Could not connect to {host}:{port}"))
+        })?;
 
         let path = url.path();
         let query = url.query().map(|q| format!("?{q}")).unwrap_or_default();

@@ -25,7 +25,7 @@ Immediately communicates that proxies were verified and filtered via Hydra. Cali
 ![proxies checked by hydra](proxies-checked-by-hydra.svg)
 
 ```markdown
-[![Proxies Checked by Hydra](https://raw.githubusercontent.com/Hydra-Proxy/Hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/Hydra-Proxy/Hydra)
+[![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)
 ```
 
 ---
@@ -36,7 +36,7 @@ Minimal footprint (~146px). Ideal when space in the badges row is tight.
 ![proxies by hydra](proxies-by-hydra.svg)
 
 ```markdown
-[![Proxies by Hydra](https://raw.githubusercontent.com/Hydra-Proxy/Hydra/main/assets/badges/proxies-by-hydra.svg)](https://github.com/Hydra-Proxy/Hydra)
+[![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra.svg)](https://github.com/stormsia/hydra)
 ```
 
 ---
@@ -47,7 +47,7 @@ Emphasizes strict verification policies (latency, SOCKS5/HTTP protocols, zero de
 ![proxies verified by hydra](proxies-verified-by-hydra.svg)
 
 ```markdown
-[![Proxies Verified by Hydra](https://raw.githubusercontent.com/Hydra-Proxy/Hydra/main/assets/badges/proxies-verified-by-hydra.svg)](https://github.com/Hydra-Proxy/Hydra)
+[![Proxies Verified by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-verified-by-hydra.svg)](https://github.com/stormsia/hydra)
 ```
 
 ---
@@ -58,7 +58,7 @@ A sleek modern pill badge with an active status beacon, sized at 20px to sit per
 ![proxies by hydra pill 20](proxies-by-hydra-pill-20.svg)
 
 ```markdown
-[![Proxies by Hydra](https://raw.githubusercontent.com/Hydra-Proxy/Hydra/main/assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/Hydra-Proxy/Hydra)
+[![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra)
 ```
 
 ---
@@ -66,5 +66,5 @@ A sleek modern pill badge with an active status beacon, sized at 20px to sit per
 ## 🌐 Dynamic Shields.io URLs (Zero-Hosting)
 
 ```markdown
-[![Proxies Checked](https://img.shields.io/badge/proxies%20checked-by%20hydra-00f2fe?style=flat-square&labelColor=1e293b&color=0b1728)](https://github.com/Hydra-Proxy/Hydra)
+[![Proxies Checked](https://img.shields.io/badge/proxies%20checked-by%20hydra-00f2fe?style=flat-square&labelColor=1e293b&color=0b1728)](https://github.com/stormsia/hydra)
 ```
