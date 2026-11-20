@@ -21,6 +21,7 @@ utoipa-swagger-ui = { version = "10", features = ["axum", "vendored"] }
 # Async runtime
 tokio = { version = "1.43", features = ["full"] }
 tokio-util = { version = "0.7" }
+tokio-stream = { version = "0.1", features = ["sync"] }
 
 # Database
 libsql = { version = "0.10", default-features = false, features = ["core"] }

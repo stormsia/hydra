@@ -1,14 +1,21 @@
 use chrono::Utc;
-use hydra_api::app_state::SchedulerStats;
+use hydra_api::app_state::{AppState, SchedulerStats};
+use hydra_api::config::ApiConfig;
 use hydra_api::db::*;
 use hydra_api::models::{ProxyRow, ProxyState};
-use hydra_api::services::batch_writer::{CheckResultWithMeta, flush_batch, update_recent_checks};
+use hydra_api::services::batch_writer::{
+    CheckResultWithMeta, flush_batch, prepare_batch_statements, update_recent_checks,
+};
 use hydra_api::services::geoip::GeoIpResult;
-use hydra_api::services::scheduler::row_to_target;
+use hydra_api::services::scheduler::{row_to_target, scheduler_loop};
 use hydra_checker::{
-    AnonymityLevel, CheckMetrics, CheckResult, ErrorReason, ProxyProtocol, TargetHost,
+    AnonymityLevel, CheckMetrics, CheckResult, CheckerConfig, CheckerEngine, ErrorReason,
+    ProxyProtocol, TargetHost,
 };
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test]
 async fn test_row_to_target_mapping() {
@@ -66,6 +73,7 @@ async fn test_batch_writer_alive_and_dead_transitions() {
     let db = init_db(":memory:").await.unwrap();
     let conn = db.connect().unwrap();
     configure_conn(&conn).await.unwrap();
+    let (mut stmt_alive, mut stmt_dead) = prepare_batch_statements(&conn).await.unwrap();
     let stats = Arc::new(SchedulerStats::default());
     let now = Utc::now().timestamp();
 
@@ -145,7 +153,7 @@ async fn test_batch_writer_alive_and_dead_transitions() {
     };
 
     let mut buf = vec![meta_alive];
-    flush_batch(&mut buf, &db, &stats).await;
+    flush_batch(&mut buf, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
 
     let p_alive = get_proxy_by_id(&conn, &proxy.id).await.unwrap().unwrap();
     assert_eq!(p_alive.state, ProxyState::Alive);
@@ -177,7 +185,7 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         recent_checks: p_alive.recent_checks.clone(),
     };
     let mut buf = vec![meta_fail1];
-    flush_batch(&mut buf, &db, &stats).await;
+    flush_batch(&mut buf, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
 
     let p_cool = get_proxy_by_id(&conn, &proxy.id).await.unwrap().unwrap();
     assert_eq!(p_cool.state, ProxyState::Cooldown);
@@ -204,7 +212,7 @@ async fn test_batch_writer_alive_and_dead_transitions() {
         recent_checks: p_cool.recent_checks.clone(),
     };
     let mut buf = vec![meta_fail2];
-    flush_batch(&mut buf, &db, &stats).await;
+    flush_batch(&mut buf, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
 
     let p_dead = get_proxy_by_id(&conn, &proxy.id).await.unwrap().unwrap();
     assert_eq!(p_dead.state, ProxyState::DeadPermanent);
@@ -217,6 +225,7 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
     let db = init_db(":memory:").await.unwrap();
     let conn = db.connect().unwrap();
     configure_conn(&conn).await.unwrap();
+    let (mut stmt_alive, mut stmt_dead) = prepare_batch_statements(&conn).await.unwrap();
     let stats = Arc::new(SchedulerStats::default());
     let now = Utc::now().timestamp();
 
@@ -293,7 +302,7 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
     .unwrap();
 
     // Flush batch should fail due to trigger, rollback, and KEEP items in buffer
-    flush_batch(&mut buf, &db, &stats).await;
+    flush_batch(&mut buf, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
 
     assert_eq!(
         buf.len(),
@@ -313,7 +322,7 @@ async fn test_batch_writer_transaction_failure_retains_buffer() {
         .unwrap();
 
     // Now flush should succeed and clear buffer
-    flush_batch(&mut buf, &db, &stats).await;
+    flush_batch(&mut buf, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
 
     assert_eq!(buf.len(), 0, "Buffer should be cleared on success");
     assert_eq!(
@@ -407,4 +416,140 @@ fn test_exponential_dead_backoff_calculation() {
         calculate_dead_next_check(now, base_sec, 2.0, 50),
         now + 30 * 86400
     );
+}
+
+#[tokio::test]
+async fn test_continuous_scheduler_pipeline_and_shutdown() {
+    let db = Arc::new(init_db(":memory:").await.unwrap());
+    let conn = db.connect().unwrap();
+    configure_conn(&conn).await.unwrap();
+
+    let now = Utc::now().timestamp();
+
+    // Insert 5 test proxies that are due for checking
+    for i in 1..=5 {
+        let proxy = ProxyRow {
+            id: format!("127.0.0.1:{}", 9000 + i),
+            ip: "127.0.0.1".to_string(),
+            port: 9000 + i,
+            auth_user: None,
+            auth_pass: None,
+            state: ProxyState::ColdQueue,
+            protocol: None,
+            supports_https: false,
+            out_ip: None,
+            country: None,
+            asn: None,
+            asn_org: None,
+            anon: None,
+            rtt_tcp_ms: None,
+            rtt_handshake_ms: None,
+            rtt_total_ms: None,
+            connect_timeout_ms: 100,
+            handshake_timeout_ms: 100,
+            rw_timeout_ms: 100,
+            recheck_alive_sec: 60,
+            recheck_dead_sec: 300,
+            max_dead_strikes: 2,
+            stability_window_min: 5,
+            dead_backoff_mult: 1.5,
+            checks_total: 0,
+            checks_success: 0,
+            dead_strikes: 0,
+            last_error: None,
+            stability_pct: 0.0,
+            recent_checks: None,
+            remark: None,
+            first_seen_at: now,
+            last_checked_at: None,
+            next_check_at: now,
+        };
+        insert_proxy_if_not_exists(&conn, &proxy, false)
+            .await
+            .unwrap();
+    }
+
+    let checker_config = CheckerConfig::builder(
+        "http://127.0.0.1:8080".parse().unwrap(),
+        "https://127.0.0.1:8443".parse().unwrap(),
+        "test_judge_token",
+    )
+    .build()
+    .await
+    .unwrap();
+    let engine = Arc::new(CheckerEngine::new(checker_config).unwrap());
+
+    let (result_tx, mut result_rx) = mpsc::unbounded_channel();
+    let scheduler_stats = Arc::new(SchedulerStats::default());
+
+    let config = Arc::new(ApiConfig {
+        listen_addr: "127.0.0.1:0".parse().unwrap(),
+        api_key: "test_key".to_string(),
+        db_path: ":memory:".to_string(),
+        judge_http_url: "http://127.0.0.1:8080".to_string(),
+        judge_https_url: "https://127.0.0.1:8443".to_string(),
+        judge_secret_token: "test_judge_token".to_string(),
+        judge_secret_key: None,
+        checker_concurrency: 5,
+        enable_third_party_judges: false,
+        enable_builtin_judge: false,
+        judge_health_check_interval_secs: 30,
+        judge_selection_strategy: "priority".to_string(),
+        additional_judges: None,
+        embed_judge: false,
+        embed_judge_port: 8080,
+        geoip_country_path: None,
+        geoip_asn_path: None,
+        geoip_reload_secs: 3600,
+        geoip_auto_update: false,
+        geoip_update_interval_secs: 86400,
+        geoip_country_url: "https://example.com/country.mmdb.gz".to_string(),
+        geoip_asn_url: "https://example.com/asn.mmdb.gz".to_string(),
+        scheduler_batch_size: 10,
+        batch_flush_interval_ms: 100,
+        dead_proxy_retention_days: 30,
+        db_maintenance_interval_secs: 3600,
+    });
+
+    let state = AppState {
+        config,
+        db,
+        engine,
+        geoip: None,
+        result_tx,
+        scheduler_stats: scheduler_stats.clone(),
+    };
+
+    let cancel = CancellationToken::new();
+    let cancel_clone = cancel.clone();
+
+    let scheduler_handle = tokio::spawn(async move {
+        scheduler_loop(state, cancel_clone).await;
+    });
+
+    // Receive the 5 results processed by the pipeline
+    let mut received_count = 0;
+    while received_count < 5 {
+        tokio::select! {
+            res = result_rx.recv() => {
+                if res.is_some() {
+                    received_count += 1;
+                } else {
+                    break;
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                break;
+            }
+        }
+    }
+
+    assert_eq!(received_count, 5, "Expected all 5 proxies to be processed by continuous pipeline");
+
+    // Test graceful shutdown
+    cancel.cancel();
+
+    // The scheduler task should exit promptly
+    let shutdown_result = tokio::time::timeout(Duration::from_secs(3), scheduler_handle).await;
+    assert!(shutdown_result.is_ok(), "Scheduler must gracefully shut down within timeout");
 }

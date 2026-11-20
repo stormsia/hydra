@@ -1,5 +1,5 @@
 use chrono::Utc;
-use libsql::Database;
+use libsql::{Connection, Database, Statement};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -20,6 +20,50 @@ pub struct CheckResultWithMeta {
     pub stability_window_min: u32,
     pub dead_backoff_mult: f32,
     pub recent_checks: Option<String>,
+}
+
+pub const UPDATE_ALIVE_SQL: &str = "UPDATE proxies SET
+    state = 1,
+    protocol = ?2,
+    supports_https = ?3,
+    out_ip = ?4,
+    country = ?5,
+    asn = ?6,
+    asn_org = ?7,
+    anon = ?8,
+    rtt_tcp_ms = ?9,
+    rtt_handshake_ms = ?10,
+    rtt_total_ms = ?11,
+    checks_total = checks_total + 1,
+    checks_success = checks_success + 1,
+    dead_strikes = 0,
+    last_error = NULL,
+    stability_pct = ?12,
+    recent_checks = ?13,
+    last_checked_at = ?14,
+    next_check_at = ?15
+WHERE id = ?1;";
+
+pub const UPDATE_DEAD_SQL: &str = "UPDATE proxies SET
+    state = ?2,
+    rtt_tcp_ms = ?3,
+    rtt_handshake_ms = ?4,
+    rtt_total_ms = ?5,
+    checks_total = checks_total + 1,
+    dead_strikes = ?6,
+    last_error = ?7,
+    stability_pct = ?8,
+    recent_checks = ?9,
+    last_checked_at = ?10,
+    next_check_at = ?11
+WHERE id = ?1;";
+
+pub async fn prepare_batch_statements(
+    conn: &Connection,
+) -> Result<(Statement, Statement), libsql::Error> {
+    let stmt_alive = conn.prepare(UPDATE_ALIVE_SQL).await?;
+    let stmt_dead = conn.prepare(UPDATE_DEAD_SQL).await?;
+    Ok((stmt_alive, stmt_dead))
 }
 
 /// Calculates the next check Unix timestamp for a failed proxy using exponential backoff.
@@ -97,47 +141,6 @@ pub async fn batch_writer_loop(
     flush_interval_ms: u64,
     stats: Arc<SchedulerStats>,
 ) {
-    let mut buffer: Vec<CheckResultWithMeta> = Vec::with_capacity(2000);
-    let mut interval = tokio::time::interval(Duration::from_millis(flush_interval_ms));
-
-    loop {
-        tokio::select! {
-            item = rx.recv() => {
-                match item {
-                    Some(result) => {
-                        buffer.push(result);
-                        stats.batch_buffer_size.store(buffer.len(), Ordering::Relaxed);
-                        if buffer.len() >= 2000 {
-                            flush_batch(&mut buffer, &db, &stats).await;
-                        }
-                    }
-                    None => {
-                        // Channel closed, flush remaining
-                        if !buffer.is_empty() {
-                            flush_batch(&mut buffer, &db, &stats).await;
-                        }
-                        break;
-                    }
-                }
-            }
-            _ = interval.tick() => {
-                if !buffer.is_empty() {
-                    flush_batch(&mut buffer, &db, &stats).await;
-                }
-            }
-        }
-    }
-}
-
-pub async fn flush_batch(
-    buffer: &mut Vec<CheckResultWithMeta>,
-    db: &Database,
-    stats: &Arc<SchedulerStats>,
-) {
-    if buffer.is_empty() {
-        return;
-    }
-
     let conn = match db.connect() {
         Ok(c) => {
             if let Err(e) = crate::db::configure_conn(&c).await {
@@ -152,66 +155,59 @@ pub async fn flush_batch(
         }
     };
 
+    let (mut stmt_alive, mut stmt_dead) = match prepare_batch_statements(&conn).await {
+        Ok(stmts) => stmts,
+        Err(e) => {
+            tracing::error!("Failed to prepare statements in batch writer: {e}");
+            return;
+        }
+    };
+
+    let mut buffer: Vec<CheckResultWithMeta> = Vec::with_capacity(2000);
+    let mut interval = tokio::time::interval(Duration::from_millis(flush_interval_ms));
+
+    loop {
+        tokio::select! {
+            item = rx.recv() => {
+                match item {
+                    Some(result) => {
+                        buffer.push(result);
+                        stats.batch_buffer_size.store(buffer.len(), Ordering::Relaxed);
+                        if buffer.len() >= 2000 {
+                            flush_batch(&mut buffer, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
+                        }
+                    }
+                    None => {
+                        // Channel closed, flush remaining
+                        if !buffer.is_empty() {
+                            flush_batch(&mut buffer, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
+                        }
+                        break;
+                    }
+                }
+            }
+            _ = interval.tick() => {
+                if !buffer.is_empty() {
+                    flush_batch(&mut buffer, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
+                }
+            }
+        }
+    }
+}
+
+pub async fn flush_batch(
+    buffer: &mut Vec<CheckResultWithMeta>,
+    conn: &Connection,
+    stmt_alive: &mut Statement,
+    stmt_dead: &mut Statement,
+    stats: &Arc<SchedulerStats>,
+) {
+    if buffer.is_empty() {
+        return;
+    }
+
     let count = buffer.len();
     let now = Utc::now().timestamp();
-
-    let stmt_alive = match conn
-        .prepare(
-            "UPDATE proxies SET
-                state = 1,
-                protocol = ?2,
-                supports_https = ?3,
-                out_ip = ?4,
-                country = ?5,
-                asn = ?6,
-                asn_org = ?7,
-                anon = ?8,
-                rtt_tcp_ms = ?9,
-                rtt_handshake_ms = ?10,
-                rtt_total_ms = ?11,
-                checks_total = checks_total + 1,
-                checks_success = checks_success + 1,
-                dead_strikes = 0,
-                last_error = NULL,
-                stability_pct = ?12,
-                recent_checks = ?13,
-                last_checked_at = ?14,
-                next_check_at = ?15
-            WHERE id = ?1;",
-        )
-        .await
-    {
-        Ok(stmt) => stmt,
-        Err(e) => {
-            tracing::error!("Failed to prepare alive UPDATE statement in batch writer: {e}");
-            return;
-        }
-    };
-
-    let stmt_dead = match conn
-        .prepare(
-            "UPDATE proxies SET
-                state = ?2,
-                rtt_tcp_ms = ?3,
-                rtt_handshake_ms = ?4,
-                rtt_total_ms = ?5,
-                checks_total = checks_total + 1,
-                dead_strikes = ?6,
-                last_error = ?7,
-                stability_pct = ?8,
-                recent_checks = ?9,
-                last_checked_at = ?10,
-                next_check_at = ?11
-            WHERE id = ?1;",
-        )
-        .await
-    {
-        Ok(stmt) => stmt,
-        Err(e) => {
-            tracing::error!("Failed to prepare dead UPDATE statement in batch writer: {e}");
-            return;
-        }
-    };
 
     if let Err(e) = conn.execute("BEGIN IMMEDIATE;", ()).await {
         tracing::error!("Failed to begin transaction in batch writer: {e}");

@@ -1,9 +1,9 @@
 use chrono::Utc;
-use parking_lot::Mutex;
-use std::collections::HashSet;
+use futures::StreamExt;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
+use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 
 use crate::app_state::{AppState, SchedulerStats};
@@ -14,15 +14,12 @@ use crate::services::geoip::GeoIpResult;
 use hydra_checker::{CheckConfigOverride, CheckTarget, ProxyAuth, ProxyProtocol, TargetHost};
 
 struct WorkerGuard {
-    in_flight: Arc<Mutex<HashSet<String>>>,
-    proxy_id: String,
     stats: Arc<SchedulerStats>,
 }
 
 impl Drop for WorkerGuard {
     fn drop(&mut self) {
         self.stats.active_workers.fetch_sub(1, Ordering::Relaxed);
-        self.in_flight.lock().remove(&self.proxy_id);
     }
 }
 
@@ -59,120 +56,158 @@ pub fn row_to_target(row: &ProxyRow) -> CheckTarget {
 }
 
 pub async fn scheduler_loop(state: AppState, cancel: CancellationToken) {
-    let in_flight: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
-    let concurrency = state.config.checker_concurrency;
-    let mut check_tick = tokio::time::interval(Duration::from_secs(1));
-    let mut stats_tick = tokio::time::interval(Duration::from_secs(1));
+    let concurrency = state.config.checker_concurrency.max(1);
+    let batch_size = state.config.scheduler_batch_size.max(1);
 
-    let mut last_completed_count = state
-        .scheduler_stats
-        .checks_completed
-        .load(Ordering::Relaxed);
+    // 1. Bounded MPSC channel for continuous task pipeline
+    let (task_tx, task_rx) = tokio::sync::mpsc::channel::<ProxyRow>(concurrency);
 
-    loop {
-        tokio::select! {
-            _ = check_tick.tick() => {
-                let current_in_flight = in_flight.lock().len();
-                if current_in_flight >= concurrency {
-                    continue;
-                }
-                let available_capacity = concurrency.saturating_sub(current_in_flight);
+    // 2. Worker Pool (Consumer)
+    let worker_state = state.clone();
+    let worker_handle = tokio::spawn(async move {
+        ReceiverStream::new(task_rx)
+            .for_each_concurrent(concurrency, move |row| {
+                let state = worker_state.clone();
+                async move {
+                    let proxy_id = row.id.clone();
+                    state
+                        .scheduler_stats
+                        .active_workers
+                        .fetch_add(1, Ordering::Relaxed);
+                    let _guard = WorkerGuard {
+                        stats: Arc::clone(&state.scheduler_stats),
+                    };
 
-                let now = Utc::now().timestamp();
-                let conn = match state.connect_db().await {
-                    Ok(c) => c,
-                    Err(e) => {
-                        tracing::error!("Scheduler failed to connect to database: {e}");
-                        continue;
-                    }
-                };
+                    let target = row_to_target(&row);
+                    let result = state.engine.check_single(target).await;
 
-                let batch_size = state.config.scheduler_batch_size;
-                let fetch_limit = batch_size.min(available_capacity);
-                let rows = match fetch_due_proxies(&conn, now, fetch_limit).await {
-                    Ok(r) => r,
-                    Err(e) => {
-                        tracing::error!("Scheduler failed to fetch due proxies: {e}");
-                        continue;
-                    }
-                };
-
-                if rows.is_empty() {
-                    continue;
-                }
-
-                let mut to_check = Vec::with_capacity(rows.len());
-                {
-                    let mut flight = in_flight.lock();
-                    for row in rows {
-                        if flight.insert(row.id.clone()) {
-                            to_check.push(row);
-                        }
-                    }
-                }
-
-                if to_check.is_empty() {
-                    continue;
-                }
-
-                for row in to_check {
-                    let state = state.clone();
-                    let in_flight = Arc::clone(&in_flight);
-                    tokio::spawn(async move {
-                        let proxy_id = row.id.clone();
-                        state.scheduler_stats.active_workers.fetch_add(1, Ordering::Relaxed);
-                        let _guard = WorkerGuard {
-                            in_flight,
-                            proxy_id: proxy_id.clone(),
-                            stats: Arc::clone(&state.scheduler_stats),
-                        };
-
-                        let target = row_to_target(&row);
-                        let result = state.engine.check_single(target).await;
-
-                        let geoip = if result.is_alive {
-                            if let Some(ext_ip) = result.external_ip {
-                                if let Some(ref g) = state.geoip {
-                                    g.lookup(ext_ip)
-                                } else {
-                                    GeoIpResult::default()
-                                }
+                    let geoip = if result.is_alive {
+                        if let Some(ext_ip) = result.external_ip {
+                            if let Some(ref g) = state.geoip {
+                                g.lookup(ext_ip)
                             } else {
                                 GeoIpResult::default()
                             }
                         } else {
                             GeoIpResult::default()
-                        };
+                        }
+                    } else {
+                        GeoIpResult::default()
+                    };
 
-                        let meta = CheckResultWithMeta {
-                            proxy_id,
-                            result,
-                            geoip,
-                            recheck_alive_sec: row.recheck_alive_sec,
-                            recheck_dead_sec: row.recheck_dead_sec,
-                            max_dead_strikes: row.max_dead_strikes,
-                            current_strikes: row.dead_strikes,
-                            stability_window_min: row.stability_window_min,
-                            dead_backoff_mult: row.dead_backoff_mult,
-                            recent_checks: row.recent_checks,
-                        };
+                    let meta = CheckResultWithMeta {
+                        proxy_id,
+                        result,
+                        geoip,
+                        recheck_alive_sec: row.recheck_alive_sec,
+                        recheck_dead_sec: row.recheck_dead_sec,
+                        max_dead_strikes: row.max_dead_strikes,
+                        current_strikes: row.dead_strikes,
+                        stability_window_min: row.stability_window_min,
+                        dead_backoff_mult: row.dead_backoff_mult,
+                        recent_checks: row.recent_checks,
+                    };
 
-                        let _ = state.result_tx.send(meta);
-                    });
+                    let _ = state.result_tx.send(meta);
+                }
+            })
+            .await;
+    });
+
+    // 5. Monitoring RPS in stats_tick
+    let stats_state = state.clone();
+    let stats_cancel = cancel.clone();
+    let stats_handle = tokio::spawn(async move {
+        let mut stats_tick = tokio::time::interval(Duration::from_secs(1));
+        let mut last_completed_count = stats_state
+            .scheduler_stats
+            .checks_completed
+            .load(Ordering::Relaxed);
+
+        loop {
+            tokio::select! {
+                _ = stats_cancel.cancelled() => break,
+                _ = stats_tick.tick() => {
+                    let current_completed = stats_state
+                        .scheduler_stats
+                        .checks_completed
+                        .load(Ordering::Relaxed);
+                    let diff = current_completed.saturating_sub(last_completed_count);
+                    last_completed_count = current_completed;
+                    stats_state.scheduler_stats.set_checks_per_sec(diff as f32);
                 }
             }
+        }
+    });
 
-            _ = stats_tick.tick() => {
-                let current_completed = state.scheduler_stats.checks_completed.load(Ordering::Relaxed);
-                let diff = current_completed.saturating_sub(last_completed_count);
-                last_completed_count = current_completed;
-                state.scheduler_stats.set_checks_per_sec(diff as f32);
+    // 3. Feeder Loop (Producer)
+    let mut conn = match state.connect_db().await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("Scheduler failed to connect to database: {e}");
+            drop(task_tx);
+            let _ = worker_handle.await;
+            let _ = stats_handle.await;
+            return;
+        }
+    };
+
+    'feeder: loop {
+        if cancel.is_cancelled() {
+            break 'feeder;
+        }
+
+        let capacity = task_tx.capacity();
+        if capacity == 0 {
+            tokio::select! {
+                _ = cancel.cancelled() => break 'feeder,
+                _ = tokio::time::sleep(Duration::from_millis(50)) => {}
             }
+            continue;
+        }
 
-            _ = cancel.cancelled() => {
-                tracing::info!("Scheduler received cancellation signal");
-                break;
+        let now = Utc::now().timestamp();
+        let fetch_limit = capacity.min(batch_size);
+        let rows = match fetch_due_proxies(&conn, now, fetch_limit).await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!("Scheduler failed to fetch due proxies: {e}");
+                if let Ok(new_conn) = state.connect_db().await {
+                    conn = new_conn;
+                }
+                tokio::select! {
+                    _ = cancel.cancelled() => break 'feeder,
+                    _ = tokio::time::sleep(Duration::from_millis(250)) => {}
+                }
+                continue;
+            }
+        };
+
+        if rows.is_empty() {
+            tokio::select! {
+                _ = cancel.cancelled() => break 'feeder,
+                _ = tokio::time::sleep(Duration::from_millis(250)) => {}
+            }
+            continue;
+        }
+
+        for row in rows {
+            tokio::select! {
+                _ = cancel.cancelled() => break 'feeder,
+                res = task_tx.send(row) => {
+                    if res.is_err() {
+                        break 'feeder;
+                    }
+                }
             }
         }
     }
+
+    // 4. Graceful shutdown: close channel and wait for workers to drain
+    tracing::info!("Scheduler feeder stopped, closing task channel and draining workers...");
+    drop(task_tx);
+
+    let _ = worker_handle.await;
+    let _ = stats_handle.await;
+    tracing::info!("Scheduler shutdown complete");
 }
