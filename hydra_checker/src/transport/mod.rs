@@ -35,6 +35,7 @@ pub trait Dialer: Send + Sync + 'static {
 ///
 /// Essential for HTTP CONNECT handshakes where `\r\n\r\n` is read iteratively
 /// and subsequent TLS or HTTP bytes may have already been buffered in the socket.
+#[derive(Debug)]
 pub struct PrefixedStream<S> {
     prefix: Vec<u8>,
     offset: usize,

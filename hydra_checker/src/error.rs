@@ -33,6 +33,8 @@ pub enum ErrorReason {
     Cancelled,
     /// Unrecoverable internal system error
     InternalError,
+    /// Remote returned HTTP response when SOCKS protocol was expected
+    HttpDetected,
 }
 
 impl ErrorReason {
@@ -53,6 +55,7 @@ impl ErrorReason {
             Self::JudgeMismatch => "JUDGE_MISMATCH",
             Self::Cancelled => "CANCELLED",
             Self::InternalError => "INTERNAL_ERROR",
+            Self::HttpDetected => "HTTP_DETECTED",
         }
     }
 }

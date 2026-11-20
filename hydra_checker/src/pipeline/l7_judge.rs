@@ -212,6 +212,9 @@ where
             _ => return Err(ErrorReason::InvalidResponse),
         };
 
+        if resp.code == Some(407) {
+            return Err(ErrorReason::AuthRequired);
+        }
         if resp.code != Some(200) {
             return Err(ErrorReason::InvalidResponse);
         }

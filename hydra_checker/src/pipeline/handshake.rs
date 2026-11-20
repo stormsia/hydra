@@ -10,7 +10,7 @@ use crate::pipeline::l7_judge::{execute_l7_judge_plain, execute_l7_judge_tls};
 use crate::protocols::TunnelTarget;
 use crate::protocols::http_connect::handshake_http_connect;
 use crate::protocols::socks4::handshake_socks4;
-use crate::protocols::socks5::handshake_socks5;
+use crate::protocols::socks5::{Socks5Error, handshake_socks5};
 use crate::transport::Dialer;
 
 pub struct HandshakeSuccess {
@@ -71,6 +71,7 @@ pub async fn execute_handshake_cascade<D: Dialer>(
         config,
         tls_connector,
         &primary_judge,
+        has_override,
     )
     .await
     {
@@ -109,6 +110,7 @@ pub async fn execute_handshake_cascade<D: Dialer>(
                             config,
                             tls_connector,
                             fallback_judge,
+                            has_override,
                         )
                         .await
                     {
@@ -165,6 +167,85 @@ where
     }
 }
 
+/// Pattern A-2: Attempt fallback judge when SOCKS5 protocol is confirmed but primary judge CONNECT was rejected
+#[allow(clippy::too_many_arguments)]
+async fn try_socks5_fallback_judge<D: Dialer>(
+    dialer: &D,
+    target: &CheckTarget,
+    config: &CheckerConfig,
+    tls_connector: &TlsConnector,
+    primary_judge: &JudgeEndpoint,
+    has_override: bool,
+    connect_timeout: Duration,
+    handshake_timeout: Duration,
+    read_write_timeout: Duration,
+) -> Option<HandshakeSuccess> {
+    if has_override {
+        return None;
+    }
+
+    let fallbacks = config.judge_pool.fallback_judges(&primary_judge.id);
+    let fallback_judge = fallbacks.first()?;
+
+    let fb_target_judge_url = if fallback_judge.https_url.scheme() == "https" {
+        &fallback_judge.https_url
+    } else {
+        &fallback_judge.http_url
+    };
+    let fb_judge_addr = if fallback_judge.is_builtin {
+        if fallback_judge.https_url.scheme() == "https" {
+            config.judge_https_addr
+        } else {
+            config.judge_http_addr
+        }
+    } else {
+        None
+    };
+    let fb_tunnel_target = TunnelTarget::from_url(fb_target_judge_url, fb_judge_addr)?;
+
+    let mut fb_stream = dialer
+        .connect(&target.host, target.port, connect_timeout, config)
+        .await
+        .ok()?;
+
+    let start_fb = Instant::now();
+    tokio::time::timeout(
+        handshake_timeout,
+        handshake_socks5(&mut fb_stream, &fb_tunnel_target, target.auth.as_ref()),
+    )
+    .await
+    .ok()?
+    .ok()?;
+
+    let elapsed = start_fb.elapsed();
+    if elapsed > handshake_timeout {
+        return None;
+    }
+    let hs_rtt = elapsed.as_millis() as u64;
+
+    let (judge_payload, supports_https) = execute_judge_for_stream(
+        fb_stream,
+        fallback_judge,
+        tls_connector,
+        config,
+        read_write_timeout,
+        target.auth.as_ref(),
+    )
+    .await
+    .ok()?;
+
+    config
+        .judge_pool
+        .record_success(fallback_judge.id.as_str(), hs_rtt, None);
+
+    Some(HandshakeSuccess {
+        detected_protocol: ProxyProtocol::Socks5,
+        supports_https,
+        judge_payload,
+        handshake_rtt_ms: hs_rtt,
+    })
+}
+
 async fn run_cascade_attempt<D: Dialer>(
     dialer: &D,
     mut initial_stream: Option<D::Stream>,
@@ -172,6 +253,7 @@ async fn run_cascade_attempt<D: Dialer>(
     config: &CheckerConfig,
     tls_connector: &TlsConnector,
     judge: &JudgeEndpoint,
+    has_override: bool,
 ) -> Result<HandshakeSuccess, ErrorReason> {
     let connect_timeout = target
         .config_override
@@ -222,34 +304,60 @@ async fn run_cascade_attempt<D: Dialer>(
         return match protocol {
             ProxyProtocol::Socks5 => {
                 let start_hs = Instant::now();
-                tokio::time::timeout(
+                let socks5_res = tokio::time::timeout(
                     handshake_timeout,
                     handshake_socks5(&mut stream, &tunnel_target, target.auth.as_ref()),
                 )
                 .await
-                .map_err(|_| ErrorReason::TimeoutHandshake)??;
-                let elapsed = start_hs.elapsed();
-                if elapsed > handshake_timeout {
-                    return Err(ErrorReason::TimeoutHandshake);
+                .map_err(|_| ErrorReason::TimeoutHandshake)?;
+
+                match socks5_res {
+                    Ok(()) => {
+                        let elapsed = start_hs.elapsed();
+                        if elapsed > handshake_timeout {
+                            return Err(ErrorReason::TimeoutHandshake);
+                        }
+                        let hs_rtt = elapsed.as_millis() as u64;
+
+                        let (judge_payload, supports_https) = execute_judge_for_stream(
+                            stream,
+                            judge,
+                            tls_connector,
+                            config,
+                            read_write_timeout,
+                            target.auth.as_ref(),
+                        )
+                        .await?;
+
+                        Ok(HandshakeSuccess {
+                            detected_protocol: ProxyProtocol::Socks5,
+                            supports_https,
+                            judge_payload,
+                            handshake_rtt_ms: hs_rtt,
+                        })
+                    }
+                    Err(Socks5Error::ConnectRejected { reason, .. }) => {
+                        // Pattern A-2: SOCKS5 confirmed, attempt fallback judge
+                        drop(stream);
+                        if let Some(fb_success) = try_socks5_fallback_judge(
+                            dialer,
+                            target,
+                            config,
+                            tls_connector,
+                            judge,
+                            has_override,
+                            connect_timeout,
+                            handshake_timeout,
+                            read_write_timeout,
+                        )
+                        .await
+                        {
+                            return Ok(fb_success);
+                        }
+                        Err(reason)
+                    }
+                    Err(e) => Err(e.into()),
                 }
-                let hs_rtt = elapsed.as_millis() as u64;
-
-                let (judge_payload, supports_https) = execute_judge_for_stream(
-                    stream,
-                    judge,
-                    tls_connector,
-                    config,
-                    read_write_timeout,
-                    target.auth.as_ref(),
-                )
-                .await?;
-
-                Ok(HandshakeSuccess {
-                    detected_protocol: ProxyProtocol::Socks5,
-                    supports_https,
-                    judge_payload,
-                    handshake_rtt_ms: hs_rtt,
-                })
             }
             ProxyProtocol::Socks4 | ProxyProtocol::Socks4a => {
                 let start_hs = Instant::now();
@@ -324,29 +432,35 @@ async fn run_cascade_attempt<D: Dialer>(
                     )
                     .await;
 
-                    if let Ok(Ok(prefixed_stream)) = connect_res {
-                        let elapsed = start_hs.elapsed();
-                        if elapsed <= handshake_timeout {
-                            let hs_rtt = elapsed.as_millis() as u64;
-                            if let Ok(judge_payload) = execute_l7_judge_tls(
-                                prefixed_stream,
-                                tls_connector,
-                                &judge.https_url,
-                                judge.expected_token.as_deref(),
-                                judge.is_builtin,
-                                config,
-                                read_write_timeout,
-                            )
-                            .await
-                            {
-                                return Ok(HandshakeSuccess {
-                                    detected_protocol: ProxyProtocol::Http,
-                                    supports_https: true,
-                                    judge_payload,
-                                    handshake_rtt_ms: hs_rtt,
-                                });
+                    match connect_res {
+                        Ok(Ok(prefixed_stream)) => {
+                            let elapsed = start_hs.elapsed();
+                            if elapsed <= handshake_timeout {
+                                let hs_rtt = elapsed.as_millis() as u64;
+                                if let Ok(judge_payload) = execute_l7_judge_tls(
+                                    prefixed_stream,
+                                    tls_connector,
+                                    &judge.https_url,
+                                    judge.expected_token.as_deref(),
+                                    judge.is_builtin,
+                                    config,
+                                    read_write_timeout,
+                                )
+                                .await
+                                {
+                                    return Ok(HandshakeSuccess {
+                                        detected_protocol: ProxyProtocol::Http,
+                                        supports_https: true,
+                                        judge_payload,
+                                        handshake_rtt_ms: hs_rtt,
+                                    });
+                                }
                             }
                         }
+                        // Pattern A-4: 407 Proxy Authentication Required terminates immediately
+                        Ok(Err(ErrorReason::AuthRequired)) => return Err(ErrorReason::AuthRequired),
+                        Err(_) => return Err(ErrorReason::TimeoutHandshake),
+                        Ok(Err(_)) => {}
                     }
 
                     // CONNECT or TLS failed, fallback to fresh connection for plain HTTP check
@@ -411,6 +525,8 @@ async fn run_cascade_attempt<D: Dialer>(
     )
     .await;
 
+    let mut leap_to_http = false;
+
     match socks5_result {
         Ok(Ok(())) => {
             let elapsed = start_hs.elapsed();
@@ -418,7 +534,7 @@ async fn run_cascade_attempt<D: Dialer>(
                 return Err(ErrorReason::TimeoutHandshake);
             }
             let hs_rtt = elapsed.as_millis() as u64;
-            if let Ok((judge_payload, supports_https)) = execute_judge_for_stream(
+            match execute_judge_for_stream(
                 stream,
                 judge,
                 tls_connector,
@@ -428,61 +544,98 @@ async fn run_cascade_attempt<D: Dialer>(
             )
             .await
             {
-                return Ok(HandshakeSuccess {
-                    detected_protocol: ProxyProtocol::Socks5,
-                    supports_https,
-                    judge_payload,
-                    handshake_rtt_ms: hs_rtt,
-                });
+                Ok((judge_payload, supports_https)) => {
+                    return Ok(HandshakeSuccess {
+                        detected_protocol: ProxyProtocol::Socks5,
+                        supports_https,
+                        judge_payload,
+                        handshake_rtt_ms: hs_rtt,
+                    });
+                }
+                Err(err) => {
+                    // Protocol is confirmed SOCKS5! Do not try SOCKS4 or HTTP!
+                    return Err(err);
+                }
             }
         }
         // Anti-Tarpit: If SOCKS5 handshake timed out or proxy explicitly demands auth, fail fast!
         Err(_) => return Err(ErrorReason::TimeoutHandshake),
-        Ok(Err(ErrorReason::AuthRequired)) => return Err(ErrorReason::AuthRequired),
-        // Signature mismatch / rejected -> drop stream (sends TCP RST) & continue cascade
-        Ok(Err(_)) => drop(stream),
-    }
-
-    // 2. Candidate 2: SOCKS4 / SOCKS4a (fresh L4 connection)
-    let mut stream = dialer
-        .connect(&target.host, target.port, connect_timeout, config)
-        .await?;
-
-    let start_hs = Instant::now();
-    let socks4_result = tokio::time::timeout(
-        handshake_timeout,
-        handshake_socks4(&mut stream, &tunnel_target, target.auth.as_ref()),
-    )
-    .await;
-
-    match socks4_result {
-        Ok(Ok(())) => {
-            let elapsed = start_hs.elapsed();
-            if elapsed > handshake_timeout {
-                return Err(ErrorReason::TimeoutHandshake);
-            }
-            let hs_rtt = elapsed.as_millis() as u64;
-            if let Ok((judge_payload, supports_https)) = execute_judge_for_stream(
-                stream,
-                judge,
-                tls_connector,
+        Ok(Err(Socks5Error::AuthRequired)) => return Err(ErrorReason::AuthRequired),
+        Ok(Err(Socks5Error::HttpDetected)) => {
+            // Pattern A-1: Cross-Protocol Leap (SOCKS5 -> HTTP)
+            // 1. CRITICAL GUARDRAIL: Immediately drop(stream). Web servers send Connection: close with 400 Bad Request.
+            //    The existing socket is poisoned and CANNOT be reused.
+            drop(stream);
+            // 2. LEAP: Completely SKIP Candidate 2 (SOCKS4/SOCKS4a). Jump directly to Candidate 3 (HTTP CONNECT)!
+            leap_to_http = true;
+        }
+        Ok(Err(Socks5Error::ConnectRejected { reason, .. })) => {
+            // Pattern A-2: SOCKS5 Protocol Lock-in & Fallback Judge
+            drop(stream);
+            if let Some(fb_success) = try_socks5_fallback_judge(
+                dialer,
+                target,
                 config,
+                tls_connector,
+                judge,
+                has_override,
+                connect_timeout,
+                handshake_timeout,
                 read_write_timeout,
-                target.auth.as_ref(),
             )
             .await
             {
-                return Ok(HandshakeSuccess {
-                    detected_protocol: ProxyProtocol::Socks4,
-                    supports_https,
-                    judge_payload,
-                    handshake_rtt_ms: hs_rtt,
-                });
+                return Ok(fb_success);
             }
+            // Terminate cascade immediately with protocol locked to SOCKS5. Do not waste time trying SOCKS4 or HTTP.
+            return Err(reason);
         }
-        Err(_) => return Err(ErrorReason::TimeoutHandshake),
-        Ok(Err(ErrorReason::AuthRequired)) => return Err(ErrorReason::AuthRequired),
-        Ok(Err(_)) => drop(stream),
+        // Signature mismatch / rejected before SOCKS5 confirmation -> drop stream & continue cascade
+        Ok(Err(Socks5Error::HandshakeFailed)) => drop(stream),
+    }
+
+    // 2. Candidate 2: SOCKS4 / SOCKS4a (fresh L4 connection)
+    if !leap_to_http {
+        let mut stream = dialer
+            .connect(&target.host, target.port, connect_timeout, config)
+            .await?;
+
+        let start_hs = Instant::now();
+        let socks4_result = tokio::time::timeout(
+            handshake_timeout,
+            handshake_socks4(&mut stream, &tunnel_target, target.auth.as_ref()),
+        )
+        .await;
+
+        match socks4_result {
+            Ok(Ok(())) => {
+                let elapsed = start_hs.elapsed();
+                if elapsed > handshake_timeout {
+                    return Err(ErrorReason::TimeoutHandshake);
+                }
+                let hs_rtt = elapsed.as_millis() as u64;
+                if let Ok((judge_payload, supports_https)) = execute_judge_for_stream(
+                    stream,
+                    judge,
+                    tls_connector,
+                    config,
+                    read_write_timeout,
+                    target.auth.as_ref(),
+                )
+                .await
+                {
+                    return Ok(HandshakeSuccess {
+                        detected_protocol: ProxyProtocol::Socks4,
+                        supports_https,
+                        judge_payload,
+                        handshake_rtt_ms: hs_rtt,
+                    });
+                }
+            }
+            Err(_) => return Err(ErrorReason::TimeoutHandshake),
+            Ok(Err(ErrorReason::AuthRequired)) => return Err(ErrorReason::AuthRequired),
+            Ok(Err(_)) => drop(stream),
+        }
     }
 
     // 3. Candidate 3: HTTP CONNECT (fresh L4 connection)
@@ -524,7 +677,9 @@ async fn run_cascade_attempt<D: Dialer>(
             }
         }
         Err(_) => return Err(ErrorReason::TimeoutHandshake),
+        // Pattern A-4: 407 Proxy Authentication Required terminates immediately without Plain fallback
         Ok(Err(ErrorReason::AuthRequired)) => return Err(ErrorReason::AuthRequired),
+        // On >= 400 status codes (e.g. 400, 403, 405, 502), socket was dropped by handshake_http_connect without body drain
         Ok(Err(_)) => {}
     }
 
@@ -551,6 +706,7 @@ async fn run_cascade_attempt<D: Dialer>(
             judge_payload,
             handshake_rtt_ms: 0,
         }),
-        Err(_) => Err(ErrorReason::HandshakeFailed),
+        Err(ErrorReason::AuthRequired) => Err(ErrorReason::AuthRequired),
+        Err(e) => Err(e),
     }
 }

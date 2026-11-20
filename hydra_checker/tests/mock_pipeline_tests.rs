@@ -348,3 +348,281 @@ async fn test_fallback_judge_saves_proxy() {
     assert_eq!(result.external_ip, Some("185.220.101.5".parse().unwrap()));
     assert_eq!(result.error_reason, None);
 }
+
+#[tokio::test]
+async fn test_pattern_a1_cross_protocol_leap() {
+    let config = test_config_builder()
+        .real_ip("95.10.10.10".parse().unwrap())
+        .build()
+        .await
+        .unwrap();
+
+    let dialer = MockDialer::new(|_host, _port, attempt| {
+        let (client, mut server) = tokio::io::duplex(2048);
+        tokio::spawn(async move {
+            match attempt {
+                0 => {
+                    // Attempt 0: SOCKS5 greeting received on an HTTP proxy -> Nginx/Apache sends 400
+                    let mut buf = [0u8; 16];
+                    let _ = server.read(&mut buf).await;
+                    server
+                        .write_all(b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n")
+                        .await
+                        .unwrap();
+                }
+                1 => {
+                    // Attempt 1: Pattern A-1 must LEAP over SOCKS4 directly to Candidate 3 (HTTP CONNECT)!
+                    let mut buf = [0u8; 256];
+                    let n = server.read(&mut buf).await.unwrap();
+                    let req = String::from_utf8_lossy(&buf[..n]);
+                    // Verify Attempt 1 was indeed HTTP CONNECT, NOT SOCKS4!
+                    assert!(
+                        req.starts_with("CONNECT "),
+                        "Expected Candidate 3 (HTTP CONNECT), but received: {req}"
+                    );
+                    // Return 403 Forbidden to trigger fallback to Candidate 4 (Plain HTTP)
+                    server
+                        .write_all(b"HTTP/1.1 403 Forbidden\r\n\r\n")
+                        .await
+                        .unwrap();
+                }
+                2 => {
+                    // Attempt 2: Candidate 4 (Plain HTTP forward proxy)
+                    let mut buf = [0u8; 512];
+                    let _ = server.read(&mut buf).await;
+                    let resp = "HTTP/1.1 200 OK\r\n\
+                                Content-Type: text/plain\r\n\
+                                Connection: close\r\n\
+                                \r\n\
+                                EXPECTED_TOKEN\n\
+                                REMOTE_ADDR = 185.220.101.5\n";
+                    server.write_all(resp.as_bytes()).await.unwrap();
+                    server.flush().await.unwrap();
+                }
+                _ => {}
+            }
+        });
+        Ok(client)
+    });
+
+    let dialer_clone = dialer.clone();
+    let engine = CheckerEngine::with_dialer(config, dialer).unwrap();
+    // Auto-detect cascade (no expected_protocol)
+    let target = CheckTarget::new("8.8.8.8", 8080);
+    let result = engine.check_single(target).await;
+
+    assert!(result.is_alive);
+    assert_eq!(result.detected_protocol, Some(ProxyProtocol::Http));
+    // Verify Candidate 2 (SOCKS4) was completely skipped: exactly 3 attempts instead of 4!
+    assert_eq!(
+        dialer_clone.attempt_count(&TargetHost::parse("8.8.8.8"), 8080),
+        3
+    );
+}
+
+#[tokio::test]
+async fn test_pattern_a2_socks5_protocol_lock_in_fallback_judge_success() {
+    let fb_judge = hydra_checker::JudgeEndpoint::third_party(
+        "fb_plain",
+        "FB Plain",
+        Url::parse("http://93.184.216.35:80/judge").unwrap(),
+        Url::parse("http://93.184.216.35:80/judge").unwrap(),
+        0,
+        true,
+    );
+
+    let config = test_config_builder()
+        .enable_third_party_judges(false)
+        .add_judge(fb_judge)
+        .real_ip("95.10.10.10".parse().unwrap())
+        .build()
+        .await
+        .unwrap();
+
+    let dialer = MockDialer::new(|_host, _port, attempt| {
+        let (client, mut server) = tokio::io::duplex(2048);
+        tokio::spawn(async move {
+            match attempt {
+                0 => {
+                    // Attempt 0: Primary judge SOCKS5 CONNECT rejected with REP = 0x03 (Network Unreachable)
+                    let mut greet = [0u8; 3];
+                    server.read_exact(&mut greet).await.unwrap();
+                    server.write_all(&[0x05, 0x00]).await.unwrap();
+
+                    let mut req = [0u8; 10];
+                    server.read_exact(&mut req).await.unwrap();
+                    server
+                        .write_all(&[0x05, 0x03, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                        .await
+                        .unwrap();
+                }
+                1 => {
+                    // Attempt 1: Pattern A-2 locked in SOCKS5! Must attempt Fallback Judge with fresh SOCKS5 stream!
+                    let mut greet = [0u8; 3];
+                    server.read_exact(&mut greet).await.unwrap();
+                    assert_eq!(greet[0], 0x05, "Attempt 1 must be SOCKS5 greeting!");
+                    server.write_all(&[0x05, 0x00]).await.unwrap();
+
+                    let mut req = [0u8; 10];
+                    server.read_exact(&mut req).await.unwrap();
+                    assert_eq!(req[0], 0x05, "Attempt 1 must be SOCKS5 CONNECT!");
+                    server
+                        .write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                        .await
+                        .unwrap();
+
+                    // Fallback Judge HTTP exchange over established SOCKS5 tunnel
+                    let mut buf = [0u8; 512];
+                    let _ = server.read(&mut buf).await;
+                    let resp = "HTTP/1.1 200 OK\r\n\
+                                Content-Type: text/plain\r\n\
+                                Connection: close\r\n\
+                                \r\n\
+                                REMOTE_ADDR = 185.220.101.5\n";
+                    server.write_all(resp.as_bytes()).await.unwrap();
+                    server.flush().await.unwrap();
+                }
+                _ => panic!("Unexpected attempt {attempt}: SOCKS4/HTTP should never be called!"),
+            }
+        });
+        Ok(client)
+    });
+
+    let dialer_clone = dialer.clone();
+    let engine = CheckerEngine::with_dialer(config, dialer).unwrap();
+    let target = CheckTarget::new("8.8.8.8", 1080);
+    let result = engine.check_single(target).await;
+
+    assert!(result.is_alive);
+    assert_eq!(result.detected_protocol, Some(ProxyProtocol::Socks5));
+    // Verify only 2 attempts occurred: SOCKS5 primary + SOCKS5 fallback
+    assert_eq!(
+        dialer_clone.attempt_count(&TargetHost::parse("8.8.8.8"), 1080),
+        2
+    );
+}
+
+#[tokio::test]
+async fn test_pattern_a2_socks5_protocol_lock_in_terminates_on_fallback_failure() {
+    let fb_judge = hydra_checker::JudgeEndpoint::third_party(
+        "fb_plain",
+        "FB Plain",
+        Url::parse("http://93.184.216.35:80/judge").unwrap(),
+        Url::parse("http://93.184.216.35:80/judge").unwrap(),
+        0,
+        true,
+    );
+
+    let config = test_config_builder()
+        .enable_third_party_judges(false)
+        .add_judge(fb_judge)
+        .real_ip("95.10.10.10".parse().unwrap())
+        .build()
+        .await
+        .unwrap();
+
+    let dialer = MockDialer::new(|_host, _port, attempt| {
+        let (client, mut server) = tokio::io::duplex(2048);
+        tokio::spawn(async move {
+            match attempt {
+                0 => {
+                    // Attempt 0: Primary judge SOCKS5 CONNECT rejected with REP = 0x04 (Host Unreachable)
+                    let mut greet = [0u8; 3];
+                    server.read_exact(&mut greet).await.unwrap();
+                    server.write_all(&[0x05, 0x00]).await.unwrap();
+
+                    let mut req = [0u8; 10];
+                    server.read_exact(&mut req).await.unwrap();
+                    server
+                        .write_all(&[0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                        .await
+                        .unwrap();
+                }
+                1 => {
+                    // Attempt 1: Fallback judge also rejected with REP = 0x04
+                    let mut greet = [0u8; 3];
+                    server.read_exact(&mut greet).await.unwrap();
+                    server.write_all(&[0x05, 0x00]).await.unwrap();
+
+                    let mut req = [0u8; 10];
+                    server.read_exact(&mut req).await.unwrap();
+                    server
+                        .write_all(&[0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+                        .await
+                        .unwrap();
+                }
+                _ => panic!("Unexpected attempt {attempt}: Cascade must terminate without SOCKS4/HTTP!"),
+            }
+        });
+        Ok(client)
+    });
+
+    let dialer_clone = dialer.clone();
+    let engine = CheckerEngine::with_dialer(config, dialer).unwrap();
+    let target = CheckTarget::new("8.8.8.8", 1080);
+    let result = engine.check_single(target).await;
+
+    assert!(!result.is_alive);
+    assert_eq!(result.error_reason, Some(ErrorReason::NetworkUnreachable));
+    // Verify only 2 attempts occurred: no SOCKS4 or HTTP attempts
+    assert_eq!(
+        dialer_clone.attempt_count(&TargetHost::parse("8.8.8.8"), 1080),
+        2
+    );
+}
+
+#[tokio::test]
+async fn test_pattern_a4_connect_407_terminates_cascade() {
+    let config = test_config_builder()
+        .real_ip("95.10.10.10".parse().unwrap())
+        .build()
+        .await
+        .unwrap();
+
+    let dialer = MockDialer::new(|_host, _port, attempt| {
+        let (client, mut server) = tokio::io::duplex(2048);
+        tokio::spawn(async move {
+            match attempt {
+                0 => {
+                    // Attempt 0: SOCKS5 handshake rejected with invalid version
+                    let mut buf = [0u8; 16];
+                    let _ = server.read(&mut buf).await;
+                    server.write_all(&[0x00, 0x00]).await.unwrap();
+                }
+                1 => {
+                    // Attempt 1: SOCKS4 handshake rejected
+                    let mut buf = [0u8; 32];
+                    let _ = server.read(&mut buf).await;
+                    server
+                        .write_all(&[0x00, 91, 0, 0, 0, 0, 0, 0])
+                        .await
+                        .unwrap();
+                }
+                2 => {
+                    // Attempt 2: HTTP CONNECT returns 407 Proxy Authentication Required
+                    let mut buf = [0u8; 256];
+                    let _ = server.read(&mut buf).await;
+                    server
+                        .write_all(b"HTTP/1.1 407 Proxy Authentication Required\r\n\r\n")
+                        .await
+                        .unwrap();
+                }
+                _ => panic!("Attempt {attempt} should never occur! 407 must terminate cascade without Plain HTTP fallback!"),
+            }
+        });
+        Ok(client)
+    });
+
+    let dialer_clone = dialer.clone();
+    let engine = CheckerEngine::with_dialer(config, dialer).unwrap();
+    let target = CheckTarget::new("8.8.8.8", 8080);
+    let result = engine.check_single(target).await;
+
+    assert!(!result.is_alive);
+    assert_eq!(result.error_reason, Some(ErrorReason::AuthRequired));
+    // Verify exactly 3 attempts were made (SOCKS5 -> SOCKS4 -> CONNECT); candidate 4 was not attempted!
+    assert_eq!(
+        dialer_clone.attempt_count(&TargetHost::parse("8.8.8.8"), 8080),
+        3
+    );
+}
