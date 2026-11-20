@@ -764,6 +764,34 @@ pub async fn fetch_due_proxies(
         }
     }
 
+    // Step 4: Atomic Lease pattern to prevent Head-of-Line (HoL) blocking.
+    // Leases the fetched proxies for 60 seconds (now + 60) so subsequent scheduler
+    // ticks do not pick them up while they are in-flight.
+    if !results.is_empty() {
+        const LEASE_DURATION_SECS: i64 = 60;
+        let lease_until = now + LEASE_DURATION_SECS;
+
+        for chunk in results.chunks_mut(500) {
+            let mut sql_lease = String::from("UPDATE proxies SET next_check_at = ?1 WHERE id IN (");
+            let mut params: Vec<libsql::Value> = Vec::with_capacity(chunk.len() + 1);
+            params.push(lease_until.into());
+
+            for (idx, r) in chunk.iter().enumerate() {
+                if idx > 0 {
+                    sql_lease.push_str(", ");
+                }
+                params.push(r.id.clone().into());
+                sql_lease.push_str(&format!("?{}", idx + 2));
+            }
+            sql_lease.push_str(");");
+
+            conn.execute(&sql_lease, params).await?;
+            for r in chunk.iter_mut() {
+                r.next_check_at = lease_until;
+            }
+        }
+    }
+
     Ok(results)
 }
 

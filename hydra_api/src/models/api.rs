@@ -1227,6 +1227,10 @@ pub struct JudgeReportDto {
     #[schema(example = 420)]
     pub latency_ms: Option<u64>,
 
+    /// Observed outbound checker IP address from this judge
+    #[schema(example = "203.0.113.1")]
+    pub observed_ip: Option<String>,
+
     /// Consecutive failure count
     #[schema(example = 0)]
     pub consecutive_failures: u32,

@@ -1,5 +1,6 @@
 use compact_str::CompactString;
 use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
 use url::Url;
 
 /// Availability health status of a Judge server
@@ -24,9 +25,23 @@ pub struct JudgeHealth {
     pub status: JudgeHealthStatus,
     pub last_checked_at: Option<u64>,
     pub latency_ms: Option<u64>,
+    pub observed_ip: Option<IpAddr>,
     pub consecutive_failures: u32,
     pub consecutive_successes: u32,
     pub last_error: Option<CompactString>,
+}
+
+impl JudgeHealth {
+    /// Record a successful check/probe, updating latency and optional observed IP
+    pub fn record_success(&mut self, latency_ms: u64, observed_ip: Option<IpAddr>) {
+        self.status = JudgeHealthStatus::Healthy;
+        self.consecutive_successes += 1;
+        self.consecutive_failures = 0;
+        self.latency_ms = Some(latency_ms);
+        if observed_ip.is_some() {
+            self.observed_ip = observed_ip;
+        }
+    }
 }
 
 impl Default for JudgeHealth {
@@ -35,6 +50,7 @@ impl Default for JudgeHealth {
             status: JudgeHealthStatus::Unknown,
             last_checked_at: None,
             latency_ms: None,
+            observed_ip: None,
             consecutive_failures: 0,
             consecutive_successes: 0,
             last_error: None,
@@ -55,6 +71,7 @@ pub struct JudgeHealthReport {
     pub enabled: bool,
     pub status: JudgeHealthStatus,
     pub latency_ms: Option<u64>,
+    pub observed_ip: Option<IpAddr>,
     pub consecutive_failures: u32,
     pub consecutive_successes: u32,
     pub last_checked_at: Option<u64>,

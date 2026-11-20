@@ -22,7 +22,8 @@ pub use engine::CheckerEngine;
 pub use error::{CheckerError, ErrorReason};
 pub use judge::{
     JudgeEndpoint, JudgeHealth, JudgeHealthReport, JudgeHealthStatus, JudgePayload, JudgePool,
-    JudgeSelectionStrategy, parse_judge_response, probe_judge_endpoint,
+    JudgeSelectionStrategy, ProbeOutput, parse_judge_response, probe_judge_endpoint,
+    resolve_consensus_ip,
 };
 pub use models::{
     AnonymityLevel, CheckConfigOverride, CheckMetrics, CheckResult, CheckTarget, ProxyAuth,

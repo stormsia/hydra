@@ -26,6 +26,7 @@ fn map_report(r: hydra_checker::JudgeHealthReport) -> JudgeReportDto {
         enabled: r.enabled,
         status: status_str.to_string(),
         latency_ms: r.latency_ms,
+        observed_ip: r.observed_ip.map(|ip| ip.to_string()),
         consecutive_failures: r.consecutive_failures,
         consecutive_successes: r.consecutive_successes,
         last_checked_at: r.last_checked_at,

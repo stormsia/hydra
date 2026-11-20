@@ -45,8 +45,10 @@ pub struct CheckerConfig {
     pub concurrency_limit: usize,
     /// Optional local network interface IP to bind outgoing sockets
     pub local_bind_ip: Option<IpAddr>,
-    /// Caller's real public IP (used to classify Transparent proxies & prevent self-scans)
-    pub real_ip: Option<IpAddr>,
+    /// Caller's static configured real public IP (takes precedence over dynamic discovery)
+    pub static_real_ip: Option<IpAddr>,
+    /// Caller's dynamically discovered public IP from judge pool
+    pub dynamic_real_ip: Arc<arc_swap::ArcSwapOption<IpAddr>>,
     /// Maximum allowed bytes to read from Judge response (Default: 8192 bytes)
     pub max_read_bytes: usize,
     /// Dynamic pool of Judge endpoints with live health tracking and fallback
@@ -179,6 +181,16 @@ impl CheckerConfig {
         }
 
         builder.build().await
+    }
+
+    /// Caller's effective real public IP (static configuration takes precedence, fallback to dynamic discovery)
+    #[inline]
+    pub fn real_ip(&self) -> Option<IpAddr> {
+        if let Some(ip) = self.static_real_ip {
+            Some(ip)
+        } else {
+            self.dynamic_real_ip.load().as_ref().map(|arc| **arc)
+        }
     }
 
     /// Retrieve the currently active token (dynamic daily token or static token)
@@ -592,6 +604,8 @@ impl CheckerConfigBuilder {
             ))
         };
 
+        let dynamic_real_ip = judge_pool.discovered_ip_handle();
+
         Ok(CheckerConfig {
             judge_http_url: self.judge_http_url,
             judge_http_addr: self.judge_http_addr,
@@ -606,7 +620,8 @@ impl CheckerConfigBuilder {
             read_write_timeout: self.read_write_timeout,
             concurrency_limit: self.concurrency_limit,
             local_bind_ip: self.local_bind_ip,
-            real_ip: self.real_ip,
+            static_real_ip: self.real_ip,
+            dynamic_real_ip,
             max_read_bytes: self.max_read_bytes,
             judge_pool,
             cached_tls_req,
@@ -676,7 +691,7 @@ mod tests {
         assert_eq!(cfg.read_write_timeout, Duration::from_millis(5000));
         assert_eq!(cfg.max_read_bytes, 8192);
         assert!(cfg.local_bind_ip.is_none());
-        assert!(cfg.real_ip.is_none());
+        assert!(cfg.real_ip().is_none());
     }
 
     #[tokio::test]
@@ -735,6 +750,6 @@ mod tests {
         assert_eq!(cfg.read_write_timeout, Duration::from_millis(4500));
         assert_eq!(cfg.max_read_bytes, 16384);
         assert_eq!(cfg.local_bind_ip, Some("127.0.0.1".parse().unwrap()));
-        assert_eq!(cfg.real_ip, Some("203.0.113.50".parse().unwrap()));
+        assert_eq!(cfg.real_ip(), Some("203.0.113.50".parse().unwrap()));
     }
 }

@@ -232,7 +232,7 @@ where
         }
 
         // Parse exit IP and headers for anonymity
-        let payload = parse_judge_response(body_str, config.real_ip)?;
+        let payload = parse_judge_response(body_str, config.real_ip())?;
 
         // Reject if exit IP is missing
         if payload.exit_ip.is_none() {
@@ -240,7 +240,7 @@ where
         }
 
         // Reject if exit IP matches our real IP (transparent loop or proxy bypassed)
-        if let Some(real_ip) = config.real_ip
+        if let Some(real_ip) = config.real_ip()
             && payload.exit_ip == Some(real_ip)
         {
             return Err(ErrorReason::JudgeMismatch);

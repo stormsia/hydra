@@ -842,6 +842,20 @@ async fn test_fetch_due_proxies_fair_share_and_longest_waiting() {
     let alive_ids: Vec<&str> = due.iter().filter(|p| p.state == ProxyState::Alive).map(|p| p.id.as_str()).collect();
     assert_eq!(alive_ids, vec!["20.0.0.1:80", "20.0.0.2:80", "20.0.0.3:80"]);
 
+    // Verify lease pattern: all fetched proxies are leased for 60 seconds (next_check_at = now + 60)
+    for p in &due {
+        assert_eq!(p.next_check_at, now + 60, "Fetched proxies must be leased until now + 60");
+    }
+
+    // Reset next_check_at to original timestamps to test Case 2 on the full pool
+    for i in 1..=10 {
+        conn.execute("UPDATE proxies SET next_check_at = ?1 WHERE id = ?2;", libsql::params![900 + i, format!("10.0.0.{i}:80")]).await.unwrap();
+        conn.execute("UPDATE proxies SET next_check_at = ?1 WHERE id = ?2;", libsql::params![700 + i, format!("20.0.0.{i}:80")]).await.unwrap();
+    }
+    for i in 1..=5 {
+        conn.execute("UPDATE proxies SET next_check_at = ?1 WHERE id = ?2;", libsql::params![500 + i, format!("30.0.0.{i}:80")]).await.unwrap();
+    }
+
     // Case 2: Zero-waste backfill when Recheck has fewer items than its capacity
     // Query limit = 20: Cold has 10 (hits its 70% quota of 14), Recheck has 10 alive + 5 cooldown = 15.
     let due20 = fetch_due_proxies(&conn, now, 20).await.unwrap();
@@ -850,4 +864,78 @@ async fn test_fetch_due_proxies_fair_share_and_longest_waiting() {
     let recheck_count20 = due20.iter().filter(|p| p.state != ProxyState::ColdQueue).count();
     assert_eq!(cold_count20, 10, "All available 10 cold proxies should be fetched");
     assert_eq!(recheck_count20, 10, "Remaining 10 slots filled by Recheck");
+}
+
+#[tokio::test]
+async fn test_fetch_due_proxies_lease_mechanism() {
+    let db = init_db(":memory:").await.unwrap();
+    let conn = db.connect().unwrap();
+    configure_conn(&conn).await.unwrap();
+    let now = 1000i64;
+
+    fn make_proxy(id: &str, next_check_at: i64) -> ProxyRow {
+        ProxyRow {
+            id: id.to_string(),
+            ip: "192.0.2.1".to_string(),
+            port: 8080,
+            auth_user: None,
+            auth_pass: None,
+            state: ProxyState::ColdQueue,
+            protocol: Some("http".to_string()),
+            supports_https: true,
+            out_ip: None,
+            country: Some("US".to_string()),
+            asn: None,
+            asn_org: None,
+            anon: None,
+            rtt_tcp_ms: None,
+            rtt_handshake_ms: None,
+            rtt_total_ms: None,
+            connect_timeout_ms: 3000,
+            handshake_timeout_ms: 4000,
+            rw_timeout_ms: 5000,
+            recheck_alive_sec: 60,
+            recheck_dead_sec: 1800,
+            max_dead_strikes: 3,
+            stability_window_min: 5,
+            dead_backoff_mult: 1.5,
+            checks_total: 0,
+            checks_success: 0,
+            dead_strikes: 0,
+            last_error: None,
+            stability_pct: 0.0,
+            recent_checks: None,
+            remark: None,
+            first_seen_at: 1000,
+            last_checked_at: None,
+            next_check_at,
+        }
+    }
+
+    insert_proxy_if_not_exists(&conn, &make_proxy("1.1.1.1:80", 1000), false).await.unwrap();
+    insert_proxy_if_not_exists(&conn, &make_proxy("2.2.2.2:80", 1000), false).await.unwrap();
+
+    // 1. Fetch with now = 1000 -> returns both proxies and leases them until 1060
+    let fetched = fetch_due_proxies(&conn, now, 10).await.unwrap();
+    assert_eq!(fetched.len(), 2);
+    assert_eq!(fetched[0].next_check_at, 1060);
+    assert_eq!(fetched[1].next_check_at, 1060);
+
+    // Verify DB reflects next_check_at = 1060
+    let p1 = get_proxy_by_id(&conn, "1.1.1.1:80").await.unwrap().unwrap();
+    assert_eq!(p1.next_check_at, 1060);
+
+    // 2. Immediate re-fetch at now = 1000 -> returns 0 (both are currently leased)
+    let leased = fetch_due_proxies(&conn, now, 10).await.unwrap();
+    assert_eq!(leased.len(), 0);
+
+    // 3. Re-fetch at now = 1059 -> returns 0 (lease still active)
+    let leased_59 = fetch_due_proxies(&conn, 1059, 10).await.unwrap();
+    assert_eq!(leased_59.len(), 0);
+
+    // 4. Re-fetch at now = 1060 -> lease expired, both returned again!
+    let expired = fetch_due_proxies(&conn, 1060, 10).await.unwrap();
+    assert_eq!(expired.len(), 2);
+    assert_eq!(expired[0].next_check_at, 1120);
+    assert_eq!(expired[1].next_check_at, 1120);
 }

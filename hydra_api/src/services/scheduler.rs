@@ -1,5 +1,4 @@
 use chrono::Utc;
-use futures::stream::{self, StreamExt};
 use parking_lot::Mutex;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -7,12 +6,25 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
-use crate::app_state::AppState;
+use crate::app_state::{AppState, SchedulerStats};
 use crate::db::proxies::fetch_due_proxies;
 use crate::models::ProxyRow;
 use crate::services::batch_writer::CheckResultWithMeta;
 use crate::services::geoip::GeoIpResult;
 use hydra_checker::{CheckConfigOverride, CheckTarget, ProxyAuth, ProxyProtocol, TargetHost};
+
+struct WorkerGuard {
+    in_flight: Arc<Mutex<HashSet<String>>>,
+    proxy_id: String,
+    stats: Arc<SchedulerStats>,
+}
+
+impl Drop for WorkerGuard {
+    fn drop(&mut self) {
+        self.stats.active_workers.fetch_sub(1, Ordering::Relaxed);
+        self.in_flight.lock().remove(&self.proxy_id);
+    }
+}
 
 pub fn row_to_target(row: &ProxyRow) -> CheckTarget {
     let host = TargetHost::parse(&row.ip);
@@ -103,57 +115,51 @@ pub async fn scheduler_loop(state: AppState, cancel: CancellationToken) {
                     continue;
                 }
 
-                let state_clone = state.clone();
-                let in_flight_clone = Arc::clone(&in_flight);
+                for row in to_check {
+                    let state = state.clone();
+                    let in_flight = Arc::clone(&in_flight);
+                    tokio::spawn(async move {
+                        let proxy_id = row.id.clone();
+                        state.scheduler_stats.active_workers.fetch_add(1, Ordering::Relaxed);
+                        let _guard = WorkerGuard {
+                            in_flight,
+                            proxy_id: proxy_id.clone(),
+                            stats: Arc::clone(&state.scheduler_stats),
+                        };
 
-                // Run batch checking bounded by concurrency
-                tokio::spawn(async move {
-                    stream::iter(to_check)
-                        .for_each_concurrent(concurrency, |row| {
-                            let state = state_clone.clone();
-                            let in_flight = Arc::clone(&in_flight_clone);
-                            async move {
-                                let proxy_id = row.id.clone();
-                                let target = row_to_target(&row);
+                        let target = row_to_target(&row);
+                        let result = state.engine.check_single(target).await;
 
-                                state.scheduler_stats.active_workers.fetch_add(1, Ordering::Relaxed);
-                                let result = state.engine.check_single(target).await;
-                                state.scheduler_stats.active_workers.fetch_sub(1, Ordering::Relaxed);
-
-                                in_flight.lock().remove(&proxy_id);
-
-                                let geoip = if result.is_alive {
-                                    if let Some(ext_ip) = result.external_ip {
-                                        if let Some(ref g) = state.geoip {
-                                            g.lookup(ext_ip)
-                                        } else {
-                                            GeoIpResult::default()
-                                        }
-                                    } else {
-                                        GeoIpResult::default()
-                                    }
+                        let geoip = if result.is_alive {
+                            if let Some(ext_ip) = result.external_ip {
+                                if let Some(ref g) = state.geoip {
+                                    g.lookup(ext_ip)
                                 } else {
                                     GeoIpResult::default()
-                                };
-
-                                let meta = CheckResultWithMeta {
-                                    proxy_id,
-                                    result,
-                                    geoip,
-                                    recheck_alive_sec: row.recheck_alive_sec,
-                                    recheck_dead_sec: row.recheck_dead_sec,
-                                    max_dead_strikes: row.max_dead_strikes,
-                                    current_strikes: row.dead_strikes,
-                                    stability_window_min: row.stability_window_min,
-                                    dead_backoff_mult: row.dead_backoff_mult,
-                                    recent_checks: row.recent_checks,
-                                };
-
-                                let _ = state.result_tx.send(meta);
+                                }
+                            } else {
+                                GeoIpResult::default()
                             }
-                        })
-                        .await;
-                });
+                        } else {
+                            GeoIpResult::default()
+                        };
+
+                        let meta = CheckResultWithMeta {
+                            proxy_id,
+                            result,
+                            geoip,
+                            recheck_alive_sec: row.recheck_alive_sec,
+                            recheck_dead_sec: row.recheck_dead_sec,
+                            max_dead_strikes: row.max_dead_strikes,
+                            current_strikes: row.dead_strikes,
+                            stability_window_min: row.stability_window_min,
+                            dead_backoff_mult: row.dead_backoff_mult,
+                            recent_checks: row.recent_checks,
+                        };
+
+                        let _ = state.result_tx.send(meta);
+                    });
+                }
             }
 
             _ = stats_tick.tick() => {

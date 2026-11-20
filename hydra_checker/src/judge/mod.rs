@@ -14,8 +14,8 @@ pub mod probe;
 pub use anonymity::classify_anonymity;
 pub use endpoint::JudgeEndpoint;
 pub use health::{JudgeHealth, JudgeHealthReport, JudgeHealthStatus};
-pub use pool::{JudgeEntry, JudgePool, JudgeSelectionStrategy};
-pub use probe::probe_judge_endpoint;
+pub use pool::{JudgeEntry, JudgePool, JudgeSelectionStrategy, resolve_consensus_ip};
+pub use probe::{ProbeOutput, probe_judge_endpoint};
 
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged)]

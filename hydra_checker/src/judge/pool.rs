@@ -1,5 +1,7 @@
 use compact_str::CompactString;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::net::IpAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -52,6 +54,7 @@ pub struct JudgePool {
     strategy: JudgeSelectionStrategy,
     round_robin_counter: AtomicUsize,
     strike_limit: u32,
+    discovered_ip: Arc<arc_swap::ArcSwapOption<IpAddr>>,
 }
 
 impl JudgePool {
@@ -72,6 +75,7 @@ impl JudgePool {
             strategy,
             round_robin_counter: AtomicUsize::new(0),
             strike_limit: 2,
+            discovered_ip: Arc::new(arc_swap::ArcSwapOption::empty()),
         }
     }
 
@@ -87,6 +91,7 @@ impl JudgePool {
             strategy,
             round_robin_counter: AtomicUsize::new(0),
             strike_limit: 2,
+            discovered_ip: Arc::new(arc_swap::ArcSwapOption::empty()),
         }
     }
 
@@ -238,14 +243,11 @@ impl JudgePool {
     }
 
     /// Record a successful check for a judge
-    pub fn record_success(&self, id: &str, latency_ms: u64) {
+    pub fn record_success(&self, id: &str, latency_ms: u64, observed_ip: Option<IpAddr>) {
         let entries = self.entries.read().unwrap();
         if let Some(entry) = entries.iter().find(|e| e.endpoint.id == id) {
             let mut health = entry.health.write().unwrap();
-            health.status = JudgeHealthStatus::Healthy;
-            health.consecutive_successes += 1;
-            health.consecutive_failures = 0;
-            health.latency_ms = Some(latency_ms);
+            health.record_success(latency_ms, observed_ip);
             health.last_checked_at = Some(current_unix_sec());
         }
     }
@@ -296,12 +298,16 @@ impl JudgePool {
 
         for (id, res) in results {
             match res {
-                Ok(lat) => self.record_success(&id, lat),
+                Ok(output) => self.record_success(&id, output.latency_ms, output.observed_ip),
                 Err(err) => self.record_failure(&id, &err),
             }
         }
 
-        self.get_health_reports()
+        let reports = self.get_health_reports();
+        if let Some(consensus_ip) = resolve_consensus_ip(&reports) {
+            self.discovered_ip.store(Some(Arc::new(consensus_ip)));
+        }
+        reports
     }
 
     /// Export current snapshot of all judges and their live health telemetry
@@ -322,6 +328,7 @@ impl JudgePool {
                 enabled: entry.endpoint.enabled,
                 status: h.status,
                 latency_ms: h.latency_ms,
+                observed_ip: h.observed_ip,
                 consecutive_failures: h.consecutive_failures,
                 consecutive_successes: h.consecutive_successes,
                 last_checked_at: h.last_checked_at,
@@ -331,6 +338,16 @@ impl JudgePool {
 
         reports.sort_by_key(|r| r.priority);
         reports
+    }
+
+    /// Returns the currently discovered public IP resolved by judge consensus
+    pub fn discovered_ip(&self) -> Option<IpAddr> {
+        self.discovered_ip.load().as_ref().map(|arc| **arc)
+    }
+
+    /// Provides shared handle to the atomic ArcSwapOption holding the dynamic IP
+    pub fn discovered_ip_handle(&self) -> Arc<arc_swap::ArcSwapOption<IpAddr>> {
+        self.discovered_ip.clone()
     }
 
     /// Check if there is at least one healthy and enabled judge in the pool
@@ -369,4 +386,44 @@ impl JudgePool {
             }
         }
     }
+}
+
+/// Consensually resolves the caller's outbound public IP from judge health check reports.
+///
+/// Discards bogon, private LAN (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), loopback
+/// (127.0.0.1 from local JudgeServer), and reserved IP addresses.
+///
+/// Counts frequency across the remaining valid public IPs (majority vote) and returns
+/// the most frequently observed IP. In case of a tie in frequency, selects the IP
+/// reported by the judge with the highest priority (lowest priority numeric value).
+pub fn resolve_consensus_ip(reports: &[JudgeHealthReport]) -> Option<IpAddr> {
+    let mut ip_stats: HashMap<IpAddr, (usize, u32)> = HashMap::new();
+
+    for r in reports {
+        if let Some(ip) = r.observed_ip {
+            let is_bogon = match ip {
+                IpAddr::V4(v4) => crate::net_filter::is_bogon_or_reserved_v4(v4),
+                IpAddr::V6(v6) => crate::net_filter::is_bogon_or_reserved_v6(v6),
+            };
+            if !is_bogon {
+                let entry = ip_stats.entry(ip).or_insert((0, r.priority));
+                entry.0 += 1;
+                if r.priority < entry.1 {
+                    entry.1 = r.priority;
+                }
+            }
+        }
+    }
+
+    ip_stats
+        .into_iter()
+        .max_by(|(ip_a, (count_a, prio_a)), (ip_b, (count_b, prio_b))| {
+            count_a
+                .cmp(count_b)
+                // When counts are equal, smaller priority number is better
+                .then_with(|| prio_b.cmp(prio_a))
+                // Deterministic tie-breaker
+                .then_with(|| ip_a.cmp(ip_b))
+        })
+        .map(|(ip, _)| ip)
 }

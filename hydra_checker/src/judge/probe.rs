@@ -1,4 +1,4 @@
-use std::net::ToSocketAddrs;
+use std::net::{IpAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -9,12 +9,19 @@ use url::Url;
 use super::endpoint::JudgeEndpoint;
 use super::parse_judge_response;
 
+/// Probe execution output containing measured latency and observed outbound checker IP.
+#[derive(Debug, Clone)]
+pub struct ProbeOutput {
+    pub latency_ms: u64,
+    pub observed_ip: Option<IpAddr>,
+}
+
 /// Direct probe function to verify availability of a Judge endpoint
 pub async fn probe_judge_endpoint(
     endpoint: &JudgeEndpoint,
     timeout: Duration,
     tls_connector: &TlsConnector,
-) -> Result<u64, String> {
+) -> Result<ProbeOutput, String> {
     // 1. Try HTTPS if available
     if endpoint.https_url.scheme() == "https" {
         match probe_single_url(
@@ -25,7 +32,7 @@ pub async fn probe_judge_endpoint(
         )
         .await
         {
-            Ok(lat) => return Ok(lat),
+            Ok(output) => return Ok(output),
             Err(e) => {
                 // If HTTPS failed, fallback to probing HTTP endpoint if distinct
                 if endpoint.http_url != endpoint.https_url {
@@ -57,7 +64,7 @@ async fn probe_single_url(
     expected_token: Option<&str>,
     timeout: Duration,
     tls_connector: Option<&TlsConnector>,
-) -> Result<u64, String> {
+) -> Result<ProbeOutput, String> {
     let host = url
         .host_str()
         .ok_or_else(|| "Missing host in judge URL".to_string())?;
@@ -186,19 +193,21 @@ async fn probe_single_url(
         let body_str = std::str::from_utf8(&resp_buf[header_len..total_read])
             .map_err(|e| format!("Invalid UTF-8 body: {e}"))?;
 
+        let payload = parse_judge_response(body_str, None).ok();
+        let observed_ip = payload.and_then(|p| p.exit_ip);
+
         if let Some(token) = expected_token {
             if !body_str.contains(token) {
                 return Err("Response does not contain expected token".to_string());
             }
-        } else {
-            let payload = parse_judge_response(body_str, None)
-                .map_err(|e| format!("Failed to parse judge payload: {e:?}"))?;
-            if payload.exit_ip.is_none() {
-                return Err("Judge payload does not contain an exit IP".to_string());
-            }
+        } else if observed_ip.is_none() {
+            return Err("Judge payload does not contain an exit IP".to_string());
         }
 
-        Ok(start.elapsed().as_millis() as u64)
+        Ok(ProbeOutput {
+            latency_ms: start.elapsed().as_millis() as u64,
+            observed_ip,
+        })
     })
     .await
     .map_err(|_| "Judge probe timed out".to_string())?

@@ -77,7 +77,7 @@ pub async fn execute_handshake_cascade<D: Dialer>(
         Ok(success) => {
             config
                 .judge_pool
-                .record_success(primary_judge.id.as_str(), success.handshake_rtt_ms);
+                .record_success(primary_judge.id.as_str(), success.handshake_rtt_ms, None);
             Ok(success)
         }
         Err(err) => {
@@ -115,6 +115,7 @@ pub async fn execute_handshake_cascade<D: Dialer>(
                         config.judge_pool.record_success(
                             fallback_judge.id.as_str(),
                             fb_success.handshake_rtt_ms,
+                            None,
                         );
                         return Ok(fb_success);
                     }

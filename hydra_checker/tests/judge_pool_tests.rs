@@ -1,7 +1,11 @@
+use std::net::IpAddr;
 use std::sync::Arc;
 use url::Url;
 
-use hydra_checker::judge::{JudgeEndpoint, JudgeHealthStatus, JudgePool, JudgeSelectionStrategy};
+use hydra_checker::judge::{
+    JudgeEndpoint, JudgeHealthReport, JudgeHealthStatus, JudgePool, JudgeSelectionStrategy,
+    resolve_consensus_ip,
+};
 
 #[test]
 fn test_judge_pool_priority_selection_and_failover() {
@@ -69,7 +73,7 @@ fn test_judge_pool_priority_selection_and_failover() {
     assert_eq!(selected.id, "proxyjudge_us");
 
     // When builtin recovers and records success:
-    pool.record_success("builtin", 45);
+    pool.record_success("builtin", 45, None);
     let selected = pool.select_judge().expect("recovered judge selected");
     assert_eq!(selected.id, "builtin");
     let reports = pool.get_health_reports();
@@ -151,8 +155,8 @@ fn test_lowest_latency_strategy() {
     let pool = JudgePool::from_endpoints(vec![j1, j2], JudgeSelectionStrategy::LowestLatency);
 
     // Record probe latency: j1 has 500ms, j2 has 150ms
-    pool.record_success("j1_slow", 500);
-    pool.record_success("j2_fast", 150);
+    pool.record_success("j1_slow", 500, None);
+    pool.record_success("j2_fast", 150, None);
 
     // Even though j1 has priority 1, j2 is selected because it has lowest latency (150ms < 500ms)!
     let selected = pool.select_judge().unwrap();
@@ -257,4 +261,122 @@ async fn test_disabled_builtin_judge_never_selected() {
 
     let s = config.judge_pool.select_judge().expect("judge selected");
     assert_eq!(s.id, "tp1", "Must select third party judge when builtin is disabled");
+}
+
+fn mock_health_report(
+    id: &str,
+    priority: u32,
+    observed_ip: Option<IpAddr>,
+) -> JudgeHealthReport {
+    JudgeHealthReport {
+        id: compact_str::CompactString::new(id),
+        name: compact_str::CompactString::new(id),
+        http_url: Url::parse("http://example.com").unwrap(),
+        https_url: Url::parse("https://example.com").unwrap(),
+        is_builtin: false,
+        priority,
+        supports_anonymity: true,
+        enabled: true,
+        status: JudgeHealthStatus::Healthy,
+        latency_ms: Some(50),
+        observed_ip,
+        consecutive_failures: 0,
+        consecutive_successes: 1,
+        last_checked_at: Some(1000),
+        last_error: None,
+    }
+}
+
+#[test]
+fn test_resolve_consensus_ip_filters_bogons() {
+    let reports = vec![
+        mock_health_report("builtin", 0, Some("127.0.0.1".parse().unwrap())),
+        mock_health_report("lan_router", 1, Some("192.168.1.1".parse().unwrap())),
+        mock_health_report("lan_corp", 2, Some("10.0.0.1".parse().unwrap())),
+        mock_health_report("link_local", 3, Some("169.254.1.1".parse().unwrap())),
+        mock_health_report("loopback_v6", 4, Some("::1".parse().unwrap())),
+    ];
+
+    let consensus = resolve_consensus_ip(&reports);
+    assert!(consensus.is_none(), "All bogons/loopbacks must be rejected");
+}
+
+#[test]
+fn test_resolve_consensus_ip_majority_vote() {
+    let ip_a: IpAddr = "93.184.216.34".parse().unwrap();
+    let ip_b: IpAddr = "104.26.10.55".parse().unwrap();
+
+    let reports = vec![
+        mock_health_report("local", 0, Some("127.0.0.1".parse().unwrap())), // Discarded bogon
+        mock_health_report("judge_1", 1, Some(ip_a)),
+        mock_health_report("judge_2", 2, Some(ip_b)),
+        mock_health_report("judge_3", 3, Some(ip_a)), // ip_a has 2 votes vs 1 for ip_b
+    ];
+
+    let consensus = resolve_consensus_ip(&reports);
+    assert_eq!(consensus, Some(ip_a));
+}
+
+#[test]
+fn test_resolve_consensus_ip_tie_break_by_priority() {
+    let ip_high_prio: IpAddr = "93.184.216.34".parse().unwrap();
+    let ip_low_prio: IpAddr = "104.26.10.55".parse().unwrap();
+
+    let reports = vec![
+        mock_health_report("judge_tp1", 1, Some(ip_high_prio)), // Priority 1 (higher precedence)
+        mock_health_report("judge_tp2", 2, Some(ip_low_prio)),  // Priority 2
+    ];
+
+    let consensus = resolve_consensus_ip(&reports);
+    assert_eq!(
+        consensus,
+        Some(ip_high_prio),
+        "Ties must be broken in favor of higher priority judge (lowest numeric priority)"
+    );
+}
+
+#[tokio::test]
+async fn test_dynamic_real_ip_integration() {
+    let config = hydra_checker::CheckerConfig::builder(
+        Url::parse("http://127.0.0.1:8080").unwrap(),
+        Url::parse("https://127.0.0.1:8080").unwrap(),
+        "token",
+    )
+    .build()
+    .await
+    .unwrap();
+
+    // Initially, no static IP and no probe done
+    assert!(config.real_ip().is_none());
+    assert!(config.judge_pool.discovered_ip().is_none());
+
+    // Simulate discovering an IP via judge pool
+    let detected_ip: IpAddr = "198.51.100.42".parse().unwrap();
+    config
+        .judge_pool
+        .discovered_ip_handle()
+        .store(Some(Arc::new(detected_ip)));
+
+    // config.real_ip() dynamically reflects the pool's discovered IP
+    assert_eq!(config.judge_pool.discovered_ip(), Some(detected_ip));
+    assert_eq!(config.real_ip(), Some(detected_ip));
+
+    // Static real_ip overrides dynamic discovery
+    let static_ip: IpAddr = "203.0.113.99".parse().unwrap();
+    let config_with_static = hydra_checker::CheckerConfig::builder(
+        Url::parse("http://127.0.0.1:8080").unwrap(),
+        Url::parse("https://127.0.0.1:8080").unwrap(),
+        "token",
+    )
+    .real_ip(static_ip)
+    .build()
+    .await
+    .unwrap();
+
+    config_with_static
+        .judge_pool
+        .discovered_ip_handle()
+        .store(Some(Arc::new(detected_ip)));
+
+    assert_eq!(config_with_static.real_ip(), Some(static_ip));
 }

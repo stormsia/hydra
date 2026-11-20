@@ -122,6 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tls_connector = engine.tls_connector().clone();
     let health_interval = Duration::from_secs(config.judge_health_check_interval_secs);
     let health_cancel = cancel.clone();
+    let engine_for_probe = engine.clone();
     tokio::spawn(async move {
         tracing::info!("Running initial judge availability probe...");
         let reports = judge_pool
@@ -135,6 +136,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 r.status,
                 r.latency_ms
             );
+        }
+        if let Some(ip) = engine_for_probe.config().real_ip() {
+            tracing::info!("Checker public IP dynamically detected: {}", ip);
         }
         judge_pool
             .start_health_check_loop(health_interval, tls_connector, health_cancel)
