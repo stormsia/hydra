@@ -80,11 +80,20 @@ CREATE TABLE IF NOT EXISTS proxy_sources (
 -- Indexes
 -- ============================================================
 
--- I1: Scheduler — selects proxies prioritized by state (alive=0, cold=1, cooldown=2) and due next_check_at.
--- Eliminates temporary sort (TEMP B-TREE) in fetch_due_proxies.
+-- I1: Scheduler — legacy index for fallback queries
 CREATE INDEX IF NOT EXISTS idx_scheduler_prio
     ON proxies ((CASE state WHEN 1 THEN 0 WHEN 0 THEN 1 ELSE 2 END), next_check_at)
     WHERE state IN (0, 1, 2);
+
+-- I1b: Scheduler Cold Queue — selects cold proxies (state=0) ordered by due next_check_at and first_seen_at.
+CREATE INDEX IF NOT EXISTS idx_cold_queue
+    ON proxies (next_check_at ASC, first_seen_at ASC)
+    WHERE state = 0;
+
+-- I1c: Scheduler Recheck Queue — selects recheck proxies (alive=0, cooldown=1) ordered by priority and waiting time.
+CREATE INDEX IF NOT EXISTS idx_recheck_queue
+    ON proxies ((CASE state WHEN 1 THEN 0 ELSE 1 END), next_check_at ASC)
+    WHERE state IN (1, 2);
 
 -- I2: Instant retrieval of fastest alive proxies (eliminates USE TEMP B-TREE FOR ORDER BY in GET /api/v1/proxies).
 CREATE INDEX IF NOT EXISTS idx_alive_fastest

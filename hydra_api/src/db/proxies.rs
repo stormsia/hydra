@@ -663,12 +663,28 @@ pub async fn run_db_maintenance(
     })
 }
 
+/// Fetches proxies due for checking with 70/30 partitioned fair-share scheduling:
+/// - 70% of available worker capacity is reserved for Cold (never checked: state = 0) proxies
+/// - 30% (+ all unused capacity) is allocated for Recheck (alive state = 1, then cooldown state = 2)
+/// - Recheck queue is prioritized by:
+///   1. state = 1 (alive) before state = 2 (cooldown)
+///   2. next_check_at ASC (the proxies waiting for check the longest come first)
+///   3. last_checked_at ASC (tie-breaker: checked longest ago)
+/// - Zero waste: if Cold has fewer than 70%, Recheck takes all remaining slots.
+///   If Recheck has fewer than 30%, Cold takes all remaining slots.
 pub async fn fetch_due_proxies(
     conn: &Connection,
     now: i64,
     limit: usize,
 ) -> Result<Vec<ProxyRow>, libsql::Error> {
-    let sql = "
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
+
+    let cold_quota = ((limit * 70) / 100).max(if limit > 0 { 1 } else { 0 });
+
+    // Step 1: Fetch Cold proxies (state = 0)
+    let sql_cold = "
         SELECT id, ip, port, auth_user, auth_pass, state, protocol, supports_https,
                out_ip, country, asn, asn_org, anon, rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
                connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
@@ -676,19 +692,78 @@ pub async fn fetch_due_proxies(
                checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
                first_seen_at, last_checked_at, next_check_at
         FROM proxies
-        WHERE state IN (0, 1, 2) AND next_check_at <= ?1
-        ORDER BY
-          CASE state WHEN 1 THEN 0 WHEN 0 THEN 1 ELSE 2 END,
-          next_check_at ASC
+        WHERE state = 0 AND next_check_at <= ?1
+        ORDER BY next_check_at ASC, first_seen_at ASC
         LIMIT ?2;
     ";
 
-    let mut rows = conn.query(sql, libsql::params![now, limit as i64]).await?;
+    let mut cold_rows = conn
+        .query(sql_cold, libsql::params![now, cold_quota as i64])
+        .await?;
 
-    let mut results = Vec::new();
-    while let Some(row) = rows.next().await? {
+    let mut results = Vec::with_capacity(limit);
+    while let Some(row) = cold_rows.next().await? {
         results.push(map_proxy_row(&row)?);
     }
+    let cold_fetched = results.len();
+
+    // Step 2: Fetch Recheck proxies (state = 1, then state = 2) with remaining capacity
+    let recheck_limit = limit.saturating_sub(cold_fetched);
+    if recheck_limit > 0 {
+        let sql_recheck = "
+            SELECT id, ip, port, auth_user, auth_pass, state, protocol, supports_https,
+                   out_ip, country, asn, asn_org, anon, rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
+                   connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
+                   recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
+                   checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
+                   first_seen_at, last_checked_at, next_check_at
+            FROM proxies
+            WHERE state IN (1, 2) AND next_check_at <= ?1
+            ORDER BY
+              CASE state WHEN 1 THEN 0 ELSE 1 END,
+              next_check_at ASC,
+              COALESCE(last_checked_at, 0) ASC
+            LIMIT ?2;
+        ";
+
+        let mut recheck_rows = conn
+            .query(sql_recheck, libsql::params![now, recheck_limit as i64])
+            .await?;
+
+        while let Some(row) = recheck_rows.next().await? {
+            results.push(map_proxy_row(&row)?);
+        }
+    }
+
+    // Step 3: Zero-waste backfill: if Recheck didn't consume all remaining capacity,
+    // and Cold hit its quota, query extra Cold proxies to fill 100% of available worker capacity
+    let remaining_capacity = limit.saturating_sub(results.len());
+    if remaining_capacity > 0 && cold_fetched == cold_quota {
+        let sql_extra_cold = "
+            SELECT id, ip, port, auth_user, auth_pass, state, protocol, supports_https,
+                   out_ip, country, asn, asn_org, anon, rtt_tcp_ms, rtt_handshake_ms, rtt_total_ms,
+                   connect_timeout_ms, handshake_timeout_ms, rw_timeout_ms,
+                   recheck_alive_sec, recheck_dead_sec, max_dead_strikes, stability_window_min, dead_backoff_mult,
+                   checks_total, checks_success, dead_strikes, last_error, stability_pct, recent_checks, remark,
+                   first_seen_at, last_checked_at, next_check_at
+            FROM proxies
+            WHERE state = 0 AND next_check_at <= ?1
+            ORDER BY next_check_at ASC, first_seen_at ASC
+            LIMIT ?2 OFFSET ?3;
+        ";
+
+        let mut extra_cold_rows = conn
+            .query(
+                sql_extra_cold,
+                libsql::params![now, remaining_capacity as i64, cold_fetched as i64],
+            )
+            .await?;
+
+        while let Some(row) = extra_cold_rows.next().await? {
+            results.push(map_proxy_row(&row)?);
+        }
+    }
+
     Ok(results)
 }
 

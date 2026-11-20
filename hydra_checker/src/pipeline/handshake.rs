@@ -227,7 +227,11 @@ async fn run_cascade_attempt<D: Dialer>(
                 )
                 .await
                 .map_err(|_| ErrorReason::TimeoutHandshake)??;
-                let hs_rtt = start_hs.elapsed().as_millis() as u64;
+                let elapsed = start_hs.elapsed();
+                if elapsed > handshake_timeout {
+                    return Err(ErrorReason::TimeoutHandshake);
+                }
+                let hs_rtt = elapsed.as_millis() as u64;
 
                 let (judge_payload, supports_https) = execute_judge_for_stream(
                     stream,
@@ -254,7 +258,11 @@ async fn run_cascade_attempt<D: Dialer>(
                 )
                 .await
                 .map_err(|_| ErrorReason::TimeoutHandshake)??;
-                let hs_rtt = start_hs.elapsed().as_millis() as u64;
+                let elapsed = start_hs.elapsed();
+                if elapsed > handshake_timeout {
+                    return Err(ErrorReason::TimeoutHandshake);
+                }
+                let hs_rtt = elapsed.as_millis() as u64;
 
                 let (judge_payload, supports_https) = execute_judge_for_stream(
                     stream,
@@ -281,7 +289,11 @@ async fn run_cascade_attempt<D: Dialer>(
                 )
                 .await
                 .map_err(|_| ErrorReason::TimeoutHandshake)??;
-                let hs_rtt = start_hs.elapsed().as_millis() as u64;
+                let elapsed = start_hs.elapsed();
+                if elapsed > handshake_timeout {
+                    return Err(ErrorReason::TimeoutHandshake);
+                }
+                let hs_rtt = elapsed.as_millis() as u64;
 
                 let judge_payload = execute_l7_judge_tls(
                     prefixed,
@@ -312,24 +324,27 @@ async fn run_cascade_attempt<D: Dialer>(
                     .await;
 
                     if let Ok(Ok(prefixed_stream)) = connect_res {
-                        let hs_rtt = start_hs.elapsed().as_millis() as u64;
-                        if let Ok(judge_payload) = execute_l7_judge_tls(
-                            prefixed_stream,
-                            tls_connector,
-                            &judge.https_url,
-                            judge.expected_token.as_deref(),
-                            judge.is_builtin,
-                            config,
-                            read_write_timeout,
-                        )
-                        .await
-                        {
-                            return Ok(HandshakeSuccess {
-                                detected_protocol: ProxyProtocol::Http,
-                                supports_https: true,
-                                judge_payload,
-                                handshake_rtt_ms: hs_rtt,
-                            });
+                        let elapsed = start_hs.elapsed();
+                        if elapsed <= handshake_timeout {
+                            let hs_rtt = elapsed.as_millis() as u64;
+                            if let Ok(judge_payload) = execute_l7_judge_tls(
+                                prefixed_stream,
+                                tls_connector,
+                                &judge.https_url,
+                                judge.expected_token.as_deref(),
+                                judge.is_builtin,
+                                config,
+                                read_write_timeout,
+                            )
+                            .await
+                            {
+                                return Ok(HandshakeSuccess {
+                                    detected_protocol: ProxyProtocol::Http,
+                                    supports_https: true,
+                                    judge_payload,
+                                    handshake_rtt_ms: hs_rtt,
+                                });
+                            }
                         }
                     }
 
@@ -397,7 +412,11 @@ async fn run_cascade_attempt<D: Dialer>(
 
     match socks5_result {
         Ok(Ok(())) => {
-            let hs_rtt = start_hs.elapsed().as_millis() as u64;
+            let elapsed = start_hs.elapsed();
+            if elapsed > handshake_timeout {
+                return Err(ErrorReason::TimeoutHandshake);
+            }
+            let hs_rtt = elapsed.as_millis() as u64;
             if let Ok((judge_payload, supports_https)) = execute_judge_for_stream(
                 stream,
                 judge,
@@ -437,7 +456,11 @@ async fn run_cascade_attempt<D: Dialer>(
 
     match socks4_result {
         Ok(Ok(())) => {
-            let hs_rtt = start_hs.elapsed().as_millis() as u64;
+            let elapsed = start_hs.elapsed();
+            if elapsed > handshake_timeout {
+                return Err(ErrorReason::TimeoutHandshake);
+            }
+            let hs_rtt = elapsed.as_millis() as u64;
             if let Ok((judge_payload, supports_https)) = execute_judge_for_stream(
                 stream,
                 judge,
@@ -475,7 +498,11 @@ async fn run_cascade_attempt<D: Dialer>(
 
     match connect_result {
         Ok(Ok(prefixed_stream)) => {
-            let hs_rtt = start_hs.elapsed().as_millis() as u64;
+            let elapsed = start_hs.elapsed();
+            if elapsed > handshake_timeout {
+                return Err(ErrorReason::TimeoutHandshake);
+            }
+            let hs_rtt = elapsed.as_millis() as u64;
             if let Ok(judge_payload) = execute_l7_judge_tls(
                 prefixed_stream,
                 tls_connector,

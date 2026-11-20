@@ -762,3 +762,92 @@ async fn test_stability_filtering_and_window_queries() {
         "Expired check must result in 0.0 effective stability"
     );
 }
+
+#[tokio::test]
+async fn test_fetch_due_proxies_fair_share_and_longest_waiting() {
+    let db = init_db(":memory:").await.unwrap();
+    let conn = db.connect().unwrap();
+    configure_conn(&conn).await.unwrap();
+    let now = 1000i64;
+
+    fn make_proxy(id: &str, state: ProxyState, next_check_at: i64, first_seen_at: i64) -> ProxyRow {
+        ProxyRow {
+            id: id.to_string(),
+            ip: "192.0.2.1".to_string(),
+            port: 8080,
+            auth_user: None,
+            auth_pass: None,
+            state,
+            protocol: Some("http".to_string()),
+            supports_https: true,
+            out_ip: None,
+            country: Some("US".to_string()),
+            asn: None,
+            asn_org: None,
+            anon: None,
+            rtt_tcp_ms: None,
+            rtt_handshake_ms: None,
+            rtt_total_ms: None,
+            connect_timeout_ms: 3000,
+            handshake_timeout_ms: 4000,
+            rw_timeout_ms: 5000,
+            recheck_alive_sec: 60,
+            recheck_dead_sec: 1800,
+            max_dead_strikes: 3,
+            stability_window_min: 5,
+            dead_backoff_mult: 1.5,
+            checks_total: 0,
+            checks_success: 0,
+            dead_strikes: 0,
+            last_error: None,
+            stability_pct: 0.0,
+            recent_checks: None,
+            remark: None,
+            first_seen_at,
+            last_checked_at: None,
+            next_check_at,
+        }
+    }
+
+    // Insert 10 Cold proxies (state = 0) with next_check_at <= now
+    for i in 1..=10 {
+        let p = make_proxy(&format!("10.0.0.{i}:80"), ProxyState::ColdQueue, 900 + i, 800 + i);
+        insert_proxy_if_not_exists(&conn, &p, false).await.unwrap();
+    }
+
+    // Insert 10 Alive proxies (state = 1) with next_check_at <= now
+    for i in 1..=10 {
+        let p = make_proxy(&format!("20.0.0.{i}:80"), ProxyState::Alive, 700 + i, 600 + i);
+        insert_proxy_if_not_exists(&conn, &p, false).await.unwrap();
+    }
+
+    // Insert 5 Cooldown proxies (state = 2) with next_check_at <= now
+    for i in 1..=5 {
+        let p = make_proxy(&format!("30.0.0.{i}:80"), ProxyState::Cooldown, 500 + i, 400 + i);
+        insert_proxy_if_not_exists(&conn, &p, false).await.unwrap();
+    }
+
+    // Case 1: Limit = 10. Cold quota = 7 (70%), Recheck = 3 (30%)
+    let due = fetch_due_proxies(&conn, now, 10).await.unwrap();
+    assert_eq!(due.len(), 10);
+    let cold_count = due.iter().filter(|p| p.state == ProxyState::ColdQueue).count();
+    let alive_count = due.iter().filter(|p| p.state == ProxyState::Alive).count();
+    let cooldown_count = due.iter().filter(|p| p.state == ProxyState::Cooldown).count();
+
+    assert_eq!(cold_count, 7, "Exactly 70% (7 slots) must be reserved for Cold queue");
+    assert_eq!(alive_count, 3, "Remaining 3 slots must be given to Recheck (Alive prioritized over Cooldown)");
+    assert_eq!(cooldown_count, 0);
+
+    // Verify ordering in Recheck: Alive proxies waiting the longest (smallest next_check_at) come first!
+    let alive_ids: Vec<&str> = due.iter().filter(|p| p.state == ProxyState::Alive).map(|p| p.id.as_str()).collect();
+    assert_eq!(alive_ids, vec!["20.0.0.1:80", "20.0.0.2:80", "20.0.0.3:80"]);
+
+    // Case 2: Zero-waste backfill when Recheck has fewer items than its capacity
+    // Query limit = 20: Cold has 10 (hits its 70% quota of 14), Recheck has 10 alive + 5 cooldown = 15.
+    let due20 = fetch_due_proxies(&conn, now, 20).await.unwrap();
+    assert_eq!(due20.len(), 20);
+    let cold_count20 = due20.iter().filter(|p| p.state == ProxyState::ColdQueue).count();
+    let recheck_count20 = due20.iter().filter(|p| p.state != ProxyState::ColdQueue).count();
+    assert_eq!(cold_count20, 10, "All available 10 cold proxies should be fetched");
+    assert_eq!(recheck_count20, 10, "Remaining 10 slots filled by Recheck");
+}

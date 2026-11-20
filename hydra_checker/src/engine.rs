@@ -65,6 +65,7 @@ impl<D: Dialer> CheckerEngine<D> {
 
     /// Check a single proxy target
     pub async fn check_single(&self, target: CheckTarget) -> CheckResult {
+        let _permit = self.semaphore.acquire().await.ok();
         execute_pipeline(
             self.dialer.as_ref(),
             target,

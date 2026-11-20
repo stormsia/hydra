@@ -60,6 +60,12 @@ pub async fn scheduler_loop(state: AppState, cancel: CancellationToken) {
     loop {
         tokio::select! {
             _ = check_tick.tick() => {
+                let current_in_flight = in_flight.lock().len();
+                if current_in_flight >= concurrency {
+                    continue;
+                }
+                let available_capacity = (concurrency as usize).saturating_sub(current_in_flight);
+
                 let now = Utc::now().timestamp();
                 let conn = match state.connect_db().await {
                     Ok(c) => c,
@@ -70,7 +76,8 @@ pub async fn scheduler_loop(state: AppState, cancel: CancellationToken) {
                 };
 
                 let batch_size = state.config.scheduler_batch_size;
-                let rows = match fetch_due_proxies(&conn, now, batch_size).await {
+                let fetch_limit = batch_size.min(available_capacity);
+                let rows = match fetch_due_proxies(&conn, now, fetch_limit).await {
                     Ok(r) => r,
                     Err(e) => {
                         tracing::error!("Scheduler failed to fetch due proxies: {e}");

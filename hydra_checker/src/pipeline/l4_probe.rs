@@ -17,7 +17,11 @@ pub async fn execute_l4_probe<D: Dialer>(
 ) -> Result<(D::Stream, u64), ErrorReason> {
     let start = Instant::now();
     let stream = dialer.connect(host, port, timeout, config).await?;
-    let rtt_ms = start.elapsed().as_millis() as u64;
+    let elapsed = start.elapsed();
+    if elapsed > timeout {
+        return Err(ErrorReason::TimeoutTcp);
+    }
+    let rtt_ms = elapsed.as_millis() as u64;
 
     Ok((stream, rtt_ms))
 }

@@ -16,7 +16,7 @@ tower = { version = "0.5", features = ["timeout"] }
 
 # OpenAPI / Swagger
 utoipa = { version = "6", features = ["axum_extras", "chrono"] }
-utoipa-swagger-ui = { version = "10", features = ["axum"] }
+utoipa-swagger-ui = { version = "10", features = ["axum", "vendored"] }
 
 # Async runtime
 tokio = { version = "1.43", features = ["full"] }

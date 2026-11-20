@@ -33,25 +33,29 @@ impl Dialer for TcpDialer {
         config: &CheckerConfig,
     ) -> Result<Self::Stream, ErrorReason> {
         // Step 1: Pre-flight resolution & bogon validation
-        let target_addr: SocketAddr = match host {
+        let (target_addr, remaining_timeout): (SocketAddr, Duration) = match host {
             TargetHost::Ip(ip) => {
                 validate_target_ip(*ip, config)?;
-                SocketAddr::new(*ip, port)
+                (SocketAddr::new(*ip, port), timeout)
             }
             TargetHost::Domain(domain) => {
                 // Resolve hostname with timeout
                 let host_port = format!("{domain}:{port}");
+                let dns_start = std::time::Instant::now();
                 let mut resolved =
                     tokio::time::timeout(timeout, tokio::net::lookup_host(host_port))
                         .await
                         .map_err(|_| ErrorReason::TimeoutTcp)?
                         .map_err(|e| map_io_error(&e))?;
+                let dns_spent = dns_start.elapsed();
+                let remaining_timeout =
+                    timeout.checked_sub(dns_spent).ok_or(ErrorReason::TimeoutTcp)?;
 
                 let first_addr = resolved.next().ok_or(ErrorReason::NetworkUnreachable)?;
 
                 // Immediately validate resolved IP to prevent DNS Rebinding to bogons/LAN
                 validate_target_ip(first_addr.ip(), config)?;
-                first_addr
+                (first_addr, remaining_timeout)
             }
         };
 
@@ -93,7 +97,7 @@ impl Dialer for TcpDialer {
         let tokio_socket = tokio::net::TcpSocket::from_std_stream(std_socket);
 
         // Step 3: Connect with timeout
-        tokio::time::timeout(timeout, tokio_socket.connect(target_addr))
+        tokio::time::timeout(remaining_timeout, tokio_socket.connect(target_addr))
             .await
             .map_err(|_| ErrorReason::TimeoutTcp)?
             .map_err(|e| map_io_error(&e))
