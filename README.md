@@ -396,8 +396,8 @@ If your project distributes proxy lists, scraper feeds, or embeds Hydra as its p
 
 | Badge | Markdown Code |
 | :--- | :--- |
-| ![Proxies Checked](assets/badges/proxies-checked-by-hydra.svg) | `[![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)` |
-| ![Proxies Pill](assets/badges/proxies-by-hydra-pill-20.svg) | `[![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra)` |
+| [![Proxies Checked](assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra) | `[![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)` |
+| [![Proxies Pill](assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra) | `[![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra)` |
 
 👉 **[Explore all badge styles, emerald SLA seals & Shields.io URLs](assets/badges/README.md)**
 

@@ -22,7 +22,7 @@ Official GitHub badges for projects using, embedding, or maintaining proxy lists
 ### 1. `proxies checked | by hydra` — *The Most Explicit & Clear (Recommended)*
 Immediately communicates that proxies were verified and filtered via Hydra. Calibrated with optical micro-logo and subtle Light Mode border.
 
-![proxies checked by hydra](proxies-checked-by-hydra.svg)
+[![proxies checked by hydra](proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)
 
 ```markdown
 [![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)
@@ -33,7 +33,7 @@ Immediately communicates that proxies were verified and filtered via Hydra. Cali
 ### 2. `proxies by | hydra` — *Ultra-Compact & Minimalist*
 Minimal footprint (~146px). Ideal when space in the badges row is tight.
 
-![proxies by hydra](proxies-by-hydra.svg)
+[![proxies by hydra](proxies-by-hydra.svg)](https://github.com/stormsia/hydra)
 
 ```markdown
 [![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra.svg)](https://github.com/stormsia/hydra)
@@ -44,7 +44,7 @@ Minimal footprint (~146px). Ideal when space in the badges row is tight.
 ### 3. `proxies | verified by hydra` — *Emerald Quality & SLA Seal*
 Emphasizes strict verification policies (latency, SOCKS5/HTTP protocols, zero dead strikes).
 
-![proxies verified by hydra](proxies-verified-by-hydra.svg)
+[![proxies verified by hydra](proxies-verified-by-hydra.svg)](https://github.com/stormsia/hydra)
 
 ```markdown
 [![Proxies Verified by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-verified-by-hydra.svg)](https://github.com/stormsia/hydra)
@@ -55,7 +55,7 @@ Emphasizes strict verification policies (latency, SOCKS5/HTTP protocols, zero de
 ### 4. `proxies by hydra` 20px Pill — *Row-Compatible With Shields.io*
 A sleek modern pill badge with an active status beacon, sized at 20px to sit perfectly in line with standard Shields badges without height stepping.
 
-![proxies by hydra pill 20](proxies-by-hydra-pill-20.svg)
+[![proxies by hydra pill 20](proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra)
 
 ```markdown
 [![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra)

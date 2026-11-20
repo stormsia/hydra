@@ -396,8 +396,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 | 徽标样式 | Markdown 嵌入代码 |
 | :--- | :--- |
-| ![Proxies Checked](assets/badges/proxies-checked-by-hydra.svg) | `[![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)` |
-| ![Proxies Pill](assets/badges/proxies-by-hydra-pill-20.svg) | `[![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra)` |
+| [![Proxies Checked](assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra) | `[![Proxies Checked by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-checked-by-hydra.svg)](https://github.com/stormsia/hydra)` |
+| [![Proxies Pill](assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra) | `[![Proxies by Hydra](https://raw.githubusercontent.com/stormsia/hydra/main/assets/badges/proxies-by-hydra-pill-20.svg)](https://github.com/stormsia/hydra)` |
 
 👉 **[查看完整徽标库、翡翠绿 SLA 认证标识及 Shields.io 动态链接](assets/badges/README.md)**
 
