@@ -335,6 +335,7 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
 | `JUDGE_SECRET_TOKEN` | `String` | `hydra_secret_token` | No | Static validation token for verifying judge echo response. |
 | `CHECKER_CONCURRENCY` | `usize` | `5000` | No | Maximum number of concurrent network verification tasks. |
 | `CHECKER_REAL_IP` | `IpAddr` | *(auto)* | No | Outbound public IP of checker host (for accurate Transparent detection). |
+| `ENABLE_BUILTIN_JUDGE` | `bool` | *(auto)* | No | Enable builtin judge in selection pool (true if embedded or custom URL, else false). |
 | `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | No | Enable public fallback judges (Httpbingo, Httpbin) for failover. |
 | `JUDGE_SELECTION_STRATEGY` | `String` | `lowest_latency` | No | Judge selection algorithm: `lowest_latency`, `priority`, `round_robin`. |
 | `GEOIP_AUTO_UPDATE` | `bool` | `true` | No | Automatically download and refresh MaxMind databases via HTTP ETag. |

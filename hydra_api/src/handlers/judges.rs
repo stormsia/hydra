@@ -80,7 +80,7 @@ pub async fn trigger_health_check(
 
     let healthy_count = reports
         .iter()
-        .filter(|r| r.status == hydra_checker::JudgeHealthStatus::Healthy)
+        .filter(|r| r.enabled && r.status == hydra_checker::JudgeHealthStatus::Healthy)
         .count();
 
     state

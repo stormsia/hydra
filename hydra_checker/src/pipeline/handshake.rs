@@ -57,13 +57,10 @@ pub async fn execute_handshake_cascade<D: Dialer>(
             enabled: true,
         }
     } else {
-        config.judge_pool.select_judge().unwrap_or_else(|| {
-            JudgeEndpoint::builtin(
-                config.judge_http_url.clone(),
-                config.judge_https_url.clone(),
-                Some(config.judge_expected_token.clone()),
-            )
-        })
+        match config.judge_pool.select_judge() {
+            Some(j) => j,
+            None => return Err(ErrorReason::InternalError),
+        }
     };
 
     // 2. Primary cascade attempt

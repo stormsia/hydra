@@ -162,3 +162,99 @@ fn test_lowest_latency_strategy() {
     let fallbacks = pool.fallback_judges("j2_fast");
     assert_eq!(fallbacks[0].id, "j1_slow");
 }
+
+#[tokio::test]
+async fn test_disabled_builtin_judge_never_selected() {
+    let builtin_disabled = JudgeEndpoint::builtin(
+        Url::parse("http://127.0.0.1:8080").unwrap(),
+        Url::parse("https://127.0.0.1:8080").unwrap(),
+        Some("secret"),
+    )
+    .with_enabled(false);
+
+    let tp1 = JudgeEndpoint::third_party(
+        "tp1",
+        "Third Party 1",
+        Url::parse("http://127.0.0.1:8081").unwrap(),
+        Url::parse("https://127.0.0.1:8081").unwrap(),
+        1,
+        true,
+    );
+    let tp2 = JudgeEndpoint::third_party(
+        "tp2",
+        "Third Party 2",
+        Url::parse("http://127.0.0.1:8082").unwrap(),
+        Url::parse("https://127.0.0.1:8082").unwrap(),
+        2,
+        true,
+    );
+
+    // Test 1: Priority strategy with all judges Unhealthy
+    let pool_priority = JudgePool::new(
+        builtin_disabled.clone(),
+        vec![tp1.clone(), tp2.clone()],
+        JudgeSelectionStrategy::Priority,
+    );
+
+    // Mark both third party judges unhealthy
+    pool_priority.record_failure("tp1", "down");
+    pool_priority.record_failure("tp1", "down");
+    pool_priority.record_failure("tp2", "down");
+    pool_priority.record_failure("tp2", "down");
+
+    // Even though all third party judges are Unhealthy and builtin has priority 0,
+    // builtin MUST NOT be selected because it is disabled! It must fallback to tp1 (first enabled).
+    let selected = pool_priority.select_judge().expect("must select enabled judge");
+    assert_ne!(selected.id, "builtin", "Disabled builtin judge must NEVER be selected!");
+    assert_eq!(selected.id, "tp1");
+
+    // Fallbacks must never include builtin
+    let fallbacks = pool_priority.fallback_judges("tp1");
+    assert_eq!(fallbacks.len(), 1);
+    assert_eq!(fallbacks[0].id, "tp2");
+
+    // Test 2: LowestLatency strategy with all judges Unhealthy
+    let pool_latency = JudgePool::new(
+        builtin_disabled.clone(),
+        vec![tp1.clone(), tp2.clone()],
+        JudgeSelectionStrategy::LowestLatency,
+    );
+    pool_latency.record_failure("tp1", "down");
+    pool_latency.record_failure("tp1", "down");
+    pool_latency.record_failure("tp2", "down");
+    pool_latency.record_failure("tp2", "down");
+
+    let selected = pool_latency.select_judge().expect("must select enabled judge");
+    assert_ne!(selected.id, "builtin", "Disabled builtin judge must NEVER be selected!");
+
+    // Test 3: RoundRobin strategy
+    let pool_rr = JudgePool::new(
+        builtin_disabled.clone(),
+        vec![tp1.clone(), tp2.clone()],
+        JudgeSelectionStrategy::RoundRobin,
+    );
+    for _ in 0..10 {
+        let s = pool_rr.select_judge().expect("must select enabled judge");
+        assert_ne!(s.id, "builtin", "Disabled builtin judge must NEVER appear in RoundRobin!");
+    }
+
+    // Test 4: CheckerConfigBuilder with enable_builtin_judge(false)
+    let config = hydra_checker::CheckerConfig::builder(
+        Url::parse("http://127.0.0.1:8080").unwrap(),
+        Url::parse("https://127.0.0.1:8080").unwrap(),
+        "token",
+    )
+    .enable_builtin_judge(false)
+    .enable_third_party_judges(false)
+    .add_judge(tp1.clone())
+    .build()
+    .await
+    .unwrap();
+
+    let reports = config.judge_pool.get_health_reports();
+    let builtin_rep = reports.iter().find(|r| r.id == "builtin").expect("builtin in reports");
+    assert!(!builtin_rep.enabled, "Builtin judge report must show enabled: false");
+
+    let s = config.judge_pool.select_judge().expect("judge selected");
+    assert_eq!(s.id, "tp1", "Must select third party judge when builtin is disabled");
+}

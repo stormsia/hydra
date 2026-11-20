@@ -61,6 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     builder = builder.concurrency_limit(config.checker_concurrency);
     builder = builder.enable_third_party_judges(config.enable_third_party_judges);
+    builder = builder.enable_builtin_judge(config.enable_builtin_judge);
     if config
         .judge_selection_strategy
         .eq_ignore_ascii_case("round_robin")

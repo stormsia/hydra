@@ -81,6 +81,7 @@ hydra_checker/
 | `CHECKER_MAX_READ_BYTES` | usize | `8192` | Максимальный размер тела ответа |
 | `CHECKER_LOCAL_BIND_IP` | IpAddr | — | Привязка сокетов к интерфейсу |
 | `CHECKER_REAL_IP` | IpAddr | — | Собственный публичный IP адрес |
+| `ENABLE_BUILTIN_JUDGE` | bool | `true` | Включение встроенного/основного судьи в пул |
 | `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | Использование пула сторонних судей |
 | `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | Стратегия балансировки пула судей |
 | `ADDITIONAL_JUDGES` | String | — | Список дополнительных эхо-серверов судей |

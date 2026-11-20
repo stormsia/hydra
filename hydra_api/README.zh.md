@@ -82,6 +82,7 @@ hydra_api/
 | `JUDGE_HTTPS_URL` | String | `http://127.0.0.1:8080` | 用于 HTTPS 隧道检测的回显裁判地址 |
 | `JUDGE_SECRET_TOKEN` | String | `hydra_secret_token` | 用于验证裁判合法回显的静态令牌 |
 | `JUDGE_SECRET_KEY` | String | — | HMAC 密钥（用于每日动态轮替令牌验证） |
+| `ENABLE_BUILTIN_JUDGE` | bool | `auto` | 是否将内置裁判节点加入检测池（自动：若开启 EMBED_JUDGE 或自定义 URL 则为 true，否则为 false） |
 | `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | 是否启用内置第三方公共裁判节点池 |
 | `JUDGE_HEALTH_CHECK_INTERVAL_SECS` | u64 | `30` | 裁判节点探活与可用性检查间隔（秒） |
 | `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | 活跃裁判节点优选策略（最低延迟等） |

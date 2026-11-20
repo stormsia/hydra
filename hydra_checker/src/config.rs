@@ -134,6 +134,11 @@ impl CheckerConfig {
             builder = builder.enable_third_party_judges(enable);
         }
 
+        if let Ok(val) = std::env::var("ENABLE_BUILTIN_JUDGE") {
+            let enable = val.eq_ignore_ascii_case("true") || val == "1";
+            builder = builder.enable_builtin_judge(enable);
+        }
+
         if let Ok(val) = std::env::var("JUDGE_SELECTION_STRATEGY") {
             if val.eq_ignore_ascii_case("round_robin") || val.eq_ignore_ascii_case("roundrobin") {
                 builder = builder.judge_selection_strategy(JudgeSelectionStrategy::RoundRobin);
@@ -372,6 +377,7 @@ pub struct CheckerConfigBuilder {
     real_ip: Option<IpAddr>,
     max_read_bytes: usize,
     enable_third_party_judges: bool,
+    enable_builtin_judge: bool,
     judge_selection_strategy: JudgeSelectionStrategy,
     custom_judges: Vec<JudgeEndpoint>,
     custom_judge_pool: Option<Arc<JudgePool>>,
@@ -399,6 +405,7 @@ impl CheckerConfigBuilder {
             real_ip: None,
             max_read_bytes: 8192,
             enable_third_party_judges: true,
+            enable_builtin_judge: true,
             judge_selection_strategy: JudgeSelectionStrategy::LowestLatency,
             custom_judges: Vec::new(),
             custom_judge_pool: None,
@@ -474,6 +481,12 @@ impl CheckerConfigBuilder {
     #[inline]
     pub fn enable_third_party_judges(mut self, enable: bool) -> Self {
         self.enable_third_party_judges = enable;
+        self
+    }
+
+    #[inline]
+    pub fn enable_builtin_judge(mut self, enable: bool) -> Self {
+        self.enable_builtin_judge = enable;
         self
     }
 
@@ -560,11 +573,12 @@ impl CheckerConfigBuilder {
         let judge_pool = if let Some(pool) = self.custom_judge_pool {
             pool
         } else {
-            let builtin = JudgeEndpoint::builtin(
+            let mut builtin = JudgeEndpoint::builtin(
                 self.judge_http_url.clone(),
                 self.judge_https_url.clone(),
                 Some(self.judge_expected_token.clone()),
             );
+            builtin.enabled = self.enable_builtin_judge;
             let mut third_party = if self.enable_third_party_judges {
                 JudgeEndpoint::default_third_party_judges()
             } else {

@@ -281,6 +281,9 @@ impl JudgePool {
         let mut probe_futures = Vec::with_capacity(entries_snapshot.len());
 
         for entry in &entries_snapshot {
+            if !entry.endpoint.enabled {
+                continue;
+            }
             let ep = entry.endpoint.clone();
             let tls = tls_connector.clone();
             probe_futures.push(async move {
@@ -328,6 +331,20 @@ impl JudgePool {
 
         reports.sort_by_key(|r| r.priority);
         reports
+    }
+
+    /// Check if there is at least one healthy and enabled judge in the pool
+    pub fn has_healthy_judges(&self) -> bool {
+        let entries = self.entries.read().unwrap();
+        entries.iter().any(|e| {
+            e.endpoint.enabled && e.health.read().unwrap().status == JudgeHealthStatus::Healthy
+        })
+    }
+
+    /// Check if there is at least one enabled judge in the pool
+    pub fn has_enabled_judges(&self) -> bool {
+        let entries = self.entries.read().unwrap();
+        entries.iter().any(|e| e.endpoint.enabled)
     }
 
     /// Background loop that periodically probes all judges and updates their availability

@@ -81,6 +81,7 @@ hydra_checker/
 | `CHECKER_MAX_READ_BYTES` | usize | `8192` | Maximum response body buffer size |
 | `CHECKER_LOCAL_BIND_IP` | IpAddr | — | Outbound socket binding IP interface |
 | `CHECKER_REAL_IP` | IpAddr | — | Host public IP for anonymity comparison |
+| `ENABLE_BUILTIN_JUDGE` | bool | `true` | Enable built-in/primary judge in pool |
 | `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | Enable built-in third-party judge pool |
 | `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | Judge selection strategy |
 | `ADDITIONAL_JUDGES` | String | — | Additional comma-separated judge URLs |

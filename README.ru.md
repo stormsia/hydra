@@ -335,6 +335,7 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
 | `JUDGE_SECRET_TOKEN` | `String` | `hydra_secret_token` | Нет | Статический проверочный токен верификации эхо-ответа. |
 | `CHECKER_CONCURRENCY` | `usize` | `5000` | Нет | Лимит одновременно выполняемых параллельных сетевых проверок. |
 | `CHECKER_REAL_IP` | `IpAddr` | *(нет)* | Нет | Публичный IP хоста чекера (для точного детекта Transparent прокси). |
+| `ENABLE_BUILTIN_JUDGE` | `bool` | *(auto)* | Нет | Включение встроенного судьи в пул проверок (true при EMBED_JUDGE или кастомном URL, иначе false). |
 | `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | Нет | Включение пула внешних судей (Httpbingo, Httpbin) для failover. |
 | `JUDGE_SELECTION_STRATEGY` | `String` | `lowest_latency` | Нет | Стратегия выбора судьи: `lowest_latency`, `priority`, `round_robin`. |
 | `GEOIP_AUTO_UPDATE` | `bool` | `true` | Нет | Автоматическая загрузка и обновление баз MaxMind по HTTP ETag. |

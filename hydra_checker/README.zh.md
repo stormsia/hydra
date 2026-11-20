@@ -81,6 +81,7 @@ hydra_checker/
 | `CHECKER_MAX_READ_BYTES` | usize | `8192` | 裁判响应报文最大读取字节限制 |
 | `CHECKER_LOCAL_BIND_IP` | IpAddr | — | 出站套接字本地网卡绑定 IP |
 | `CHECKER_REAL_IP` | IpAddr | — | 本机外网出口公网 IP |
+| `ENABLE_BUILTIN_JUDGE` | bool | `true` | 是否在检测池中启用内置/主裁判节点 |
 | `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | 是否启用内置第三方公共裁判节点池 |
 | `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | 活跃裁判节点负载均衡优选策略 |
 | `ADDITIONAL_JUDGES` | String | — | 附加的第三方裁判服务节点地址列表（逗号分隔） |

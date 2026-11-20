@@ -82,6 +82,7 @@ hydra_api/
 | `JUDGE_HTTPS_URL` | String | `http://127.0.0.1:8080` | URL эхо-сервера HTTPS проверок |
 | `JUDGE_SECRET_TOKEN` | String | `hydra_secret_token` | Статический токен верификации судьи |
 | `JUDGE_SECRET_KEY` | String | — | HMAC-ключ суточной ротации токенов |
+| `ENABLE_BUILTIN_JUDGE` | bool | `auto` | Включение встроенного судьи в пул проверок (true при EMBED_JUDGE/кастомном URL, иначе false) |
 | `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | Включение пула сторонних судей |
 | `JUDGE_HEALTH_CHECK_INTERVAL_SECS` | u64 | `30` | Интервал проверки доступности судей |
 | `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | Стратегия выбора рабочего судьи |

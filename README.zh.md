@@ -335,6 +335,7 @@ curl -X POST http://127.0.0.1:3000/api/v1/proxies/report-fail \
 | `JUDGE_SECRET_TOKEN` | `String` | `hydra_secret_token` | 否 | 用于校验 Judge 响应内容的静态安全签名 Token。 |
 | `CHECKER_CONCURRENCY` | `usize` | `5000` | 否 | 网络检测协程最大并发处理上限。 |
 | `CHECKER_REAL_IP` | `IpAddr` | *(自动)* | 否 | 宿主机公网真实出口 IP（用于高灵敏度识别 Transparent 透明代理）。 |
+| `ENABLE_BUILTIN_JUDGE` | `bool` | *(自动)* | 否 | 是否将内置裁判节点加入检测池（若开启 EMBED_JUDGE 或自定义 URL 则默认为 true，否则为 false）。 |
 | `ENABLE_THIRD_PARTY_JUDGES` | `bool` | `true` | 否 | 是否启用公网第三方回显节点（如 Httpbingo）进行故障转移容灾。 |
 | `JUDGE_SELECTION_STRATEGY` | `String` | `lowest_latency` | 否 | 裁判选择路由算法：`lowest_latency`, `priority`, `round_robin`。 |
 | `GEOIP_AUTO_UPDATE` | `bool` | `true` | 否 | 是否在后台利用 HTTP ETag 自动增量下载最新 MaxMind 地理库。 |

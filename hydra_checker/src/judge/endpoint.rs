@@ -40,6 +40,12 @@ impl JudgeEndpoint {
         }
     }
 
+    #[inline]
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
     pub fn third_party(
         id: impl AsRef<str>,
         name: impl AsRef<str>,

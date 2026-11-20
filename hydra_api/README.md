@@ -82,6 +82,7 @@ All settings are read from the environment or `.env` file. All endpoints require
 | `JUDGE_HTTPS_URL` | String | `http://127.0.0.1:8080` | Judge echo server URL for HTTPS tunnel checks |
 | `JUDGE_SECRET_TOKEN` | String | `hydra_secret_token` | Static verification token for judge response |
 | `JUDGE_SECRET_KEY` | String | — | HMAC key for rolling daily secret tokens |
+| `ENABLE_BUILTIN_JUDGE` | bool | `auto` | Enable builtin judge in selection pool (auto: true if embedded/custom URL, else false) |
 | `ENABLE_THIRD_PARTY_JUDGES` | bool | `true` | Enable built-in third-party judge endpoints |
 | `JUDGE_HEALTH_CHECK_INTERVAL_SECS` | u64 | `30` | Interval between judge health check sweeps |
 | `JUDGE_SELECTION_STRATEGY` | String | `lowest_latency` | Strategy for choosing active judge endpoint |

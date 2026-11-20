@@ -43,6 +43,7 @@ async fn spawn_test_server() -> (String, String) {
         judge_secret_key: None,
         checker_concurrency: 50,
         enable_third_party_judges: true,
+        enable_builtin_judge: true,
         judge_health_check_interval_secs: 30,
         judge_selection_strategy: "priority".to_string(),
         additional_judges: None,

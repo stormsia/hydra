@@ -20,6 +20,7 @@ pub struct ApiConfig {
 
     // Third-party Judges & Availability
     pub enable_third_party_judges: bool,
+    pub enable_builtin_judge: bool,
     pub judge_health_check_interval_secs: u64,
     pub judge_selection_strategy: String,
     pub additional_judges: Option<String>,
@@ -78,6 +79,15 @@ impl ApiConfig {
             .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
             .unwrap_or(true);
 
+        let embed_judge = env::var("EMBED_JUDGE")
+            .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+            .unwrap_or(false);
+
+        let enable_builtin_judge = match env::var("ENABLE_BUILTIN_JUDGE") {
+            Ok(v) => v.eq_ignore_ascii_case("true") || v == "1",
+            Err(_) => embed_judge || (judge_http_url != "http://127.0.0.1:8080"),
+        };
+
         let judge_health_check_interval_secs: u64 = env::var("JUDGE_HEALTH_CHECK_INTERVAL_SECS")
             .unwrap_or_else(|_| "30".to_string())
             .parse()
@@ -87,10 +97,6 @@ impl ApiConfig {
             env::var("JUDGE_SELECTION_STRATEGY").unwrap_or_else(|_| "lowest_latency".to_string());
 
         let additional_judges = env::var("ADDITIONAL_JUDGES").ok();
-
-        let embed_judge = env::var("EMBED_JUDGE")
-            .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
-            .unwrap_or(false);
 
         let embed_judge_port: u16 = env::var("EMBED_JUDGE_PORT")
             .unwrap_or_else(|_| "8080".to_string())
@@ -161,6 +167,7 @@ impl ApiConfig {
             judge_secret_key,
             checker_concurrency,
             enable_third_party_judges,
+            enable_builtin_judge,
             judge_health_check_interval_secs,
             judge_selection_strategy,
             additional_judges,
@@ -256,6 +263,7 @@ mod tests {
             judge_secret_key: None,
             checker_concurrency: 5000,
             enable_third_party_judges: true,
+            enable_builtin_judge: false,
             judge_health_check_interval_secs: 30,
             judge_selection_strategy: "lowest_latency".to_string(),
             additional_judges: None,
