@@ -257,8 +257,14 @@ pub async fn query_proxies(
     }
 
     if let Some(ref proto) = filter.protocol {
-        params.push(proto.clone().into());
-        query.push_str(&format!("AND p.protocol = ?{} ", params.len()));
+        if proto.eq_ignore_ascii_case("https") {
+            query.push_str("AND (p.protocol = 'https' OR (p.protocol = 'http' AND p.supports_https = 1)) ");
+        } else if proto.eq_ignore_ascii_case("http") {
+            query.push_str("AND (p.protocol = 'http' OR p.protocol IS NULL) ");
+        } else {
+            params.push(proto.clone().into());
+            query.push_str(&format!("AND p.protocol = ?{} ", params.len()));
+        }
     }
 
     if let Some(ref anon) = filter.anon {
@@ -404,12 +410,18 @@ pub async fn query_proxies(
             0.0
         };
 
+        let effective_protocol = if state_val == 1 && protocol.is_none() {
+            Some("http".to_string())
+        } else {
+            protocol
+        };
+
         items.push(ProxyShortItem {
             id,
             ip: ip_val,
             port: port_val as u16,
             url,
-            protocol,
+            protocol: effective_protocol,
             has_auth,
             auth_user,
             auth_pass,

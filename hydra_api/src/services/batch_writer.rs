@@ -227,7 +227,7 @@ pub async fn flush_batch(
 
         if cr.is_alive {
             let next_check = now + (item.recheck_alive_sec as i64).max(1);
-            let proto = cr.detected_protocol.map(|p| p.as_str());
+            let proto = cr.detected_protocol.map(|p| p.as_str()).unwrap_or("http");
             let anon = cr.anonymity_level.map(|a| a.as_str());
             let out_ip = cr.external_ip.map(|ip| ip.to_string());
             let supports_https = if cr.supports_https { 1i64 } else { 0i64 };

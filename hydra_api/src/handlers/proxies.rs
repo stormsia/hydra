@@ -107,11 +107,13 @@ pub async fn import(
             .prepare(
                 "UPDATE proxies SET
                     protocol = NULL,
+                    state = 0,
+                    next_check_at = ?5,
                     auth_user = COALESCE(?1, auth_user),
                     auth_pass = COALESCE(?2, auth_pass),
                     stability_window_min = ?3,
                     dead_backoff_mult = ?4
-                 WHERE id = ?5;",
+                 WHERE id = ?6;",
             )
             .await
         {
@@ -259,6 +261,7 @@ pub async fn import(
                         parsed.auth_pass.as_deref(),
                         req.policy.stability_window_min as i64,
                         req.policy.dead_backoff_mult as f64,
+                        now,
                         parsed.id.as_str(),
                     ])
                     .await;
@@ -423,7 +426,11 @@ pub async fn get_by_id(
         auth_user: row.auth_user,
         auth_pass: row.auth_pass,
         state: row.state,
-        protocol: row.protocol,
+        protocol: if row.state == crate::models::ProxyState::Alive && row.protocol.is_none() {
+            Some("http".to_string())
+        } else {
+            row.protocol
+        },
         supports_https: row.supports_https,
         out_ip: row.out_ip,
         country: row.country,

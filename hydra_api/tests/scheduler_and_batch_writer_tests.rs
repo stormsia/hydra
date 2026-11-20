@@ -537,3 +537,131 @@ async fn test_continuous_scheduler_pipeline_and_shutdown() {
     let shutdown_result = tokio::time::timeout(Duration::from_secs(3), scheduler_handle).await;
     assert!(shutdown_result.is_ok(), "Scheduler must gracefully shut down within timeout");
 }
+
+#[tokio::test]
+async fn test_autodetect_http_protocol_persistence() {
+    let db = init_db(":memory:").await.unwrap();
+    let conn = db.connect().unwrap();
+    configure_conn(&conn).await.unwrap();
+    let (mut stmt_alive, mut stmt_dead) = prepare_batch_statements(&conn).await.unwrap();
+    let stats = Arc::new(SchedulerStats::default());
+    let now = Utc::now().timestamp();
+
+    // 1. Insert initial cold proxy without protocol
+    let proxy = ProxyRow {
+        id: "45.74.31.47:4069".to_string(),
+        ip: "45.74.31.47".to_string(),
+        port: 4069,
+        auth_user: None,
+        auth_pass: None,
+        state: ProxyState::ColdQueue,
+        protocol: None,
+        supports_https: false,
+        out_ip: None,
+        country: None,
+        asn: None,
+        asn_org: None,
+        anon: None,
+        rtt_tcp_ms: None,
+        rtt_handshake_ms: None,
+        rtt_total_ms: None,
+        connect_timeout_ms: 3000,
+        handshake_timeout_ms: 4000,
+        rw_timeout_ms: 5000,
+        recheck_alive_sec: 60,
+        recheck_dead_sec: 300,
+        max_dead_strikes: 2,
+        stability_window_min: 5,
+        dead_backoff_mult: 1.5,
+        checks_total: 0,
+        checks_success: 0,
+        dead_strikes: 0,
+        last_error: None,
+        stability_pct: 0.0,
+        recent_checks: None,
+        remark: None,
+        first_seen_at: now,
+        last_checked_at: None,
+        next_check_at: now,
+    };
+    insert_proxy_if_not_exists(&conn, &proxy, false).await.unwrap();
+
+    let p_before = get_proxy_by_id(&conn, &proxy.id).await.unwrap().unwrap();
+    assert_eq!(p_before.protocol, None);
+
+    // 2. Simulate successful check result detecting Http
+    let cr_alive = CheckResult {
+        target_host: TargetHost::parse(&proxy.ip),
+        target_port: proxy.port,
+        is_alive: true,
+        detected_protocol: Some(ProxyProtocol::Http),
+        anonymity_level: Some(AnonymityLevel::Anonymous),
+        external_ip: Some("207.180.222.221".parse().unwrap()),
+        metrics: CheckMetrics {
+            tcp_connect_rtt_ms: 201,
+            handshake_rtt_ms: 154,
+            total_rtt_ms: 653,
+        },
+        supports_https: true,
+        error_reason: None,
+    };
+    let meta = CheckResultWithMeta {
+        proxy_id: proxy.id.clone(),
+        result: cr_alive,
+        geoip: GeoIpResult {
+            country: Some("FR".to_string()),
+            asn: Some(51167),
+            asn_org: Some("Contabo GmbH".to_string()),
+        },
+        recheck_alive_sec: proxy.recheck_alive_sec,
+        recheck_dead_sec: proxy.recheck_dead_sec,
+        max_dead_strikes: proxy.max_dead_strikes,
+        current_strikes: 0,
+        stability_window_min: proxy.stability_window_min,
+        dead_backoff_mult: proxy.dead_backoff_mult,
+        recent_checks: None,
+    };
+    let mut buf = vec![meta];
+    flush_batch(&mut buf, &conn, &mut stmt_alive, &mut stmt_dead, &stats).await;
+
+    // Check after: protocol must be Some("http")
+    let p_after = get_proxy_by_id(&conn, &proxy.id).await.unwrap().unwrap();
+    assert_eq!(p_after.state, ProxyState::Alive);
+    assert_eq!(p_after.protocol, Some("http".to_string()));
+    assert!(p_after.supports_https);
+
+    // 3. When re-imported with ignore_protocol: true, state becomes ColdQueue (0)
+    // and next_check_at is scheduled immediately so cascade auto-detect re-runs cleanly.
+    let stmt_update_ignore = conn
+        .prepare(
+            "UPDATE proxies SET
+                protocol = NULL,
+                state = 0,
+                next_check_at = ?5,
+                auth_user = COALESCE(?1, auth_user),
+                auth_pass = COALESCE(?2, auth_pass),
+                stability_window_min = ?3,
+                dead_backoff_mult = ?4
+             WHERE id = ?6;",
+        )
+        .await
+        .unwrap();
+
+    stmt_update_ignore
+        .execute(libsql::params![
+            Option::<&str>::None,
+            Option::<&str>::None,
+            5i64,
+            1.5f64,
+            now,
+            proxy.id.as_str(),
+        ])
+        .await
+        .unwrap();
+
+    let p_reimported = get_proxy_by_id(&conn, &proxy.id).await.unwrap().unwrap();
+    // Proxy is queued for auto-detect check:
+    assert_eq!(p_reimported.state, ProxyState::ColdQueue);
+    assert_eq!(p_reimported.protocol, None);
+    assert_eq!(p_reimported.next_check_at, now);
+}

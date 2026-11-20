@@ -669,7 +669,7 @@ async fn run_cascade_attempt<D: Dialer>(
             .await
             {
                 return Ok(HandshakeSuccess {
-                    detected_protocol: ProxyProtocol::Https,
+                    detected_protocol: ProxyProtocol::Http,
                     supports_https: true,
                     judge_payload,
                     handshake_rtt_ms: hs_rtt,
