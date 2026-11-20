@@ -64,7 +64,7 @@ pub async fn scheduler_loop(state: AppState, cancel: CancellationToken) {
                 if current_in_flight >= concurrency {
                     continue;
                 }
-                let available_capacity = (concurrency as usize).saturating_sub(current_in_flight);
+                let available_capacity = concurrency.saturating_sub(current_in_flight);
 
                 let now = Utc::now().timestamp();
                 let conn = match state.connect_db().await {
