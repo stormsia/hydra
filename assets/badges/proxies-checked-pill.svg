@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="188" height="24" viewBox="0 0 188 24" fill="none" role="img" aria-label="proxies checked hydra">
+  <title>proxies checked hydra</title>
+  <defs>
+    <linearGradient id="pillBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a101d"/>
+      <stop offset="100%" stop-color="#030712"/>
+    </linearGradient>
+    <linearGradient id="pillBorder" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#00f2fe" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="hydraPillGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    <filter id="pillGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="0.75" y="0.75" width="186.5" height="22.5" rx="11.25" fill="url(#pillBg)"/>
+  <rect x="0.75" y="0.75" width="186.5" height="22.5" rx="11.25" stroke="url(#pillBorder)" stroke-width="1.2"/>
+
+  
+  <g transform="translate(7, 4) scale(0.078)">
+    <polygon points="128,30 212.87,79 212.87,177 128,226 43.13,177 43.13,79" 
+             fill="none" stroke="#38bdf8" stroke-width="8" opacity="0.35" stroke-dasharray="16,12" />
+    <circle cx="128" cy="180" r="16" fill="#38bdf8" />
+    <path d="M 128,172 L 128,68" fill="none" stroke="url(#hydraPillGrad)" stroke-width="14" stroke-linecap="round" />
+    <path d="M 122,168 C 104,150 78,132 78,88" fill="none" stroke="url(#hydraPillGrad)" stroke-width="14" stroke-linecap="round" />
+    <path d="M 134,168 C 152,150 178,132 178,88" fill="none" stroke="url(#hydraPillGrad)" stroke-width="14" stroke-linecap="round" />
+    <path d="M 78,86 L 128,66 L 178,86" fill="none" stroke="#38bdf8" stroke-width="6" stroke-dasharray="10,10" opacity="0.8" />
+    <circle cx="128" cy="66" r="16" fill="#ffffff" stroke="#38bdf8" stroke-width="8" />
+    <circle cx="78" cy="86" r="14" fill="#ffffff" stroke="#00f2fe" stroke-width="7" />
+    <circle cx="178" cy="86" r="14" fill="#ffffff" stroke="#10b981" stroke-width="7" />
+  </g>
+
+
+  <line x1="120" y1="6" x2="120" y2="18" stroke="#1e293b" stroke-width="1"/>
+
+  <text x="29" y="16" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif" font-size="11" font-weight="400" fill="#94a3b8" letter-spacing="0.2">proxies checked</text>
+  <text x="127" y="16" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif" font-size="11.5" font-weight="700" fill="#00f2fe" letter-spacing="0.4">hydra</text>
+  
+  <circle cx="173" cy="12" r="3.2" fill="#10b981" filter="url(#pillGlow)"/>
+  <circle cx="173" cy="12" r="5" stroke="#10b981" stroke-width="0.8" opacity="0.5"/>
+</svg>

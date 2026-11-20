@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="186" height="20" role="img" aria-label="proxies: checked by hydra">
+  <title>proxies: checked by hydra</title>
+  <defs>
+    <linearGradient id="hydraBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1728"/>
+      <stop offset="100%" stop-color="#062e2c"/>
+    </linearGradient>
+    <linearGradient id="hydraGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+  </defs>
+
+  <g shape-rendering="crispEdges">
+    <rect width="70" height="20" fill="#0f172a"/>
+    <rect x="70" width="116" height="20" fill="url(#hydraBgGrad)"/>
+    <rect x="70" y="19" width="116" height="1" fill="#10b981" opacity="0.85"/>
+  </g>
+
+  
+  <g transform="translate(6, 3) scale(0.068)">
+    <polygon points="128,30 212.87,79 212.87,177 128,226 43.13,177 43.13,79" 
+             fill="none" stroke="#38bdf8" stroke-width="8" opacity="0.35" stroke-dasharray="16,12" />
+    <circle cx="128" cy="180" r="16" fill="#38bdf8" />
+    <path d="M 128,172 L 128,68" fill="none" stroke="url(#hydraGrad)" stroke-width="14" stroke-linecap="round" />
+    <path d="M 122,168 C 104,150 78,132 78,88" fill="none" stroke="url(#hydraGrad)" stroke-width="14" stroke-linecap="round" />
+    <path d="M 134,168 C 152,150 178,132 178,88" fill="none" stroke="url(#hydraGrad)" stroke-width="14" stroke-linecap="round" />
+    <path d="M 78,86 L 128,66 L 178,86" fill="none" stroke="#38bdf8" stroke-width="6" stroke-dasharray="10,10" opacity="0.8" />
+    <circle cx="128" cy="66" r="16" fill="#ffffff" stroke="#38bdf8" stroke-width="8" />
+    <circle cx="78" cy="86" r="14" fill="#ffffff" stroke="#00f2fe" stroke-width="7" />
+    <circle cx="178" cy="86" r="14" fill="#ffffff" stroke="#10b981" stroke-width="7" />
+  </g>
+
+
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
+    <text x="460" y="140" transform="scale(.1)" fill="#cbd5e1" textLength="391">proxies</text>
+    <text x="1280" y="140" transform="scale(.1)" fill="#38bdf8" font-weight="bold" textLength="884">checked by hydra</text>
+  </g>
+</svg>
