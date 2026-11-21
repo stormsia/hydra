@@ -280,6 +280,7 @@ fn mock_health_report(
         status: JudgeHealthStatus::Healthy,
         latency_ms: Some(50),
         observed_ip,
+        observed_ips: observed_ip.into_iter().collect(),
         consecutive_failures: 0,
         consecutive_successes: 1,
         last_checked_at: Some(1000),
@@ -379,4 +380,25 @@ async fn test_dynamic_real_ip_integration() {
         .store(Some(Arc::new(detected_ip)));
 
     assert_eq!(config_with_static.real_ip(), Some(static_ip));
+}
+
+#[test]
+fn test_harvest_discovered_identity_dual_stack() {
+    use hydra_checker::judge::harvest_discovered_identity;
+
+    let v4: IpAddr = "95.160.20.10".parse().unwrap();
+    let v6: IpAddr = "2a01:e5c0:4a38::2".parse().unwrap();
+
+    let mut report = mock_health_report("dual_stack_judge", 1, Some(v4));
+    report.observed_ips = vec![v4, v6];
+
+    let identity = harvest_discovered_identity(&[report]);
+
+    // Both IPv4 and IPv6 must be present in HostIdentity
+    assert!(identity.contains_ip(&v4));
+    assert!(identity.contains_ip(&v6));
+
+    // Ephemeral SLAAC temporary IPv6 in the /64 subnet must also match
+    let slaac_temp_ip: IpAddr = "2a01:e5c0:4a38:0:dead:beef:1234:5678".parse().unwrap();
+    assert!(identity.contains_ip(&slaac_temp_ip));
 }

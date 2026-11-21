@@ -262,11 +262,23 @@ impl JudgePool {
     }
 
     /// Record a successful check for a judge
+    /// Record a successful check for a judge
     pub fn record_success(&self, id: &str, latency_ms: u64, observed_ip: Option<IpAddr>) {
+        self.record_success_multi(id, latency_ms, observed_ip, &[]);
+    }
+
+    /// Record a successful check for a judge with multi-IP (Dual-Stack) discoveries
+    pub fn record_success_multi(
+        &self,
+        id: &str,
+        latency_ms: u64,
+        observed_ip: Option<IpAddr>,
+        observed_ips: &[IpAddr],
+    ) {
         let entries = self.entries.read().unwrap();
         if let Some(entry) = entries.iter().find(|e| e.endpoint.id == id) {
             let mut health = entry.health.write().unwrap();
-            health.record_success(latency_ms, observed_ip);
+            health.record_success_multi(latency_ms, observed_ip, observed_ips);
             health.last_checked_at = Some(current_unix_sec());
         }
     }
@@ -318,7 +330,12 @@ impl JudgePool {
 
         for (id, res) in results {
             match res {
-                Ok(output) => self.record_success(&id, output.latency_ms, output.observed_ip),
+                Ok(output) => self.record_success_multi(
+                    &id,
+                    output.latency_ms,
+                    output.observed_ip,
+                    &output.observed_ips,
+                ),
                 Err(err) => self.record_failure(&id, &err),
             }
         }
@@ -364,6 +381,7 @@ impl JudgePool {
                 status: h.status,
                 latency_ms: h.latency_ms,
                 observed_ip: h.observed_ip,
+                observed_ips: h.observed_ips.clone(),
                 consecutive_failures: h.consecutive_failures,
                 consecutive_successes: h.consecutive_successes,
                 last_checked_at: h.last_checked_at,
@@ -482,6 +500,15 @@ pub fn resolve_consensus_ip(reports: &[JudgeHealthReport]) -> Option<IpAddr> {
 pub fn harvest_discovered_identity(reports: &[JudgeHealthReport]) -> HostIdentity {
     let mut id = HostIdentity::new();
     for r in reports {
+        for &ip in &r.observed_ips {
+            let is_bogon = match ip {
+                IpAddr::V4(v4) => crate::net_filter::is_bogon_or_reserved_v4(v4),
+                IpAddr::V6(v6) => crate::net_filter::is_bogon_or_reserved_v6(v6),
+            };
+            if !is_bogon {
+                id.add_ip(ip);
+            }
+        }
         if let Some(ip) = r.observed_ip {
             let is_bogon = match ip {
                 IpAddr::V4(v4) => crate::net_filter::is_bogon_or_reserved_v4(v4),

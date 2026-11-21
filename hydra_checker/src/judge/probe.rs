@@ -9,11 +9,12 @@ use url::Url;
 use super::endpoint::JudgeEndpoint;
 use super::parse_judge_response;
 
-/// Probe execution output containing measured latency and observed outbound checker IP.
+/// Probe execution output containing measured latency and observed outbound checker IP(s).
 #[derive(Debug, Clone)]
 pub struct ProbeOutput {
     pub latency_ms: u64,
     pub observed_ip: Option<IpAddr>,
+    pub observed_ips: Vec<IpAddr>,
 }
 
 /// Direct probe function to verify availability of a Judge endpoint with optional local IP binding
@@ -72,6 +73,11 @@ pub async fn probe_judge_endpoint(
     probe_judge_endpoint_with_bind(endpoint, timeout, tls_connector, None).await
 }
 
+struct SingleProbeOutput {
+    latency_ms: u64,
+    observed_ip: Option<IpAddr>,
+}
+
 async fn probe_single_url(
     url: &Url,
     expected_token: Option<&str>,
@@ -86,28 +92,110 @@ async fn probe_single_url(
     let default_port = if is_https { 443 } else { 80 };
     let port = url.port().unwrap_or(default_port);
 
+    // Resolve host to socket address (avoid blocking by using spawn_blocking or to_socket_addrs)
+    let host_for_resolve = host.to_string();
+    let addrs = tokio::task::spawn_blocking(move || {
+        (host_for_resolve.as_str(), port)
+            .to_socket_addrs()
+            .map(|iter| iter.collect::<Vec<_>>())
+    })
+    .await
+    .map_err(|e| format!("DNS task join error: {e}"))?
+    .map_err(|e| format!("DNS resolution failed for {host}:{port}: {e}"))?;
+
+    if addrs.is_empty() {
+        return Err(format!("No IP found for {host}"));
+    }
+
+    let mut v4_addrs = Vec::new();
+    let mut v6_addrs = Vec::new();
+
+    for addr in addrs {
+        if addr.is_ipv4() {
+            v4_addrs.push(addr);
+        } else if addr.is_ipv6() {
+            v6_addrs.push(addr);
+        }
+    }
+
+    let has_v4 = !v4_addrs.is_empty();
+    let has_v6 = !v6_addrs.is_empty();
+
+    // Concurrently probe IPv4 and IPv6 to achieve full Dual-Stack host identity discovery
+    let (v4_res, v6_res) = tokio::join!(
+        async {
+            if has_v4 {
+                probe_target_addrs(url, &v4_addrs, expected_token, timeout, tls_connector, local_bind_ip).await.ok()
+            } else {
+                None
+            }
+        },
+        async {
+            if has_v6 {
+                probe_target_addrs(url, &v6_addrs, expected_token, timeout, tls_connector, local_bind_ip).await.ok()
+            } else {
+                None
+            }
+        }
+    );
+
+    let mut observed_ips = Vec::new();
+    let mut min_latency = None;
+
+    if let Some(out) = v4_res {
+        if let Some(ip) = out.observed_ip {
+            observed_ips.push(ip);
+        }
+        min_latency = Some(out.latency_ms);
+    }
+
+    if let Some(out) = v6_res {
+        if let Some(ip) = out.observed_ip
+            && !observed_ips.contains(&ip)
+        {
+            observed_ips.push(ip);
+        }
+        min_latency = Some(match min_latency {
+            Some(prev) => prev.min(out.latency_ms),
+            None => out.latency_ms,
+        });
+    }
+
+    if observed_ips.is_empty() && min_latency.is_none() {
+        return Err(format!("Probe failed to connect to {host}:{port} via both IPv4 and IPv6"));
+    }
+
+    let primary_ip = observed_ips.iter().find(|ip| ip.is_ipv4()).copied().or_else(|| observed_ips.first().copied());
+
+    Ok(ProbeOutput {
+        latency_ms: min_latency.unwrap_or(0),
+        observed_ip: primary_ip,
+        observed_ips,
+    })
+}
+
+async fn probe_target_addrs(
+    url: &Url,
+    candidate_addrs: &[SocketAddr],
+    expected_token: Option<&str>,
+    timeout: Duration,
+    tls_connector: Option<&TlsConnector>,
+    local_bind_ip: Option<IpAddr>,
+) -> Result<SingleProbeOutput, String> {
+    let host = url
+        .host_str()
+        .ok_or_else(|| "Missing host in judge URL".to_string())?;
+    let is_https = url.scheme() == "https";
+    let default_port = if is_https { 443 } else { 80 };
+    let port = url.port().unwrap_or(default_port);
+
     let start = Instant::now();
 
     tokio::time::timeout(timeout, async {
-        // Resolve host to socket address (avoid blocking by using spawn_blocking or to_socket_addrs)
-        let host_for_resolve = host.to_string();
-        let addrs = tokio::task::spawn_blocking(move || {
-            (host_for_resolve.as_str(), port)
-                .to_socket_addrs()
-                .map(|iter| iter.collect::<Vec<_>>())
-        })
-        .await
-        .map_err(|e| format!("DNS task join error: {e}"))?
-        .map_err(|e| format!("DNS resolution failed for {host}:{port}: {e}"))?;
-
-        if addrs.is_empty() {
-            return Err(format!("No IP found for {host}"));
-        }
-
         let mut last_conn_err = None;
         let mut connected_stream = None;
 
-        for addr in addrs {
+        for &addr in candidate_addrs {
             let stream_res = if let Some(bind_ip) = local_bind_ip {
                 if (bind_ip.is_ipv4() && addr.is_ipv4()) || (bind_ip.is_ipv6() && addr.is_ipv6()) {
                     let domain = match addr {
@@ -261,7 +349,7 @@ async fn probe_single_url(
             return Err("Judge payload does not contain an exit IP".to_string());
         }
 
-        Ok(ProbeOutput {
+        Ok(SingleProbeOutput {
             latency_ms: start.elapsed().as_millis() as u64,
             observed_ip,
         })

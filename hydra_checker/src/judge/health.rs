@@ -26,6 +26,7 @@ pub struct JudgeHealth {
     pub last_checked_at: Option<u64>,
     pub latency_ms: Option<u64>,
     pub observed_ip: Option<IpAddr>,
+    pub observed_ips: Vec<IpAddr>,
     pub consecutive_failures: u32,
     pub consecutive_successes: u32,
     pub last_error: Option<CompactString>,
@@ -34,12 +35,29 @@ pub struct JudgeHealth {
 impl JudgeHealth {
     /// Record a successful check/probe, updating latency and optional observed IP
     pub fn record_success(&mut self, latency_ms: u64, observed_ip: Option<IpAddr>) {
+        self.record_success_multi(latency_ms, observed_ip, &[]);
+    }
+
+    /// Record a successful check/probe, updating latency and multi-IP discoveries
+    pub fn record_success_multi(
+        &mut self,
+        latency_ms: u64,
+        observed_ip: Option<IpAddr>,
+        observed_ips: &[IpAddr],
+    ) {
         self.status = JudgeHealthStatus::Healthy;
         self.consecutive_successes += 1;
         self.consecutive_failures = 0;
         self.latency_ms = Some(latency_ms);
+        if !observed_ips.is_empty() {
+            self.observed_ips = observed_ips.to_vec();
+        } else if let Some(ip) = observed_ip {
+            self.observed_ips = vec![ip];
+        }
         if observed_ip.is_some() {
             self.observed_ip = observed_ip;
+        } else if let Some(ip) = self.observed_ips.first() {
+            self.observed_ip = Some(*ip);
         }
     }
 }
@@ -51,6 +69,7 @@ impl Default for JudgeHealth {
             last_checked_at: None,
             latency_ms: None,
             observed_ip: None,
+            observed_ips: Vec::new(),
             consecutive_failures: 0,
             consecutive_successes: 0,
             last_error: None,
@@ -72,6 +91,7 @@ pub struct JudgeHealthReport {
     pub status: JudgeHealthStatus,
     pub latency_ms: Option<u64>,
     pub observed_ip: Option<IpAddr>,
+    pub observed_ips: Vec<IpAddr>,
     pub consecutive_failures: u32,
     pub consecutive_successes: u32,
     pub last_checked_at: Option<u64>,
