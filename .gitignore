@@ -88,3 +88,8 @@ $RECYCLE.BIN/
 *.sublime-workspace
 *.sublime-project
 .fleet/
+
+# ==============================================================================
+# Local AI & Design Documentation
+# ==============================================================================
+DESIGN_SYSTEM.md
